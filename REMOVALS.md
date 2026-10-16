@@ -10,8 +10,8 @@ the code or still need verification.
 - [x] Remove daemon activity pings and screen-view claim bookkeeping.
 - [x] Remove frontend event reporting, visit tracking, and tracking listeners.
 - [x] Remove the telemetry capture HTTP endpoint.
-- [ ] Remove the artifact/docbank dependency path that still brings in PostHog.
-- [ ] Verify PostHog is absent from the resolved dependencies and linked binary.
+- [x] Remove the artifact/docbank dependency path that brought in PostHog.
+- [x] Verify PostHog is absent from the resolved dependencies and linked binary.
 
 Keep the installation identity for now. Despite its historical
 `telemetry-install-id` filename, the archive also uses it for source-machine
@@ -34,8 +34,10 @@ identity. Any later migration must preserve existing attribution.
 - [ ] Remove hosted raw sync, remote replication, and remote-server connectors.
 - [ ] Remove PostgreSQL and ClickHouse backends and their drivers.
 - [ ] Remove the DuckDB mirror and native library dependency.
-- [ ] Remove artifact-folder exchange and docbank services after tracing their
-      consumers. Preserve the SQLite conversation-export interface.
+- [x] Remove artifact-folder exchange, raw archive vault, and docbank services.
+      Preserve the SQLite conversation-export interface.
+- [x] Remove hosted raw PostgreSQL provisioning, serving, and reparse entry points.
+      Raw protocol/client packages remain pending the remote-sync removal.
 - [ ] Remove reverse-proxy/Caddy management and public-listener configuration.
 
 Local discovery, file watching, incremental import, reconciliation, and SQLite

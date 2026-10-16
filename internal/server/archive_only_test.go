@@ -3,7 +3,6 @@ package server
 import (
 	"archive/zip"
 	"bytes"
-	"context"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.kenn.io/agentsview/internal/artifact"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/remotesync"
 	"go.kenn.io/agentsview/internal/testjsonl"
@@ -49,12 +47,9 @@ func TestArchiveOnlyRejectsManualSync(t *testing.T) {
 		})
 	}
 	f.srv.cfg.AuthToken = "test-token"
-	transferServer := New(f.srv.cfg, f.db, nil, WithArtifactExchangeRunner(func(context.Context, ArtifactExchangeRequest) (artifact.SyncResult, error) {
-		panic("archive-only exchange must not run")
-	}))
 	// Source-transfer requests must fail before resolving roots or touching a target.
-	handler := transferServer.Handler()
-	for _, path := range []string{"/api/v1/remote-sync/manifest", "/api/v1/remote-sync/archive", "/api/v1/artifacts/exchange"} {
+	handler := New(f.srv.cfg, f.db, nil).Handler()
+	for _, path := range []string{"/api/v1/remote-sync/manifest", "/api/v1/remote-sync/archive"} {
 		response := serveJSON(t, handler, http.MethodPost, path, map[string]any{}, func(r *http.Request) {
 			r.Header.Set("Authorization", "Bearer test-token")
 			remotesync.SetProtocolHeader(r.Header)

@@ -7,8 +7,10 @@
   harness/log discovery, ingestion, and SQLite conversation archive.
 - Remove the application telemetry sender, daily reporting, UI tracking calls,
   and telemetry HTTP endpoint. Preserve source-machine identities used by the
-  archive. A separate transitive telemetry dependency through docbank remains
-  for a subsequent removal pass.
-
+  archive.
+- Remove the artifact vault, folder exchange, raw archive backup/recovery, and
+  hosted raw PostgreSQL service, eliminating docbank and its transitive PostHog
+  dependency. Preserve SQLite archive recovery, conversation exports, and local
+  capture bundle validation.
 - Add a fork-specific README and removal checklist. Preserve the original
   upstream README as `README.upstream.md`.

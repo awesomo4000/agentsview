@@ -320,7 +320,7 @@ func TestBackfillRealClaudeCapturesRawBytes(t *testing.T) {
 	store, spec := backfillFixture(t, root)
 	provider, ok := parser.NewProvider(parser.AgentClaude, parser.ProviderConfig{Roots: []string{root}})
 	require.True(t, ok)
-	transport := newBackfillCustody(t)
+	transport := &recordingRawUploadTransport{}
 	p, err := RunBackfill(t.Context(), store, rawcapture.New(store), rawupload.New(store, transport, "device-a"), BackfillOptions{Spec: spec, Providers: []parser.Provider{provider}, BatchSize: 1})
 	require.NoError(t, err)
 	require.True(t, p.Complete)

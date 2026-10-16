@@ -524,7 +524,7 @@ func prepareReplicaServeImpl(
 			return replicaServeStartup{}, err
 		}
 		if pg.RawTenant != "" {
-			return prepareHostedPGServe(appCfg, pg, basePath)
+			return replicaServeStartup{}, fmt.Errorf("hosted raw PostgreSQL serving has been removed from this fork")
 		}
 	}
 

@@ -1,4 +1,4 @@
-package artifact
+package capture
 
 import (
 	"strings"
@@ -31,7 +31,7 @@ func TestValidateRawSource(t *testing.T) {
 		}, true},
 		{"absolute path", &RawSourceRef{
 			Hash: validHash, Size: 1,
-			Path: "/etc/passwd",
+			Path: "/tmp/avlocal-safe-source.jsonl",
 		}, true},
 		{"dotdot path", &RawSourceRef{
 			Hash: validHash, Size: 1,
@@ -47,11 +47,11 @@ func TestValidateRawSource(t *testing.T) {
 		}, true},
 		{"windows drive path", &RawSourceRef{
 			Hash: validHash, Size: 1,
-			Path: "C:/Users/example/session.jsonl",
+			Path: "C:/tmp/avlocal-test/session.jsonl",
 		}, true},
 		{"windows volume-relative path", &RawSourceRef{
 			Hash: validHash, Size: 1,
-			Path: "C:Users/session.jsonl",
+			Path: "C:tmp/session.jsonl",
 		}, true},
 		{"ntfs alternate data stream", &RawSourceRef{
 			Hash: validHash, Size: 1,
@@ -61,9 +61,9 @@ func TestValidateRawSource(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := ValidateRawSource(tc.raw)
+			err := validateRawSource(tc.raw)
 			if tc.wantErr {
-				require.ErrorIs(t, err, ErrArtifactInvalid)
+				require.ErrorIs(t, err, errInvalidRawSource)
 				return
 			}
 			require.NoError(t, err)

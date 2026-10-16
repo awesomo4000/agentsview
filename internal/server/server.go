@@ -200,14 +200,13 @@ type Server struct {
 	// maintenance barrier instead of allowing a CLI to bypass the writer.
 	localCompactRunner LocalCompactRunner
 
-	artifactExchangeRunner ArtifactExchangeRunner
-	rawSyncTenant          string
-	rawSyncDeviceAuth      RawSyncDeviceAuth
-	rawSyncCustody         RawSyncCustody
-	rawSyncStatus          RawSyncStatusReader
-	rawSyncSchemaOnly      bool
-	rawSyncUploads         RawSyncUploads
-	rawSyncJobHealth       RawSyncJobHealth
+	rawSyncTenant     string
+	rawSyncDeviceAuth RawSyncDeviceAuth
+	rawSyncCustody    RawSyncCustody
+	rawSyncStatus     RawSyncStatusReader
+	rawSyncSchemaOnly bool
+	rawSyncUploads    RawSyncUploads
+	rawSyncJobHealth  RawSyncJobHealth
 
 	ensurePricing func(context.Context, *db.DB) error
 }

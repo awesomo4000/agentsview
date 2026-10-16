@@ -24,9 +24,10 @@ Targets include telemetry, update services, online pricing, external UI assets,
 remote storage and sync, web imports, publishing, and external LLM clients.
 Local log-to-SQLite ingestion stays.
 
-The first pass removes AgentsView's own telemetry sender, UI tracking, and
-capture endpoint. External integrations and a transitive PostHog dependency
-through docbank still remain. This is a development fork, not yet an
+Removed so far: application telemetry, UI tracking, the artifact vault and
+folder exchange, raw archive backup/recovery, and the hosted raw PostgreSQL
+service. Removing docbank also removes the transitive PostHog dependency.
+Other external integrations remain. This is a development fork, not yet an
 Internet-independent or privacy-approved release.
 
 ## Build

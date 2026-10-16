@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.kenn.io/agentsview/internal/artifact"
 )
 
 func TestOversizedManifestDoesNotReplaceRecoverableState(t *testing.T) {
@@ -30,7 +29,7 @@ func TestOversizedManifestDoesNotReplaceRecoverableState(t *testing.T) {
 	for i := range state.manifest.Limits.MaxSources {
 		state.manifest.Sources = append(state.manifest.Sources, TranscriptSource{
 			SessionID: fmt.Sprintf("agent-%03d", i),
-			RawSource: artifact.RawSourceRef{
+			RawSource: RawSourceRef{
 				Hash: strings.Repeat("a", 64), Size: 1,
 				MediaType: "application/jsonl",
 				Path: fmt.Sprintf(

@@ -14,11 +14,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.kenn.io/agentsview/internal/db"
-	"go.kenn.io/agentsview/internal/rawarchive"
 )
 
 func TestArchiveModeRecoversInterruptedCompaction(t *testing.T) {
@@ -26,7 +24,7 @@ func TestArchiveModeRecoversInterruptedCompaction(t *testing.T) {
 		doSync(SyncConfig{Host: "host-a.example", Full: true})
 		return
 	}
-	for _, entry := range []string{"serve", "archive", "watch", "backfill", "sync"} {
+	for _, entry := range []string{"serve", "watch", "backfill", "sync"} {
 		for _, primary := range []string{"missing", "unreadable"} {
 			t.Run(entry+"/"+primary, func(t *testing.T) {
 				cfg := testConfigWithClaudeFixture(t)
@@ -83,13 +81,6 @@ func TestArchiveModeRecoversInterruptedCompaction(t *testing.T) {
 					enabled, err := archiveModeAfterRecovery(t.Context(), cfg)
 					require.NoError(t, err)
 					assert.True(t, enabled)
-				case "archive":
-					called := false
-					cmd := &cobra.Command{}
-					cmd.SetContext(t.Context())
-					err = withRawArchive(cmd, func(*rawarchive.Archive) error { called = true; return nil })
-					require.NoError(t, err)
-					assert.True(t, called)
 				case "sync":
 					var requests atomic.Int32
 					remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

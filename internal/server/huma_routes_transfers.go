@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/danielgtaylor/huma/v2"
-	"go.kenn.io/agentsview/internal/artifact"
 	"go.kenn.io/agentsview/internal/remotesync"
 )
 
@@ -21,7 +20,6 @@ func (s *Server) describeTransferRoutes() {
 	}{
 		{"/api/v1/remote-sync/manifest", "Read remote source manifest", "RemoteSync", "application/json", reflect.TypeFor[remotesync.TargetSet](), reflect.TypeFor[remotesync.Manifest](), s.remoteSyncManifestHTTP},
 		{"/api/v1/remote-sync/archive", "Download remote source archive", "RemoteSync", "application/x-tar", reflect.TypeFor[remotesync.ArchiveRequest](), reflect.TypeFor[string](), s.remoteSyncArchiveHTTP},
-		{"/api/v1/artifacts/exchange", "Exchange artifacts with a local folder", "Artifacts", "application/json", reflect.TypeFor[ArtifactExchangeRequest](), reflect.TypeFor[artifact.SyncResult](), s.handleArtifactExchange},
 	} {
 		requestSchema := schemas.Schema(route.request, true, "")
 		responseSchema := schemas.Schema(route.response, true, "")
@@ -55,21 +53,19 @@ func (s *Server) describeTransferRoutes() {
 			op.Responses[status] = &huma.Response{Description: "Request failed", Content: map[string]*huma.MediaType{"text/plain": {Schema: &huma.Schema{Type: "string"}}}}
 		}
 		s.api.OpenAPI().AddOperation(op)
-		if route.tag != "Artifacts" || s.artifactExchangeRunner != nil {
-			s.handleHTTP(op, func(w http.ResponseWriter, r *http.Request) {
-				if err := s.requireSourceSync(r.Context()); err != nil {
-					status := http.StatusInternalServerError
-					if statusErr, ok := errors.AsType[huma.StatusError](err); ok {
-						status = statusErr.GetStatus()
-					}
-					http.Error(w, err.Error(), status)
-					return
+		s.handleHTTP(op, func(w http.ResponseWriter, r *http.Request) {
+			if err := s.requireSourceSync(r.Context()); err != nil {
+				status := http.StatusInternalServerError
+				if statusErr, ok := errors.AsType[huma.StatusError](err); ok {
+					status = statusErr.GetStatus()
 				}
-				route.handler(w, r)
-			})
-			// GET also covers HEAD. Keep these paths out of the SPA fallback
-			// so the native handler can report an unsupported method.
-			s.handleHTTP(&huma.Operation{Method: http.MethodGet, Path: route.path, Hidden: true}, route.handler)
-		}
+				http.Error(w, err.Error(), status)
+				return
+			}
+			route.handler(w, r)
+		})
+		// GET also covers HEAD. Keep these paths out of the SPA fallback
+		// so the native handler can report an unsupported method.
+		s.handleHTTP(&huma.Operation{Method: http.MethodGet, Path: route.path, Hidden: true}, route.handler)
 	}
 }

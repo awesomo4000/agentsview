@@ -166,8 +166,9 @@ tracking calls. It preserves discovery, ingestion, SQLite, and conversation
 exports. The legacy installation identity filenames remain because those IDs
 also identify source machines in the archive.
 
-PostHog remains a transitive dependency through
-`internal/artifact -> go.kenn.io/docbank -> internal/api -> internal/telemetry`.
+The second cut removes the artifact vault, folder exchange, raw archive
+backup/recovery, and hosted raw PostgreSQL service. Removing docbank eliminates
+the transitive PostHog dependency. SQLite archive recovery and export remain.
 Updates, pricing refresh, external fonts, and remote features are still present.
 This is an intermediate development build, not an offline-approved release.
 The fixed port and access-control requirements above remain pending.
@@ -175,7 +176,7 @@ The fixed port and access-control requirements above remain pending.
 The upstream build restores a pricing snapshot and installs frontend packages,
 including a pinned public GitHub dependency on `kenn-io/kit-ui`. Those build
 steps remain intact for baseline comparison. `go mod tidy` completed after the
-telemetry removal; the manifests still include PostHog because of docbank.
+vault removal; docbank and PostHog are no longer in the manifests.
 
 Validation results and the next removal targets are tracked in
 [MINIMIZATION.md](../MINIMIZATION.md).

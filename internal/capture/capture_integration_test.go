@@ -21,7 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.kenn.io/agentsview/internal/artifact"
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/parser"
@@ -1014,7 +1013,7 @@ func TestResetPersistedSourcesRemovesIncompleteAttemptCopies(t *testing.T) {
 			SourcesComplete: true,
 			Sources: []TranscriptSource{{
 				SessionID: "old-session",
-				RawSource: artifact.RawSourceRef{
+				RawSource: RawSourceRef{
 					Path: "claude/projects/project-a/old-session.jsonl",
 				},
 			}},

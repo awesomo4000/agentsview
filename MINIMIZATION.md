@@ -36,8 +36,8 @@ Preserved the installation identity and its historical filenames because the
 archive uses it as the source-machine key. Removing that key would change
 session attribution. It is no longer passed to AgentsView's telemetry sender.
 
-`go mod tidy` completed without changing the manifests. PostHog is still needed
-by this transitive dependency chain:
+At the first checkpoint, `go mod tidy` did not change the manifests. PostHog
+remained through this dependency chain, removed in the second cut below:
 
 ```text
 internal/artifact
@@ -73,11 +73,47 @@ The selected Go tests used the following filter with `-tags fts5` and `-count=1`
 Test(SessionSyncUsesInstallationIdentityAndPreservesHistoricalNames|TelemetryCaptureRouteRemoved|Installation|ConversationExport|ParseClaudeSession_Metadata|ClaudeSessionIdentity)
 ```
 
+## Artifact vault removal
+
+Removed the docbank artifact ledger and folder exchange, raw archive vault
+backup/recovery, and hosted raw PostgreSQL provisioning, serving, and reparse.
+The `archive` command, `sync --target`, and artifact-exchange HTTP endpoint are
+gone, including their generated clients and feature-specific tests.
+
+SQLite archive-mode detection and interrupted-compaction recovery remain.
+Local capture bundles retain the same raw-source wire fields and validation,
+now owned by `internal/capture` instead of the deleted artifact package.
+Conversation export, parsers, local sync, and the UI remain.
+
+`go mod tidy` removed 29 module requirements, reducing the declared total from
+173 to 144. This includes docbank, PostHog, and unused AWS SDK v2, PDF, and MongoDB
+dependencies. Other remote transports and backend dependencies remain.
+
+The embedded-UI build is 169,820,402 bytes, or 161.95 MiB, compared with the
+218,355,602-byte upstream baseline, or 208.24 MiB. This is a cumulative reduction
+of 46.29 MiB, about 22%, including the earlier application telemetry removal.
+Native Tauri packaging and runtime network tracing remain untested.
+
+Validation for this cut:
+
+- `make build`: passed, including the embedded frontend.
+- Focused Go regressions: passed across CLI, server, config, SQLite, parsers,
+  capture, and backfill. Coverage includes source-machine identity, conversation
+  exports, interrupted-compaction recovery, archive-only behavior, raw-source
+  validation, and synthetic Claude backfill.
+- API clients regenerated from the server schema.
+- `npm run check`: passed with zero errors and warnings.
+- `go fmt ./...`, `go vet -tags fts5 ./...`, and compilation of all ordinary
+  Go tests: passed.
+- Retained PostgreSQL integration tests compile with `-tags "fts5 pgtest"`.
+  No PostgreSQL instance was started or tested.
+- `go list -deps ./cmd/agentsview` and linked Go symbols contain no docbank or
+  PostHog packages.
+
 ## Next removals
 
-[REMOVALS.md](REMOVALS.md) owns the removal checklist. Start with the remaining
-artifact/docbank telemetry path, then automatic external requests and remote
-services. Preserve the local discovery-to-SQLite-to-UI path throughout.
+[REMOVALS.md](REMOVALS.md) owns the removal checklist. Continue with automatic
+external requests and remote services. Preserve the local discovery-to-SQLite-to-UI path throughout.
 
 Use the Git diff against `UPSTREAM` as the initial patch history. A repeatable
 upstream-update workflow and release vendoring remain pending.

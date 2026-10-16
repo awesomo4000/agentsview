@@ -10,7 +10,6 @@ import (
 	"io"
 	"time"
 
-	"go.kenn.io/agentsview/internal/artifact"
 	"go.kenn.io/agentsview/internal/export"
 	"go.kenn.io/agentsview/internal/money"
 )
@@ -203,7 +202,7 @@ func DecodeResult(r io.Reader) (Result, error) {
 				"duplicate capture result source session %q", source.SessionID)
 		}
 		seenSourceSessions[source.SessionID] = true
-		if err := artifact.ValidateRawSource(&artifact.RawSourceRef{
+		if err := validateRawSource(&RawSourceRef{
 			Hash: source.SHA256, Size: source.Bytes,
 			MediaType: "application/jsonl",
 		}); err != nil {

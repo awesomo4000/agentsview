@@ -9,8 +9,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-
-	"go.kenn.io/agentsview/internal/artifact"
 )
 
 const (
@@ -23,8 +21,8 @@ const (
 
 // TranscriptSource ties one provider session identity to one raw JSONL file.
 type TranscriptSource struct {
-	SessionID string                `json:"session_id"`
-	RawSource artifact.RawSourceRef `json:"raw_source"`
+	SessionID string       `json:"session_id"`
+	RawSource RawSourceRef `json:"raw_source"`
 }
 
 // TranscriptBundle is the closed manifest for the sensitive, uploadable
@@ -80,7 +78,7 @@ func validateTranscriptBundle(bundle TranscriptBundle, maxSources int) error {
 		if source.SessionID == "" {
 			return errors.New("transcript bundle source session ID is required")
 		}
-		if err := artifact.ValidateRawSource(&source.RawSource); err != nil {
+		if err := validateRawSource(&source.RawSource); err != nil {
 			return fmt.Errorf("invalid transcript source %q: %w", source.SessionID, err)
 		}
 		if source.RawSource.MediaType != "application/jsonl" {

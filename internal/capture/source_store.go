@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strings"
 
-	"go.kenn.io/agentsview/internal/artifact"
 	"go.kenn.io/agentsview/internal/ctxio"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/parser"
@@ -152,7 +151,7 @@ func (s *captureState) persistSourcePaths(
 		}
 		prospective = replaceTranscriptSource(prospective, TranscriptSource{
 			SessionID: sourceSessionID(Provider(s.manifest.Provider), snapshot.Path),
-			RawSource: artifact.RawSourceRef{
+			RawSource: RawSourceRef{
 				Hash: strings.Repeat("0", sha256.Size*2),
 				Size: snapshot.Size, MediaType: "application/jsonl", Path: bundlePath,
 			},
@@ -205,12 +204,12 @@ func (s *captureState) copySource(
 	}
 	record := TranscriptSource{
 		SessionID: sessionID,
-		RawSource: artifact.RawSourceRef{
+		RawSource: RawSourceRef{
 			Hash: digest, Size: snapshot.Size,
 			MediaType: "application/jsonl", Path: bundlePath,
 		},
 	}
-	if err := artifact.ValidateRawSource(&record.RawSource); err != nil {
+	if err := validateRawSource(&record.RawSource); err != nil {
 		return TranscriptSource{}, "", err
 	}
 	return record, destination, nil

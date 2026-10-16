@@ -124,7 +124,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newActivityCommand())
 	root.AddCommand(newPGCommand())
 	root.AddCommand(newRawSyncCommand())
-	root.AddCommand(newArchiveCommand())
 	root.AddCommand(newDuckDBCommand())
 	root.AddCommand(newClickHouseCommand())
 	root.AddCommand(newEmbeddingsCommand())
@@ -386,12 +385,6 @@ func newSyncCommandWithRunner(run func(SyncConfig)) *cobra.Command {
 		GroupID:      groupCore,
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
-		PreRunE: func(cmd *cobra.Command, _ []string) error {
-			if err := validateArtifactSyncConfig(cfg); err != nil {
-				return err
-			}
-			return nil
-		},
 		Run: func(cmd *cobra.Command, args []string) {
 			run(cfg)
 		},
@@ -403,12 +396,6 @@ func newSyncCommandWithRunner(run func(SyncConfig)) *cobra.Command {
 	cmd.Flags().StringVar(
 		&cfg.Host, "host", "",
 		"Configured remote host name",
-	)
-	cmd.Flags().StringVar(
-		&cfg.Target,
-		"target",
-		"",
-		"Exchange normalized session artifacts with a trusted folder",
 	)
 	cmd.Flags().StringVar(
 		&cfg.CPUProfile, "cpuprofile", "",
@@ -691,7 +678,6 @@ func newActivityReportCommand() *cobra.Command {
 func newPGCommand() *cobra.Command {
 	return newReplicaCommand(
 		pgReplica{}, newPGVectorsCommand(), newPGServiceCommand(),
-		newPGHostedProvisionCommand(), newPGRawReparseCommand(),
 	)
 }
 
