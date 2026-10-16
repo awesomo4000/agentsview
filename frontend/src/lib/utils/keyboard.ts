@@ -10,7 +10,6 @@ import { getExportUrl } from "../api/client.js";
 import { SessionsService, type ResumeRequest } from "../api/generated/index";
 import { supportsResume, buildResumeCommand, formatResumeResponseCommand } from "./resume.js";
 import { copyToClipboard } from "./clipboard.js";
-import { reportTelemetry } from "./telemetry.js";
 import { toggleSidebarWithFocus } from "./sidebar-toggle.js";
 import {
   getSessionListElement,
@@ -223,7 +222,6 @@ export function registerShortcuts(opts: ShortcutOptions): () => void {
       e: () => {
         if (sessions.activeSessionId) {
           window.open(getExportUrl(sessions.activeSessionId), "_blank");
-          reportTelemetry("export_run", { format: "html" });
         }
       },
       p: () => {

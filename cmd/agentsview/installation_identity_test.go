@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,7 +11,6 @@ import (
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/service"
-	"go.kenn.io/agentsview/internal/telemetry"
 	"go.kenn.io/agentsview/internal/testjsonl"
 )
 
@@ -57,93 +55,5 @@ func TestSessionSyncUsesInstallationIdentityAndPreservesHistoricalNames(t *testi
 		require.NotNil(t, historical)
 		assert.Equal(t, "old-host", historical.Machine)
 		require.NoError(t, database.Close())
-	}
-}
-
-func TestTelemetryOptionsAllowCoreActionValues(t *testing.T) {
-	t.Setenv(telemetry.EnabledEnv, "0")
-	reporter, err := telemetry.NewReporter(telemetryOptions(config.Config{}))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, reporter.Close()) })
-
-	for _, tc := range []struct {
-		event, property, value string
-	}{
-		{telemetry.EventSessionViewed, "agent", "codex"},
-		{telemetry.EventSessionViewed, "agent", "freebuff"},
-		{telemetry.EventInsightGenerated, "kind", "daily_activity"},
-		{telemetry.EventInsightGenerated, "kind", "agent_analysis"},
-		{telemetry.EventInsightGenerated, "kind", "prompt_maturity_review"},
-	} {
-		t.Run(tc.value, func(t *testing.T) {
-			props, err := reporter.SanitizeProperties(tc.event, map[string]any{tc.property: tc.value})
-			require.NoError(t, err)
-			assert.Equal(t, tc.value, props[tc.property])
-		})
-	}
-}
-
-func TestTelemetryOptionsPassInstallationAge(t *testing.T) {
-	const existingID = "0123456789abcdef0123456789abcdef"
-	tests := []struct {
-		name       string
-		existingID string
-		wantRecent bool
-	}{
-		{name: "fresh install", wantRecent: true},
-		{name: "existing ID without a recorded time", existingID: existingID},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			t.Setenv("AGENTSVIEW_DATA_DIR", dir)
-			t.Setenv("AGENTSVIEW_TELEMETRY_ENABLED", "0")
-			if tc.existingID != "" {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, "telemetry-install-id"), []byte(tc.existingID+"\n"), 0o600))
-			}
-
-			cfg, err := config.LoadMinimal()
-			require.NoError(t, err)
-			opts := telemetryOptions(cfg)
-			assert.Equal(t, cfg.InstallationID, opts.InstallationID)
-			if tc.wantRecent {
-				assert.WithinDuration(t, time.Now(), opts.InstalledAt, time.Minute)
-			} else {
-				assert.Equal(t, tc.existingID, opts.InstallationID)
-				assert.True(t, opts.InstalledAt.IsZero(), "existing installs report without an install age")
-			}
-
-			restarted, err := config.LoadMinimal()
-			require.NoError(t, err)
-			restartedOpts := telemetryOptions(restarted)
-			assert.Equal(t, opts.InstallationID, restartedOpts.InstallationID)
-			assert.True(t, opts.InstalledAt.Equal(restartedOpts.InstalledAt), "restart keeps the recorded creation time")
-		})
-	}
-}
-
-func TestTelemetryOptionsMigratesClaimsOnlyWhenEnabled(t *testing.T) {
-	const legacy = "install-one 2026-10-08 sessions"
-	const converted = `{"version":1,"days":{"[\"install-one\",\"screen_viewed\",\"sessions\"]":["2026-10-08"]}}`
-	for _, tc := range []struct{ enabled, want string }{
-		{"1", converted},
-		{"0", legacy},
-	} {
-		t.Run(tc.enabled, func(t *testing.T) {
-			t.Setenv(telemetry.EnabledEnv, tc.enabled)
-			t.Setenv(telemetry.GenericEnabledEnv, "1")
-			cfg := config.Config{DataDir: t.TempDir(), InstallationID: "install-one"}
-			path := filepath.Join(cfg.DataDir, "telemetry-screen-views")
-			require.NoError(t, os.WriteFile(path, []byte(legacy), 0o600))
-			opts := telemetryOptions(cfg)
-			assert.Equal(t, path, opts.ScreenClaimsPath)
-			data, err := os.ReadFile(path)
-			require.NoError(t, err)
-			if tc.enabled == "1" {
-				assert.JSONEq(t, tc.want, string(data))
-			} else {
-				assert.Equal(t, tc.want, string(data))
-			}
-		})
 	}
 }

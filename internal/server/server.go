@@ -200,9 +200,6 @@ type Server struct {
 	// maintenance barrier instead of allowing a CLI to bypass the writer.
 	localCompactRunner LocalCompactRunner
 
-	// telemetryCapture receives UI telemetry events; nil leaves the route unregistered.
-	telemetryCapture http.Handler
-
 	artifactExchangeRunner ArtifactExchangeRunner
 	rawSyncTenant          string
 	rawSyncDeviceAuth      RawSyncDeviceAuth
@@ -725,7 +722,6 @@ func (s *Server) routes() {
 	s.api = humago.New(s.mux, s.humaConfig())
 	s.registerTypedAPIRoutes()
 	s.registerMemoryRefreshRoute()
-	s.registerTelemetryCaptureRoute()
 
 	if s.pprofEnabled {
 		s.handleHTTP(&huma.Operation{Method: http.MethodGet, Path: "/debug/pprof/", Hidden: true}, httppprof.Index)
@@ -952,7 +948,7 @@ func archiveWriteRequest(r *http.Request) bool {
 	case "/api/v1/settings", "/api/v1/recall/query", "/api/v1/settings/worktree-mappings/preview", "/api/v1/data/strip-images/preview", "/api/v1/memory/refresh", "/api/v1/raw-sync/tokens":
 		return false
 	}
-	for _, prefix := range []string{"/api/v1/config/", "/api/v1/telemetry/", "/api/v1/remote-sync/", "/api/v1/embeddings/", "/api/v1/raw-sync/uploads", "/api/v1/import/claude-ai/sync/results/"} {
+	for _, prefix := range []string{"/api/v1/config/", "/api/v1/remote-sync/", "/api/v1/embeddings/", "/api/v1/raw-sync/uploads", "/api/v1/import/claude-ai/sync/results/"} {
 		if strings.HasPrefix(path, prefix) {
 			return false
 		}

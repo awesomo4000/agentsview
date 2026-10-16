@@ -13,9 +13,6 @@ import AppHeader from "../components/layout/AppHeader.svelte";
 import SidebarToggleButton from "../components/layout/SidebarToggleButton.svelte";
 import { registerShortcuts } from "./keyboard.js";
 import { registerSessionList } from "./arrow-target.js";
-import { reportTelemetry } from "./telemetry.js";
-
-vi.mock("./telemetry.js", () => ({ reportTelemetry: vi.fn() }));
 
 vi.mock("../utils/clipboard.js", () => ({
   copyToClipboard: vi.fn().mockResolvedValue(true),
@@ -1126,15 +1123,14 @@ describe("go to session shortcut", () => {
   });
 });
 
-describe("export shortcut telemetry", () => {
-  it("reports export_run html when e opens the active session's export", () => {
-    vi.mocked(reportTelemetry).mockClear();
+describe("export shortcut", () => {
+  it("opens the active session export", () => {
     vi.spyOn(window, "open").mockReturnValue(null);
     const cleanup = registerShortcuts({ navigateMessage: vi.fn(), navigateUserPrompt: vi.fn() });
     sessions.activeSessionId = "session-1";
     try {
       fireKey("e");
-      expect(reportTelemetry).toHaveBeenCalledExactlyOnceWith("export_run", { format: "html" });
+      expect(window.open).toHaveBeenCalledOnce();
     } finally {
       cleanup();
       sessions.activeSessionId = null;

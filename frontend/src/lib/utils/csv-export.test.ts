@@ -1,8 +1,5 @@
 import { describe, it, expect, vi } from "vite-plus/test";
 import { exportAnalyticsCSV, generateAnalyticsCSV, type AnalyticsData } from "./csv-export.js";
-import { reportTelemetry } from "./telemetry.js";
-
-vi.mock("./telemetry.js", () => ({ reportTelemetry: vi.fn() }));
 
 function emptyData(): AnalyticsData {
   return {
@@ -215,13 +212,31 @@ describe("generateAnalyticsCSV", () => {
 });
 
 describe("exportAnalyticsCSV", () => {
-  it("reports export_run csv", () => {
+  it("downloads the generated CSV", () => {
     URL.createObjectURL = vi.fn(() => "blob:analytics");
     URL.revokeObjectURL = vi.fn();
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
-    exportAnalyticsCSV(emptyData());
+    const data = emptyData();
+    data.activity = {
+      granularity: "day",
+      series: [
+        {
+          date: "2025-01-01",
+          sessions: 1,
+          messages: 2,
+          user_messages: 1,
+          assistant_messages: 1,
+          tool_calls: 0,
+          thinking_messages: 0,
+          by_agent: {},
+        },
+      ],
+    };
+    exportAnalyticsCSV(data);
 
-    expect(reportTelemetry).toHaveBeenCalledExactlyOnceWith("export_run", { format: "csv" });
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce();
+    expect(URL.createObjectURL).toHaveBeenCalledOnce();
+    vi.restoreAllMocks();
   });
 });

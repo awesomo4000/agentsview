@@ -5,10 +5,7 @@ const mocks = vi.hoisted(() => ({
   downloadExport: vi.fn().mockResolvedValue(undefined),
   getMarkdownExportUrl: vi.fn().mockReturnValue("/api/v1/sessions/sess-123/md"),
   copyToClipboard: vi.fn().mockResolvedValue(true),
-  reportTelemetry: vi.fn(),
 }));
-
-vi.mock("../../utils/telemetry.js", () => ({ reportTelemetry: mocks.reportTelemetry }));
 
 vi.mock("../../api/client.js", () => ({
   downloadExport: mocks.downloadExport,
@@ -144,9 +141,6 @@ describe("AppHeader export actions", () => {
     expect(mocks.getMarkdownExportUrl).toHaveBeenCalledWith("sess-123");
     expect(mocks.copyToClipboard).toHaveBeenCalledWith(
       "http://localhost:3000/api/v1/sessions/sess-123/md",
-    );
-    await vi.waitFor(() =>
-      expect(mocks.reportTelemetry).toHaveBeenCalledWith("export_run", { format: "markdown_link" }),
     );
   });
 

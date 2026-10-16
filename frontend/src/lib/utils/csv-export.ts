@@ -5,7 +5,6 @@ import type {
   DbToolsAnalyticsResponse as ToolsAnalyticsResponse,
   DbVelocityResponse as VelocityResponse,
 } from "../api/generated/index.js";
-import { reportTelemetry } from "./telemetry.js";
 
 export interface AnalyticsData {
   from: string;
@@ -145,7 +144,6 @@ function downloadCSV(csv: string, filename: string): void {
 }
 
 export function exportAnalyticsCSV(data: AnalyticsData): void {
-  reportTelemetry("export_run", { format: "csv" });
   const csv = generateAnalyticsCSV(data);
   downloadCSV(csv, `analytics-${data.from}-to-${data.to}.csv`);
 }

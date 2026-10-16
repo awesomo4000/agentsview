@@ -23,7 +23,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
-	"go.kenn.io/agentsview/internal/insight"
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/poller"
 	"go.kenn.io/agentsview/internal/rawderive"
@@ -33,7 +32,6 @@ import (
 	"go.kenn.io/agentsview/internal/server"
 	"go.kenn.io/agentsview/internal/signals"
 	"go.kenn.io/agentsview/internal/sync"
-	"go.kenn.io/agentsview/internal/telemetry"
 )
 
 var (
@@ -44,7 +42,6 @@ var (
 
 const (
 	periodicSyncInterval           = 15 * time.Minute
-	telemetryDailyCheckInterval    = time.Hour
 	unwatchedPollInterval          = 2 * time.Minute
 	watcherBatchDelay              = 500 * time.Millisecond
 	watcherSyncMinInterval         = 5 * time.Second
@@ -311,13 +308,6 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 
 	idleTracker := newDaemonIdleTracker(cfg, stop)
 
-	telemetryReporter := telemetry.NewReporterOrDisabled(telemetryOptions(cfg))
-	defer func() {
-		if err := telemetryReporter.Close(); err != nil {
-			log.Printf("close telemetry: %v", err)
-		}
-	}()
-
 	broadcaster := server.NewBroadcaster(cfg.EventsCoalesceInterval)
 
 	vectorServe, err := setupVectorServing(ctx, cfg, database, idleTracker)
@@ -557,7 +547,6 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 		server.WithIdleTracker(idleTracker),
 		server.WithHTTPRemoteCleanupRegistry(httpRemoteCleanupRegistry),
 		server.WithPprof(opts.Pprof),
-		server.WithTelemetryCapture(telemetryReporter.CaptureHandler()),
 	}
 	if rtOpts.BasePath != "" {
 		srvOpts = append(srvOpts, server.WithBasePath(rtOpts.BasePath))
@@ -696,8 +685,6 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 		)
 	}
 	fmt.Printf("Database: %s\n", cfg.DBPath)
-
-	startTelemetryPings(ctx, telemetryReporter, cfg)
 
 	if vectorServe.Scheduler != nil {
 		go vectorServe.Scheduler.Run(ctx)
@@ -1427,66 +1414,6 @@ func newDaemonIdleTracker(cfg config.Config, stop context.CancelFunc) *server.Id
 		log.Printf("idle timeout elapsed; shutting down daemon")
 		stop()
 	})
-}
-
-func telemetryOptions(cfg config.Config) telemetry.Options {
-	if telemetry.EnabledFromEnv() {
-		if err := cfg.MigrateTelemetryScreenClaims(); err != nil {
-			log.Printf("telemetry screen claims unavailable: %v", err)
-		}
-	}
-	opts := telemetry.Options{
-		InstallationID:   cfg.InstallationID,
-		InstalledAt:      cfg.InstallationCreatedAt,
-		ScreenClaimsPath: cfg.TelemetryScreenClaimsPath(),
-		Version:          version,
-		Commit:           commit,
-	}
-	for _, def := range parser.Registry {
-		opts.AgentTypes = append(opts.AgentTypes, string(def.Type))
-	}
-	// Freebuff shares Codebuff's registry entry but keeps its own agent type.
-	opts.AgentTypes = append(opts.AgentTypes, string(parser.AgentFreebuff))
-	// Canned insights report their template; other insights report their type.
-	for kind, valid := range insight.ValidTypes {
-		if valid && kind != insight.CannedType {
-			opts.InsightKinds = append(opts.InsightKinds, kind)
-		}
-	}
-	for kind, valid := range insight.ValidCannedKinds {
-		if valid {
-			opts.InsightKinds = append(opts.InsightKinds, string(kind))
-		}
-	}
-	return opts
-}
-
-func startTelemetryPings(ctx context.Context, reporter *telemetry.Reporter, cfg config.Config) {
-	if reporter == nil || !reporter.Enabled() {
-		return
-	}
-	go runDailyTelemetryPings(ctx, telemetryDailyCheckInterval, cfg, func() error {
-		return reporter.CaptureDaemonActive(ctx)
-	})
-}
-
-// runDailyTelemetryPings sends daemon_active at most once per installation
-// per UTC day. It checks at start and every interval, so a daemon that runs
-// across midnight UTC reports the new day within one interval, and a daemon
-// that restarts repeatedly finds the day already recorded.
-func runDailyTelemetryPings(ctx context.Context, interval time.Duration, cfg config.Config, send func() error) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		if err := cfg.ClaimDaemonActive(time.Now(), send); err != nil && ctx.Err() == nil {
-			log.Printf("capture telemetry event: %v", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
 }
 
 func mustLoadConfig(cmd *cobra.Command) config.Config {

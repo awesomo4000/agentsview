@@ -88,9 +88,6 @@
   import { m } from "./lib/i18n/index.js";
   import { setAuthToken, getAuthToken, setServerUrl } from "./lib/api/runtime.js";
   import { setupVisibilityHealthCheck } from "./lib/utils/health.js";
-  import { setupAppOpenedReporting } from "./lib/utils/app-opened.js";
-  import { reportTelemetry } from "./lib/utils/telemetry.js";
-  import { setupVisitEndedReporting } from "./lib/utils/visit-ended.js";
   import { registerShortcuts } from "./lib/utils/keyboard.js";
   import { shouldAutoSwitchTranscriptModeToNormal } from "./lib/utils/transcript-mode.js";
   import {
@@ -590,61 +587,6 @@
     });
   });
 
-  // Telemetry: one session_viewed per transcript visit, sent once the
-  // session's metadata hydrates. The store keeps the active id while
-  // another page shows, so leaving the transcript resets the visit.
-  let viewedSessionId: string | null = null;
-  let selectedSessionId: string | null = null;
-  $effect(() => {
-    const route = router.route;
-    const activeId = sessions.activeSessionId;
-    const session = sessions.activeSession;
-    const routedId = router.sessionId;
-    untrack(() => {
-      if (activeId !== selectedSessionId) {
-        selectedSessionId = activeId;
-        viewedSessionId = null;
-      }
-      if (route !== "sessions" || activeId === null) {
-        viewedSessionId = null;
-        return;
-      }
-      // Wait for the URL to name the session, so a stale selection left from another page is not counted.
-      if (session && session.id === activeId && routedId === activeId && activeId !== viewedSessionId) {
-        viewedSessionId = activeId;
-        reportTelemetry("session_viewed", { agent: session.agent });
-      }
-    });
-  });
-
-  function reportScreenView(): void {
-    if (settings.needsAuth && router.route !== "settings") return;
-    const screen = router.route === "token-usage" ? "usage" : router.route;
-    reportTelemetry("screen_viewed", { screen, surface: "web" });
-  }
-
-  $effect(() => {
-    reportScreenView();
-  });
-
-  // Telemetry: one analytics_viewed per analytics page visit; token-usage is the usage page.
-  let lastAnalyticsPage: string | null = null;
-  $effect(() => {
-    const route = router.route;
-    let page: string | null = null;
-    if (route === "usage" || route === "token-usage") {
-      page = "usage";
-    } else if (route === "activity" || route === "trends" || route === "quality") {
-      page = route;
-    }
-    untrack(() => {
-      if (page !== null && page !== lastAnalyticsPage) {
-        reportTelemetry("analytics_viewed", { page });
-      }
-      lastAnalyticsPage = page;
-    });
-  });
-
   // Deep-link: clear the selection when the URL drops its session.
   // Tracks the route alongside the session id: entering bare /sessions
   // from a non-session page leaves the id null both sides, so a
@@ -813,9 +755,6 @@
     sync.loadVersion();
     sync.checkForUpdate();
     sync.startPolling();
-    const appOpenedCleanup = setupAppOpenedReporting();
-    const visitEndedCleanup = setupVisitEndedReporting();
-    window.addEventListener("focus", reportScreenView);
 
     const healthCleanup = setupVisibilityHealthCheck({
       onBackendDegraded: () => sync.markBackendDegraded(),
@@ -827,9 +766,6 @@
       navigateUserPrompt,
     });
     return () => {
-      appOpenedCleanup();
-      visitEndedCleanup();
-      window.removeEventListener("focus", reportScreenView);
       healthCleanup();
       cleanup();
       window.removeEventListener("show-about", showAbout);

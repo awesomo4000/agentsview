@@ -15,7 +15,6 @@ import {
   type ImporterImportStats as ImportStats,
 } from "./generated/index.js";
 import { ApiError, getAuthToken, getGeneratedBase, isRemoteConnection } from "./runtime.js";
-import { reportTelemetry } from "../utils/telemetry.js";
 import type { BrowserHost } from "./browserHost.js";
 
 export interface SyncHandle {
@@ -260,7 +259,6 @@ export async function downloadExport(sessionId: string): Promise<void> {
     SessionsService.getGetApiV1SessionsByIdExportUrl({ id: sessionId }),
     () => SessionsService.getApiV1SessionsByIdExport({ id: sessionId }),
     `session-${sessionId}.html`,
-    "html",
   );
 }
 
@@ -269,7 +267,6 @@ export async function downloadInsightExport(insightId: number): Promise<void> {
     InsightsService.getGetApiV1InsightsByIdExportUrl({ id: insightId }),
     () => InsightsService.getApiV1InsightsByIdExport({ id: insightId }),
     `insight-${insightId}.html`,
-    "insight_html",
   );
 }
 
@@ -277,9 +274,7 @@ async function downloadAuthenticatedExport(
   url: string,
   request: () => Promise<Response>,
   fallbackFilename: string,
-  format: "html" | "insight_html",
 ): Promise<void> {
-  reportTelemetry("export_run", { format });
   const token = getAuthToken();
   if (!token) {
     // Local connection — simple navigation is fine.
@@ -332,12 +327,6 @@ export function generateInsight(
           if (event === "log") onLog?.(JSON.parse(data));
           if (event === "done") {
             const insight: Insight = JSON.parse(data);
-            // A cache hit returns a stored insight without running the generator.
-            if (insight.cache_status !== "hit") {
-              reportTelemetry("insight_generated", {
-                kind: req.type === "llm_canned" ? (req.kind ?? req.type) : req.type,
-              });
-            }
             return insight;
           }
           if (event === "error") throw new Error(JSON.parse(data).message);
