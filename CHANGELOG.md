@@ -9,3 +9,6 @@
   and telemetry HTTP endpoint. Preserve source-machine identities used by the
   archive. A separate transitive telemetry dependency through docbank remains
   for a subsequent removal pass.
+
+- Add a fork-specific README and removal checklist. Preserve the original
+  upstream README as `README.upstream.md`.

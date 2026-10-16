@@ -75,18 +75,9 @@ Test(SessionSyncUsesInstallationIdentityAndPreservesHistoricalNames|TelemetryCap
 
 ## Next removals
 
-1. Trace artifact/docbank consumers and remove the dependency and its embedded
-   telemetry while preserving SQLite conversation export and core UI reads.
-2. Remove update checking/self-update, desktop auto-update, pricing refresh,
-   and external font loads. Preserve the UI typography by bundling fonts.
-3. Remove remote replicas, imports, publishing, and external LLM/embedding
-   clients in separately verified changes. Keep local ingestion and SQLite.
-4. Apply the fixed `127.0.0.1:47831` default and `--port` override across server
-   and desktop launch paths, remove automatic port fallback, and implement the
-   access controls specified in the requirements.
-5. Exercise the retained UI and synthetic ingestion pipeline under denied
-   external networking, then complete the archive/export contract for the
-   approved internal summarizer.
+[REMOVALS.md](REMOVALS.md) owns the removal checklist. Start with the remaining
+artifact/docbank telemetry path, then automatic external requests and remote
+services. Preserve the local discovery-to-SQLite-to-UI path throughout.
 
 Use the Git diff against `UPSTREAM` as the initial patch history. A repeatable
 upstream-update workflow and release vendoring remain pending.
