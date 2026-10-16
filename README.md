@@ -21,12 +21,14 @@ baseline. It describes upstream, including features this fork is removing.
 
 The [removal checklist](REMOVALS.md) tracks completed work and upcoming cuts.
 Targets include telemetry, update services, online pricing, external UI assets,
-remote storage and sync, web imports, publishing, and external LLM clients.
+S3, PostgreSQL, web imports, and publishing. Analytics backends, vectors, MCP,
+SSH/HTTP sync, and internal-model integration remain under review.
 Local log-to-SQLite ingestion stays.
 
 Removed so far: application telemetry, UI tracking, the artifact vault and
 folder exchange, raw archive backup/recovery, and the hosted raw PostgreSQL
 service. Removing docbank also removes the transitive PostHog dependency.
+S3 discovery and ingestion are also removed, including the MinIO client.
 Other external integrations remain. This is a development fork, not yet an
 Internet-independent or privacy-approved release.
 

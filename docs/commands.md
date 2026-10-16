@@ -603,14 +603,8 @@ remote directly. Unknown host names are rejected; ad hoc remotes are not
 supported. `--host` runs an entry with `transport = "ssh"` the same way as an
 HTTP entry; see [SSH Remote Sync](/docs/remote-access/#ssh-remote-sync).
 
-Local sync can also read configured Claude, Codex, and Cursor roots from
-S3-compatible object storage. Add `s3://` entries to `agents.claude.dirs`,
-`agents.codex.dirs`, or `agents.cursor.dirs` in `~/.agentsview/config.toml`,
-then run `agentsview sync` normally. Object storage is treated as a read-only
-session source, using object size and `LastModified` metadata to skip unchanged
-sessions and downloading only objects that need
-parsing. See
-[Configuration — S3-Compatible Session Sources](/docs/configuration/#s3-compatible-session-sources).
+S3 session sources are removed in this fork. Use filesystem roots; configured
+`s3://` roots are rejected. Existing SQLite conversations remain available.
 
 #### Configured Remote Hosts
 

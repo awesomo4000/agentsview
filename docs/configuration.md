@@ -1240,8 +1240,7 @@ homes = ["~/.pi-work/agent", "~/.pi-personal/agent"]
 Homes are additive to defaults, environment overrides, the same table's `dirs`,
 and `[[session_sources]]`. To scan only the listed homes, set `dirs = []` and
 leave directory environment overrides and `session_sources` entries unset. Homes
-must be local directories; use `dirs` for `s3://` roots on providers that
-support S3. Sessions from each home appear under their native provider. Pi's
+must be local directories. Sessions from each home appear under their native provider. Pi's
 `homes` values correspond to `PI_CODING_AGENT_DIR`, not its parent `.pi`
 directory or a direct session directory.
 
@@ -1372,86 +1371,10 @@ See [Filesystem Session Sync](/docs/filesystem-sync/) for multi-machine
 examples, transport safety, ID deduplication, watcher behavior, and the
 comparison with PostgreSQL.
 
-### S3-Compatible Session Sources
+### Removed S3 session sources
 
-Claude, Codex, Cursor, and IcodeMate session roots can also be `s3://` URIs.
-These are the providers whose current formats can be discovered and parsed as
-individual objects; future providers opt in through the same capability. This is
-useful when several machines push their raw session files to object storage and
-one central AgentsView instance reads them without SSH access to those machines.
-
-```toml
-[agents.claude]
-dirs = [
-  "~/.claude/projects",
-  "s3://agent-archive/laptop/raw/claude",
-]
-
-[agents.codex]
-dirs = [
-  "~/.codex/sessions",
-  "s3://agent-archive/laptop/raw/codex",
-]
-
-[agents.cursor]
-dirs = [
-  "~/.cursor/projects",
-  "s3://agent-archive/laptop/raw/cursor",
-]
-
-[agents.icodemate]
-dirs = [
-  "~/.local/share/icodemate",
-  "s3://agent-archive/laptop/raw/icodemate",
-]
-```
-
-S3 sources are read-only inputs to the normal local sync. AgentsView lists
-matching objects, fetches each changed object to a temporary file, parses it
-with the existing per-agent parser, records the original `s3://` URI as
-`file_path`, and removes the temporary file. No persistent local mirror is
-created.
-
-Credentials and endpoint configuration use standard AWS-style environment
-variables:
-
-```bash
-export AWS_ACCESS_KEY_ID=...
-export AWS_SECRET_ACCESS_KEY=...
-export AWS_REGION=us-east-1
-export AWS_S3_ENDPOINT=https://s3.amazonaws.com
-```
-
-`AWS_S3_ENDPOINT` is optional for AWS S3. Set it for S3-compatible services such
-as MinIO, Aliyun OSS, or Cloudflare R2. `http://` endpoints are accepted only
-for loopback hosts such as `localhost` or `127.0.0.1`. For a non-loopback HTTP
-endpoint, set `AGENTSVIEW_ALLOW_INSECURE_S3_ENDPOINT=true`; use that override
-only for trusted private networks because session transcripts travel without
-TLS.
-
-Expected object layouts:
-
-```text
-s3://bucket/.../<machine>/raw/claude/<project>/<uuid>.jsonl
-s3://bucket/.../<machine>/raw/claude/<project>/subagents/.../agent-*.jsonl
-s3://bucket/.../<machine>/raw/codex/2026/06/24/rollout-*.jsonl
-s3://bucket/.../<machine>/raw/cursor/<project>/<uuid>.jsonl
-s3://bucket/.../<machine>/raw/icodemate/<project>/<session>.jsonl
-```
-
-The machine name is derived from the path segment immediately before `raw`. If
-no such segment exists, sessions use the local AgentsView machine label. Codex
-discovery only imports rollout files under the configured root plus a trailing
-slash, so sibling prefixes such as `raw/codex-backup` are ignored.
-
-S3 object `Size`, `LastModified`, and available object fingerprints (`ETag`,
-version ID, and checksum headers) are stored in the session row and used for
-unchanged-object skip checks. A later sync therefore lists object metadata first
-and downloads only objects whose source metadata changed or whose stored parser
-data is stale.
-
-S3 roots are not watched with fsnotify. They are picked up by initial sync,
-manual sync, and the periodic directory scan.
+This fork accepts filesystem session roots only. Configured `s3://` roots are
+rejected. Previously archived conversations remain in SQLite.
 
 ### Worktree Project Mappings
 
@@ -1699,11 +1622,6 @@ The initial daemon poll bootstraps at most the newest 4 MiB of each history file
 and accepts records at most 24 hours old. If AgentsView restarts during a long
 autonomous run whose last persisted prompt is outside either bound, that rollout
 stays hot while its stored session ended within the last 24 hours.
-
-For `s3://` Claude, Codex, and Cursor roots, change detection uses object size,
-`LastModified`, and available object fingerprints such as ETag, version ID, and
-checksums from listing or stat calls. Object content is downloaded only after
-that metadata shows a parse may be needed.
 
 Files that produce no session, such as those with no interactive content, are
 cached in the `skipped_files` table. Source files that are missing or whose

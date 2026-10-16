@@ -91,7 +91,6 @@ func icodemateProviderCapabilities() Capabilities {
 	caps.Source.MultiSessionSource = CapabilitySupported
 	caps.Source.ExcludedSessions = CapabilitySupported
 	caps.Source.ForceReplaceOnParse = CapabilitySupported
-	caps.Source.S3Discovery = CapabilitySupported
 	caps.Content.SessionName = CapabilitySupported
 	caps.Content.GitBranch = CapabilitySupported
 	caps.Content.Subagents = CapabilitySupported

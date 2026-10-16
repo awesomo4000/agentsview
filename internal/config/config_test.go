@@ -1271,17 +1271,6 @@ machine = "archivebox"
 		cfg.SourceMachines[parser.AgentCopilot][absoluteTestPath(t, "/sessions/from-archive")])
 }
 
-func TestLoadFileSessionSourcesPreserveLegacyS3Roots(t *testing.T) {
-	cfg := loadMinimalWithConfig(t, map[string]any{
-		"claude_project_dirs": []string{"s3://session-archive/claude"},
-	})
-
-	assert.Equal(t, []string{"s3://session-archive/claude"},
-		cfg.ResolveDirs(parser.AgentClaude))
-	assert.NotContains(t, cfg.SourceMachines[parser.AgentClaude],
-		"s3://session-archive/claude")
-}
-
 func TestLoadFileSessionSourceDefaultsMachineToInstallationID(t *testing.T) {
 	cfg := loadMinimalWithConfig(t, map[string]any{
 		"session_sources": []map[string]any{{
@@ -1367,7 +1356,7 @@ agent = "copilot"
 dir = "s3://session-archive/copilot"
 machine = "buildbox"
 `,
-			wantErr: "session_sources supports filesystem roots only",
+			wantErr: "S3 sources are not supported in this fork",
 		},
 	}
 
@@ -3181,4 +3170,15 @@ func TestResolveDirs_CodebuffRootEnvVar(t *testing.T) {
 		assert.Equal(t, []string{filepath.Join(dir, "override")},
 			cfg.ResolveDirs(parser.AgentCodebuff))
 	})
+}
+
+func TestLoadRejectsLegacyS3Roots(t *testing.T) {
+	for _, root := range []string{"s3://session-archive/claude", "S3://session-archive/claude"} {
+		t.Run(root, func(t *testing.T) {
+			f := newConfigFixture(t)
+			f.WriteTOML(t, map[string]any{"claude_project_dirs": []string{root}})
+			_, err := LoadMinimal()
+			require.ErrorContains(t, err, "S3 session sources are not supported")
+		})
+	}
 }

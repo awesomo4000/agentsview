@@ -14,3 +14,8 @@
   capture bundle validation.
 - Add a fork-specific README and removal checklist. Preserve the original
   upstream README as `README.upstream.md`.
+- Remove S3 discovery, downloads, sidecar hydration, periodic polling, and the
+  MinIO client. Reject legacy S3 configuration while retaining archived SQLite
+  conversations and local harness ingestion.
+- Record PostgreSQL as a later removal; retain analytics backends, vectors, MCP,
+  SSH/HTTP sync, and model integration pending separate decisions.

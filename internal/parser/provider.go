@@ -736,9 +736,8 @@ type SourceRef struct {
 	// FindSourceRequest, or discovery. It is normally provider-private, with one
 	// defined exception -- a few engine-recognized payload types that the engine
 	// may construct and type-assert to thread in-memory metadata across the
-	// discovery/sync/parse boundary: S3DiscoveredSource (discovery -> sync object
-	// metadata) and MaterializedFileSource (sync -> provider parse of a fetched
-	// S3 temp file). Providers must not depend on either for persisted-row lookup.
+	// discovery/sync/parse boundary, such as MaterializedFileSource for a
+	// supplied local file. Persisted-row lookup must not depend on these payloads.
 	Opaque any
 }
 
@@ -1395,3 +1394,6 @@ func cloneAgentDef(def AgentDef) AgentDef {
 	def.WatchSubdirs = append([]string(nil), def.WatchSubdirs...)
 	return def
 }
+
+// isS3URI recognizes unsupported legacy object roots.
+func isS3URI(root string) bool { return strings.HasPrefix(strings.ToLower(root), "s3://") }

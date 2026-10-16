@@ -228,28 +228,6 @@ func TestCodexParseCompressedRolloutMatchesPlain(t *testing.T) {
 		"memory admission uses decoded bytes while the fingerprint keeps compressed bytes")
 }
 
-func TestCodexS3PreferredFilesKeepsPlainOverCompressed(t *testing.T) {
-	plain := "s3://bucket/host/raw/codex/sessions/2026/06/11/" + compressedDayPrefix + compressedThreadA + ".jsonl"
-	archived := "s3://bucket/host/raw/codex/archived_sessions/" + compressedDayPrefix + compressedThreadA + ".jsonl"
-	files := []DiscoveredFile{
-		{Path: plain + ".zst"},
-		{Path: "s3://bucket/host/raw/codex/sessions/2026/06/11/" + compressedDayPrefix + compressedThreadB + ".jsonl.zst"},
-		{Path: plain},
-		{Path: archived + ".zst"},
-	}
-	kept := codexS3PreferredFiles(files)
-	paths := make([]string, 0, len(kept))
-	for _, file := range kept {
-		paths = append(paths, file.Path)
-	}
-	assert.Equal(t, []string{
-		files[1].Path,
-		plain,
-		archived + ".zst",
-	}, paths, "a compressed object beside its plain one is dropped; a lone compressed object "+
-		"and another copy of the session at a different address stay")
-}
-
 func TestCodexIncrementalParseRefusesCompressedRollout(t *testing.T) {
 	root := t.TempDir()
 	content := codexRolloutContent(compressedThreadA, "no offsets")

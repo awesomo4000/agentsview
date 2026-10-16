@@ -20,7 +20,6 @@ import (
 var (
 	_ Provider                          = (*codexProvider)(nil)
 	_ ActivityHintProvider              = (*codexProvider)(nil)
-	_ S3Provider                        = (*codexProvider)(nil)
 	_ RawCaptureProvider                = (*codexProvider)(nil)
 	_ RawCaptureSourceProvider          = (*codexProvider)(nil)
 	_ StreamingRawCaptureSourceProvider = (*codexProvider)(nil)
@@ -107,9 +106,7 @@ func (f *codexProviderFactory) Definition() AgentDef {
 
 func (f *codexProviderFactory) Capabilities() Capabilities {
 	caps := codexProviderCapabilities()
-	if f.spec.agent == AgentCodex {
-		caps.Source.S3Discovery = CapabilitySupported
-	} else {
+	if f.spec.agent != AgentCodex {
 		caps.RawCapture = RawCaptureCapabilities{}
 	}
 	return caps
@@ -900,12 +897,8 @@ func newCodexSourceSet(agent AgentType, roots []string) codexSourceSet {
 	return codexSourceSet{agent: agent, roots: cleanJSONLRoots(roots)}
 }
 
-// ownsCodexSidecars reports whether this source set's agent is the one that
-// owns Codex's out-of-band files: the session_index.jsonl sidecar and the
-// s3://.../raw/codex/... archive layout. Only Codex does. A fork writes
-// neither, so it must not watch, fan out on, or import them -- importing an
-// s3:// root through the Codex S3 scanner would stamp AgentCodex and silently
-// move the sessions into Codex's identity namespace.
+// ownsCodexSidecars identifies Codex, which owns session_index.jsonl.
+// Format-compatible forks do not write that sidecar.
 func (s codexSourceSet) ownsCodexSidecars() bool {
 	return s.agent == AgentCodex
 }
@@ -933,15 +926,7 @@ func (s codexSourceSet) discoverEachRoot(
 	root string,
 	yield func(SourceRef) error,
 ) error {
-	if strings.HasPrefix(root, "s3://") {
-		if !s.ownsCodexSidecars() {
-			return nil
-		}
-		for _, file := range codexS3PreferredFiles(s3PrefixScan(root, codexS3Scanner())) {
-			if err := yield(s3SourceRefFromDiscoveredFile(root, file)); err != nil {
-				return err
-			}
-		}
+	if isS3URI(root) {
 		return nil
 	}
 	return streamDirectoryTree(ctx, root, func(path string, entry os.DirEntry) error {
@@ -979,23 +964,7 @@ func (s codexSourceSet) discover(
 		if !includeRoot(root) {
 			continue
 		}
-		if strings.HasPrefix(root, "s3://") {
-			// s3:// roots have no local layout to walk: enumerate the objects
-			// directly and carry each one's durable metadata in the Opaque
-			// payload. Each object is its own session keyed by URI, so the
-			// live-over-archived preference (which inspects a local codexSource
-			// layout) does not apply here; only a compressed object beside its
-			// plain one is folded into it.
-			if !s.ownsCodexSidecars() {
-				continue
-			}
-			for _, file := range codexS3PreferredFiles(s3PrefixScan(root, codexS3Scanner())) {
-				source := s3SourceRefFromDiscoveredFile(root, file)
-				if _, ok := byKey[source.Key]; ok {
-					continue
-				}
-				byKey[source.Key] = source
-			}
+		if isS3URI(root) {
 			continue
 		}
 		for _, path := range s.discoverSessionPaths(root) {

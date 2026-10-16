@@ -2728,7 +2728,7 @@ func (c *Config) resolveSessionSources() error {
 		rawDir := strings.TrimSpace(input.Dir)
 		if strings.HasPrefix(strings.ToLower(rawDir), "s3://") {
 			problems = append(problems,
-				fmt.Sprintf("entry %d (%s): dir %q is an S3 root; session_sources supports filesystem roots only, so configure S3 through the existing per-agent directory setting", entry, agent, input.Dir))
+				fmt.Sprintf("entry %d (%s): dir %q is an S3 root; S3 sources are not supported in this fork", entry, agent, input.Dir))
 			continue
 		}
 		dir, metadataDir, err := normalizeRuntimeSessionRoot(agent, input.Dir)
@@ -2814,7 +2814,7 @@ func sessionSourceComparisonKey(dir string) (string, error) {
 // directory is linked into another home.
 func normalizeRuntimeSessionRoot(agent parser.AgentType, raw string) (dir, metadataDir string, err error) {
 	if strings.HasPrefix(strings.ToLower(raw), "s3://") {
-		return raw, "", nil
+		return "", "", fmt.Errorf("S3 session sources are not supported in this fork: %q", raw)
 	}
 	expanded, err := normalizeSessionSourceDir(raw)
 	if err != nil {
@@ -2832,7 +2832,7 @@ func normalizeAgentHomeDir(raw string) (string, error) {
 		return "", errors.New("home is required")
 	}
 	if strings.HasPrefix(strings.ToLower(value), "s3://") {
-		return "", fmt.Errorf("home %q is an S3 root; homes must be local directories, so configure S3 through the per-agent directory setting", raw)
+		return "", fmt.Errorf("home %q is an S3 root; homes must be local directories; S3 sources are not supported in this fork", raw)
 	}
 	return normalizeSessionSourceDir(value)
 }

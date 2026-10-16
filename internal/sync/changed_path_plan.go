@@ -313,13 +313,11 @@ func (e *Engine) expandAffectedClaudeDuplicateCandidates(
 			continue
 		}
 		idPrefix := e.idPrefix
-		if isS3SourcePath(file.Path) {
-			idPrefix = s3SessionIDPrefix(file.Machine)
-		}
+
 		fullID := applyIDPrefixToID(
 			idPrefix, claudeFormatArchiveSessionID(file.Agent, sessionID),
 		)
-		sessionKey := discoveredFileIDPrefix(file) + "\x00" + fullID
+		sessionKey := fullID
 		if _, seen := seenSessions[sessionKey]; seen {
 			continue
 		}

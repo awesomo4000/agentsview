@@ -2963,7 +2963,6 @@ func startPeriodicSync(
 			// availability changes.
 			current := sourceConfig()
 			runScheduledSyncPass(ctx, engine, scheduledReconcileTargets(current))
-			runRemoteSourceSyncPass(ctx, engine, remoteSourceSyncRoots(current))
 			recomputePendingSessions(engine, database)
 			recomputeStaleFriction(ctx, engine)
 		})

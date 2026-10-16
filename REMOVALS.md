@@ -29,11 +29,13 @@ identity. Any later migration must preserve existing attribution.
 
 ## Remote services and transports
 
-- [ ] Remove S3 discovery, ingestion, and client dependencies.
-- [ ] Remove SSH remote discovery, sync, and binary downloads.
-- [ ] Remove hosted raw sync, remote replication, and remote-server connectors.
-- [ ] Remove PostgreSQL and ClickHouse backends and their drivers.
-- [ ] Remove the DuckDB mirror and native library dependency.
+- [x] Remove S3 discovery, ingestion, polling, and MinIO client dependencies.
+      Reject configured S3 roots; preserve previously archived conversations.
+- [ ] Review SSH/HTTP sync for a possible future internal upload path. Hold removal.
+- [ ] Review remaining raw sync and remote connectors before further removal.
+- [ ] Remove PostgreSQL and its driver.
+- [ ] Evaluate whether ClickHouse serves retained analytics before deciding.
+- [ ] Evaluate the DuckDB mirror against retained analytics before deciding.
 - [x] Remove artifact-folder exchange, raw archive vault, and docbank services.
       Preserve the SQLite conversation-export interface.
 - [x] Remove hosted raw PostgreSQL provisioning, serving, and reparse entry points.
@@ -49,9 +51,11 @@ with remote sync.
 - [ ] Remove Claude.ai and Cursor web imports and browser relay plumbing.
 - [ ] Remove Cursor Admin API integration.
 - [ ] Remove GitHub Gist publishing and related UI actions.
-- [ ] Remove external LLM clients and built-in generated-insight execution.
-- [ ] Remove embedding clients and semantic/vector services that require them.
-- [ ] Remove MCP service endpoints and unused remote-control APIs.
+- [ ] Review model clients for compatibility with approved internal models;
+      retain pending that decision.
+- [ ] Evaluate internal embedding support; retain SQLite vectors and semantic
+      search for now.
+- [ ] Evaluate MCP for assistant access; retain it for now.
 - [ ] Remove configuration, UI controls, generated API clients, and tests owned
       exclusively by each deleted feature.
 

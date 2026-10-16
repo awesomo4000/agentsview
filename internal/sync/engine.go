@@ -641,9 +641,7 @@ type Engine struct {
 	// skipHashKeys maps a source base path to its one current
 	// ?source_hash= cache key. It is built once when the cache loads so a
 	// watcher mutation never scans unrelated archive entries.
-	skipHashKeys      map[string]string
-	s3CodexIndexMu    gosync.Mutex
-	s3CodexIndexCache map[string]s3CodexIndexSnapshot
+	skipHashKeys map[string]string
 	// checkpointAudit, when set, bypasses the checkpoint stat-trust gate so
 	// the provider's full-source fingerprint verifies content. The periodic
 	// archive audit sets it to catch same-stat in-place rewrites that
@@ -1025,7 +1023,6 @@ func NewEngine(ctx context.Context,
 		skipFingerprints:        make(map[string]string),
 		piebaldFailureMemo:      make(map[string]piebaldFailureMemoEntry),
 		skipHashKeys:            skipHashKeys,
-		s3CodexIndexCache:       make(map[string]s3CodexIndexSnapshot),
 		ephemeral:               cfg.Ephemeral,
 		discardWritesOnCancel:   cfg.DiscardPendingWritesOnCancel,
 		disableSignalRecompute: cfg.DisableSignalRecomputation ||
@@ -1905,7 +1902,6 @@ func (e *Engine) applyChangedPathSyncLocked(
 		revokeErr := e.revokeSQLiteContainerVerification(ctx, prepared.preContainerStates)
 		return SyncStats{}, 0, errors.Join(prepared.classificationErr, revokeErr)
 	}
-	e.resetS3CodexIndexCache()
 	e.resetSourceClaims()
 	e.anomalies.reset()
 	// Begin a container pass so an already-trusted, unchanged container
@@ -2748,17 +2744,10 @@ func discoveredFileKey(file parser.DiscoveredFile) string {
 	if isCodexFormatAgent(file.Agent) {
 		if id := parser.CodexSessionUUIDFromFilename(filepath.Base(file.Path)); id != "" {
 			return string(file.Agent) + "\x00" +
-				discoveredFileIDPrefix(file) + "\x00" + id
+				"\x00" + id
 		}
 	}
 	return string(file.Agent) + "\x00" + file.Path
-}
-
-func discoveredFileIDPrefix(file parser.DiscoveredFile) string {
-	if isS3SourcePath(file.Path) {
-		return s3SessionIDPrefix(file.Machine)
-	}
-	return ""
 }
 
 func preferDiscoveredFile(
@@ -6789,8 +6778,8 @@ func isOpenCodeFormatAgent(agent parser.AgentType) bool {
 // the format-shaped branches (duplicate resolution, layout preference,
 // reconciliation identity, parse-diff mtime) so the Codex forks TraeX and
 // Augure Code get the same handling. Branches that depend on Codex's
-// session_index.jsonl sidecar or its S3 archive layout stay keyed to
-// parser.AgentCodex alone: those forks write no index file and have no S3
+// session_index.jsonl sidecar stays keyed to parser.AgentCodex alone:
+// those forks write no index file and have no S3
 // path convention.
 func isCodexFormatAgent(agent parser.AgentType) bool {
 	return ingest.IsCodexFormatAgent(agent)
@@ -8184,7 +8173,6 @@ func (e *Engine) syncAllLocked(
 		e.recordSyncStarted(ctx)
 	}
 	e.phaseStats.Reset()
-	e.resetS3CodexIndexCache()
 	e.resetSourceClaims()
 	e.anomalies.reset()
 	// Fold the per-run anomaly accumulator into the returned stats on
@@ -8654,26 +8642,7 @@ func (e *Engine) discoverProviderSources(
 			if forceParseSource(sourcePath) {
 				discovered.ForceParse = true
 			}
-			// S3-aware source sets carry the durable object metadata in the
-			// Opaque payload. Thread it into the DiscoveredFile so the S3 sync
-			// path (object fetch, fingerprinting, machine-ID namespacing) and the
-			// freshness/dedup/mtime-cutoff logic see the same source identity the
-			// legacy s3:// discovery emitted directly. Providers read local files,
-			// so clear ProviderProcess for s3:// objects: processProviderFile must
-			// decline them so they route through processS3Session rather than the
-			// provider Fingerprint/Parse path, which cannot read a remote object.
-			if s3, ok := source.Opaque.(parser.S3DiscoveredSource); ok {
-				discovered.Machine = s3.Machine
-				discovered.SourceSize = s3.Size
-				discovered.SourceMtime = s3.MtimeNS
-				discovered.SourceFingerprint = s3.Fingerprint
-				discovered.TranscriptSize = s3.TranscriptSize
-				discovered.TranscriptMtime = s3.TranscriptMtimeNS
-				discovered.ProviderProcess = false
-				if discovered.Project == "" {
-					discovered.Project = s3.Project
-				}
-			}
+
 			files = append(files, discovered)
 		}
 	}
@@ -9029,10 +8998,7 @@ func (e *Engine) filterFilesByMtime(
 			out = append(out, f)
 			continue
 		}
-		if isS3SourcePath(f.Path) && e.s3SourceMetadataChanged(ctx, f) {
-			out = append(out, f)
-			continue
-		}
+
 		if usesCompositeSidecarFreshness(f.Agent, f.Path) {
 			rawSessionID := claudeSessionIDFromPath(f.Path)
 			sessionID := applyIDPrefixToID(
@@ -9049,16 +9015,10 @@ func (e *Engine) filterFilesByMtime(
 		if f.Agent != parser.AgentCodex {
 			continue
 		}
-		var indexNeedsRefresh bool
-		if isS3SourcePath(f.Path) {
-			indexNeedsRefresh = e.s3CodexIndexNeedsRefreshSince(
-				f, cutoffNs,
-			)
-		} else {
-			indexNeedsRefresh = e.codexIndexNeedsRefreshSince(ctx,
-				f.Path, cutoffNs,
-			)
-		}
+		indexNeedsRefresh := e.codexIndexNeedsRefreshSince(ctx,
+			f.Path, cutoffNs,
+		)
+
 		if !indexNeedsRefresh {
 			continue
 		}
@@ -9182,15 +9142,7 @@ func (e *Engine) discoveredFileEffectiveMtime(
 	if isCodexFormatAgent(file.Agent) {
 		return discoveredFileMtime(ctx, file)
 	}
-	// S3 objects are discovered through the provider facade (so they carry a
-	// ProviderSource), but providers read local files and cannot Fingerprint an
-	// s3:// URI. Routing them through providerSourceMtime below would error, and
-	// filterFilesByMtime keeps any file whose mtime cannot be resolved, defeating
-	// the incremental cutoff and reprocessing every old S3 object on each sync.
-	// The threaded object metadata (or a HEAD stat) gives the timestamp directly.
-	if isS3SourcePath(file.Path) {
-		return discoveredFileMtime(ctx, file)
-	}
+
 	// Copilot store changes must pass the cutoff even when the transcript is
 	// old. Parent timestamps expose deletions; ctime catches restored mtimes.
 	// Keep these stat-only signals separate from persisted session mtimes.
@@ -9375,16 +9327,6 @@ func (e *Engine) providerSourceMtime(
 func discoveredFileMtime(ctx context.Context,
 	file parser.DiscoveredFile,
 ) (int64, error) {
-	if strings.HasPrefix(file.Path, "s3://") {
-		if file.SourceMtime != 0 {
-			return file.SourceMtime, nil
-		}
-		obj, err := statS3SourceObject(file)
-		if err != nil {
-			return 0, err
-		}
-		return obj.LastModified.UnixNano(), nil
-	}
 	if file.Agent == parser.AgentKiro {
 		if _, _, ok := parseKiroSQLiteVirtualPath(file.Path); ok {
 			return parser.KiroSQLiteSourceMtime(ctx, file.Path)
@@ -9536,7 +9478,7 @@ func (e *Engine) dedupeClaudeDiscoveredFiles(ctx context.Context,
 func claudeDiscoveredFileKey(
 	file parser.DiscoveredFile, sessionID string,
 ) string {
-	return string(file.Agent) + "\x00" + discoveredFileIDPrefix(file) + "\x00" + sessionID
+	return string(file.Agent) + "\x00" + "\x00" + sessionID
 }
 
 // isClaudeFormatAgent reports whether an agent stores sessions as Claude
@@ -9602,9 +9544,7 @@ func (e *Engine) pickPreferredClaudeDiscoveredFile(ctx context.Context,
 	}
 
 	idPrefix := e.idPrefix
-	if isS3SourcePath(candidates[0].Path) {
-		idPrefix = s3SessionIDPrefix(candidates[0].Machine)
-	}
+
 	fullID := applyIDPrefixToID(
 		idPrefix, claudeFormatArchiveSessionID(candidates[0].Agent, sessionID),
 	)
@@ -9659,12 +9599,7 @@ func (e *Engine) claudeSourceMatchesStored(ctx context.Context,
 	if storedSize != size || storedMtime != mtime {
 		return false
 	}
-	if file.SourceFingerprint != "" {
-		storedHash, ok := e.db.GetSessionFileHash(ctx, sessionID)
-		if !ok || storedHash != file.SourceFingerprint {
-			return false
-		}
-	}
+
 	return e.db.GetSessionDataVersion(ctx, sessionID) >= db.CurrentDataVersion()
 }
 
@@ -9741,16 +9676,6 @@ func claudeFormatTranscriptPreference(
 func claudeTranscriptFileSourceInfo(
 	file parser.DiscoveredFile,
 ) (size, mtime int64, ok bool) {
-	if isS3SourcePath(file.Path) {
-		if file.TranscriptMtime != 0 {
-			return file.TranscriptSize, file.TranscriptMtime, true
-		}
-		obj, err := statS3Object(file.Path)
-		if err != nil {
-			return 0, 0, false
-		}
-		return obj.Size, obj.LastModified.UnixNano(), true
-	}
 	info, err := os.Stat(file.Path)
 	if err != nil {
 		return 0, 0, false
@@ -9761,19 +9686,6 @@ func claudeTranscriptFileSourceInfo(
 func claudeFormatFileSourceInfo(
 	file parser.DiscoveredFile,
 ) (size, mtime int64, ok bool) {
-	if isS3SourcePath(file.Path) {
-		if file.SourceMtime != 0 {
-			return file.SourceSize, file.SourceMtime, true
-		}
-		obj, err := statS3SourceObject(parser.DiscoveredFile{
-			Agent: parser.AgentClaude,
-			Path:  file.Path,
-		})
-		if err != nil {
-			return 0, 0, false
-		}
-		return obj.Size, obj.LastModified.UnixNano(), true
-	}
 	if usesCompositeSidecarFreshness(file.Agent, file.Path) {
 		size, mtime, err := parser.ClaudeLayoutCompositeFileInfo(file.Path)
 		return size, mtime, err == nil
@@ -11762,93 +11674,14 @@ func (e *Engine) processFile(
 	if e.sourceSyncErr != nil {
 		return processResult{err: e.sourceSyncErr}
 	}
+	if isS3SourcePath(file.Path) {
+		return processResult{err: errors.New("S3 sources are not supported in this fork")}
+	}
 	if res, ok := e.processProviderFile(ctx, file); ok {
 		return res
 	}
 
-	// Every registered agent is provider-authoritative, so processProviderFile
-	// owns all local-file processing. The only sources that fall through are
-	// s3:// objects for providers that declare S3Discovery, which bypass the
-	// provider (its source sets read local files) and use the dedicated S3
-	// sync path. Anything else is an unrecognized agent type.
-	if !strings.HasPrefix(file.Path, "s3://") {
-		return processResult{
-			err: fmt.Errorf("unknown agent type: %s", file.Agent),
-		}
-	}
-
-	s3Provider, ok := s3ProviderFor(file.Agent)
-	if !ok {
-		return processResult{
-			err: fmt.Errorf("unsupported s3 agent type: %s", file.Agent),
-		}
-	}
-
-	if file.SourceMtime == 0 {
-		obj, err := statS3SourceObjectWithProvider(file, s3Provider)
-		if err != nil {
-			return processResult{
-				err: fmt.Errorf("stat %s: %w", file.Path, err),
-			}
-		}
-		file.SourceSize = obj.Size
-		file.SourceMtime = obj.LastModified.UnixNano()
-		file.SourceFingerprint = obj.Fingerprint
-	}
-	info, err := s3SourceFileInfo(file)
-	if err != nil {
-		return processResult{
-			err: fmt.Errorf("stat %s: %w", file.Path, err),
-		}
-	}
-
-	// Capture mtime once from the initial stat so all downstream cache
-	// operations use a consistent value.
-	mtime := info.ModTime().UnixNano()
-	cacheSkip := e.shouldCacheSkip(file)
-	sourceFingerprint := s3SourceFingerprint(file)
-
-	// Skip files cached from a previous sync whose mtime and source
-	// fingerprint are unchanged.
-	if cacheSkip && !e.forceParseBypassesCache(file) {
-		if e.shouldUseCachedSkip(file, mtime, sourceFingerprint) {
-			if e.pathNeedsCachedSkipBypass(ctx, file.Agent, file.Path) {
-				e.clearSkip(ctx, file.Path)
-			} else {
-				return processResult{
-					skip:       true,
-					mtime:      mtime,
-					cacheSkip:  true,
-					cachedSkip: true,
-				}
-			}
-		}
-	}
-
-	res := e.processS3Session(ctx, file, info, s3Provider)
-	res.cacheSkip = cacheSkip
-	res.mtime = mtime
-	res.sourceFingerprint = sourceFingerprint
-	return res
-}
-
-func (e *Engine) shouldUseCachedSkip(
-	file parser.DiscoveredFile, mtime int64, sourceFingerprint string,
-) bool {
-	e.skipMu.RLock()
-	cachedMtime, cached := e.skipCache[file.Path]
-	cachedFingerprint := ""
-	if e.skipFingerprints != nil {
-		cachedFingerprint = e.skipFingerprints[file.Path]
-	}
-	e.skipMu.RUnlock()
-	if !cached || cachedMtime != mtime {
-		return false
-	}
-	if isS3SourcePath(file.Path) && sourceFingerprint != "" {
-		return cachedFingerprint == sourceFingerprint
-	}
-	return true
+	return processResult{err: fmt.Errorf("unknown or unsupported source for agent: %s", file.Agent)}
 }
 
 func (e *Engine) pathNeedsProjectReparse(ctx context.Context,
@@ -12098,12 +11931,7 @@ func (e *Engine) processProviderFile(
 	if mode != parser.ProviderMigrationProviderAuthoritative && !usesProvider {
 		return processResult{}, false
 	}
-	// S3 sources are not provider-owned: the provider source sets read local
-	// files, so s3:// paths use the dedicated S3 sync path (processS3Session),
-	// which handles object fetch, fingerprinting, and per-agent skip logic.
-	if strings.HasPrefix(file.Path, "s3://") {
-		return processResult{}, false
-	}
+
 	failureKey := providerAgentSkipCacheKey(file.Path, file.Agent)
 	if id, exists := e.failures.Lookup(failureKey); exists {
 		if e.forceParseBypassesCache(file) {
@@ -17282,13 +17110,8 @@ func pickPreferredCodexDiscoveredFile(ctx context.Context,
 		filepath.Base(candidates[0].Path),
 	); id != "" {
 		sessionID := "codex:" + id
-		for _, candidate := range candidates {
-			storedPath := database.GetSessionFilePath(ctx, applyIDPrefixToID(
-				discoveredFileIDPrefix(candidate), sessionID,
-			))
-			if storedPath == "" {
-				continue
-			}
+		storedPath := database.GetSessionFilePath(ctx, sessionID)
+		if storedPath != "" {
 			storedPath = filepath.Clean(storedPath)
 			for _, candidate := range candidates {
 				if filepath.Clean(candidate.Path) == storedPath {
@@ -20452,9 +20275,6 @@ func lastParsedSourceUUID(
 func (e *Engine) FindSourceFile(ctx context.Context, sessionID string) string {
 	host, rawID := parser.StripHostPrefix(sessionID)
 	if host != "" {
-		if fp := e.db.GetSessionFilePath(ctx, sessionID); isS3SourcePath(fp) {
-			return fp
-		}
 		// Remote sessions have no local source file.
 		return ""
 	}
@@ -20515,10 +20335,9 @@ func (e *Engine) FindSourceFile(ctx context.Context, sessionID string) string {
 	// return the stored path so downstream parsing stays scoped to
 	// the requested conversation rather than the whole trace file.
 	if fp := storedPath; fp != "" {
-		// s3:// sources have no local file to stat; the path is itself
-		// the authoritative source and processFile fetches it directly.
-		if strings.HasPrefix(fp, "s3://") {
-			return fp
+		// Archived object URIs have no supported local source to refresh.
+		if isS3SourcePath(fp) {
+			return ""
 		}
 		if historyPath, idx, ok := parser.ParseAiderVirtualPath(fp); ok {
 			// aider's stored "<historyPath>#<idx>" is positional: an
@@ -20739,30 +20558,6 @@ func providerOutcomeContainsSession(
 func (e *Engine) SourceMtime(ctx context.Context, sessionID string) int64 {
 	host, rawID := parser.StripHostPrefix(sessionID)
 	if host != "" {
-		if fp := e.db.GetSessionFilePath(ctx, sessionID); isS3SourcePath(fp) {
-			agent := parser.AgentType("")
-			if sess, err := e.db.GetSession(
-				ctx, sessionID,
-			); err == nil && sess != nil {
-				agent = parser.AgentType(sess.Agent)
-			}
-			if agent == "" {
-				if def, ok := parser.AgentByPrefix(sessionID); ok {
-					agent = def.Type
-				}
-			}
-			if agent == "" {
-				return 0
-			}
-			obj, err := statS3SourceObject(parser.DiscoveredFile{
-				Agent: agent,
-				Path:  fp,
-			})
-			if err != nil {
-				return 0
-			}
-			return obj.LastModified.UnixNano()
-		}
 		return 0
 	}
 
@@ -20796,16 +20591,6 @@ func (e *Engine) SourceMtime(ctx context.Context, sessionID string) int64 {
 		); mtime != 0 {
 			return mtime
 		}
-	}
-	if isS3SourcePath(path) {
-		obj, err := statS3SourceObject(parser.DiscoveredFile{
-			Agent: def.Type,
-			Path:  path,
-		})
-		if err != nil {
-			return 0
-		}
-		return obj.LastModified.UnixNano()
 	}
 
 	if def.Type == parser.AgentEvener {
@@ -21064,11 +20849,10 @@ func (e *Engine) SyncSingleSessionContext(
 		}
 	}()
 	defer e.syncMu.Unlock()
-	e.resetS3CodexIndexCache()
 	e.resetSourceClaims()
 
 	host, _ := parser.StripHostPrefix(sessionID)
-	if host != "" && !isS3SourcePath(e.db.GetSessionFilePath(ctx, sessionID)) {
+	if host != "" {
 		return fmt.Errorf(
 			"cannot sync remote session %s locally", sessionID,
 		)
@@ -21113,8 +20897,7 @@ func (e *Engine) SyncSingleSessionContext(
 		Agent:      agent,
 		ForceParse: true,
 	}
-	e.hydrateS3DiscoveredFile(ctx, sessionID, &file)
-	if file.Machine == "" && !isS3SourcePath(file.Path) {
+	if file.Machine == "" {
 		file.Machine = e.machineForPath(file.Agent, file.Path)
 	}
 	if e.shouldCacheSkip(file) {
@@ -21934,3 +21717,6 @@ func (e *Engine) codexMetadata() parser.CodexMetadata {
 	}
 	return parser.CodexMetadata{}
 }
+
+// isS3SourcePath recognizes legacy archive paths without accessing object storage.
+func isS3SourcePath(path string) bool { return strings.HasPrefix(strings.ToLower(path), "s3://") }

@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -157,4 +158,11 @@ func TestClaudeForcedReparseKeepsArchivedToolResultAfterSidecarDeleted(
 	require.Len(t, messages[1].ToolCalls, 1)
 	assert.Equal(t, "full persisted output\n",
 		messages[1].ToolCalls[0].ResultContent)
+}
+
+func mustSyncJSONString(t *testing.T, value string) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	require.NoError(t, err)
+	return string(encoded)
 }

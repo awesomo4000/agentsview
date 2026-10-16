@@ -15,7 +15,6 @@ import (
 
 var (
 	_ Provider                          = (*claudeProvider)(nil)
-	_ S3Provider                        = (*claudeProvider)(nil)
 	_ RawCaptureProvider                = (*claudeProvider)(nil)
 	_ RawCaptureSourceProvider          = (*claudeProvider)(nil)
 	_ StreamingRawCaptureSourceProvider = (*claudeProvider)(nil)
@@ -591,15 +590,7 @@ func (s claudeSourceSet) discoverEachRoot(
 	root string,
 	yield func(SourceRef) error,
 ) error {
-	if strings.HasPrefix(root, "s3://") {
-		for _, file := range s.spec.listFiles(root) {
-			source, ok := s.discoveredSourceRef(root, file)
-			if ok {
-				if err := yield(source); err != nil {
-					return err
-				}
-			}
-		}
+	if isS3URI(root) {
 		return nil
 	}
 	return s.streamLocalRoot(ctx, root, yield)
@@ -675,16 +666,12 @@ func (s claudeSourceSet) streamLocalSubtree(ctx context.Context, root, path stri
 }
 
 // discoveredSourceRef builds the SourceRef for one enumerated session file.
-// Local files resolve through the regular file-backed source ref; s3://
-// objects (which spec.listFiles enumerates via the agent's S3 scanner) carry
-// their durable object metadata in the Opaque payload, because the
-// IsRegularFile gate that sourceRef applies to a local path would otherwise drop
-// every remote object.
+// Only local files resolve through the file-backed source ref.
 func (s claudeSourceSet) discoveredSourceRef(
 	root string, file DiscoveredFile,
 ) (SourceRef, bool) {
-	if strings.HasPrefix(file.Path, "s3://") {
-		return s3SourceRefFromDiscoveredFile(root, file), true
+	if isS3URI(file.Path) {
+		return SourceRef{}, false
 	}
 	return s.sourceRef(root, file.Path)
 }
@@ -1011,7 +998,6 @@ func claudeProviderCapabilities() Capabilities {
 			ForceReplaceOnParse:  CapabilitySupported,
 			VerifiedLocalStat:    CapabilitySupported,
 			MultiFileStatHash:    CapabilitySupported,
-			S3Discovery:          CapabilitySupported,
 		},
 		Content: ContentCapabilities{
 			FirstMessage:         CapabilitySupported,

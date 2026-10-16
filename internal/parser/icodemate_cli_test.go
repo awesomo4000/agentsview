@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -310,60 +309,6 @@ func TestIcodemateProviderMergesOpenCodeAndCLIRoots(t *testing.T) {
 // derived from the .../<machine>/raw/icodemate layout, and the folded
 // tool-result sidecar freshness identity -- never Claude's session or machine
 // namespace.
-func TestIcodemateCLIProviderDiscoversS3Sessions(t *testing.T) {
-	oldList := listS3Objects
-	t.Cleanup(func() { listS3Objects = oldList })
-
-	root := "s3://bucket/laptop/raw/icodemate"
-	sessionURI := root + "/proj/session.jsonl"
-	sessionMtime := time.Unix(100, 0)
-	sidecarMtime := time.Unix(200, 0)
-	listS3Objects = func(got string) ([]S3Object, error) {
-		require.Equal(t, root, got)
-		return []S3Object{
-			{
-				URI:          sessionURI,
-				Size:         11,
-				LastModified: sessionMtime,
-				Fingerprint:  "s3-meta:session",
-			},
-			{
-				URI:          root + "/proj/session/tool-results/out.txt",
-				Size:         22,
-				LastModified: sidecarMtime,
-				Fingerprint:  "s3-meta:sidecar",
-			},
-		}, nil
-	}
-
-	provider, ok := NewProvider(AgentIcodemate, ProviderConfig{
-		Roots:   []string{root},
-		Machine: "devbox",
-	})
-	require.True(t, ok)
-
-	sources, err := provider.Discover(t.Context())
-	require.NoError(t, err)
-	require.Len(t, sources, 1)
-
-	src := sources[0]
-	assert.Equal(t, AgentIcodemate, src.Provider)
-	assert.Equal(t, sessionURI, src.DisplayPath)
-	assert.Equal(t, sessionURI, src.FingerprintKey)
-	assert.Equal(t, "proj", src.ProjectHint)
-
-	s3, ok := src.Opaque.(S3DiscoveredSource)
-	require.True(t, ok, "s3 source carries S3DiscoveredSource opaque")
-	assert.Equal(t, sessionURI, s3.URI)
-	assert.Equal(t, "laptop", s3.Machine)
-	assert.Equal(t, "proj", s3.Project)
-	assert.Equal(t, int64(33), s3.Size)
-	assert.Equal(t, sidecarMtime.UnixNano(), s3.MtimeNS)
-	assert.Equal(t, int64(11), s3.TranscriptSize)
-	assert.Equal(t, sessionMtime.UnixNano(), s3.TranscriptMtimeNS)
-	assert.Contains(t, s3.Fingerprint, "session")
-	assert.Contains(t, s3.Fingerprint, "sidecar")
-}
 
 // TestIcodemateCLIProviderParsesMaterializedSource covers the engine's S3
 // materialization path: an s3:// session fetched to a local temp file is

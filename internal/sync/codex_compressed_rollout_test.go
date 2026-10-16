@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -415,11 +414,11 @@ func TestCodexDuplicatePreferenceAcrossRoots(t *testing.T) {
 
 func TestCodexCompressedParseAdmissionAndStaging(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		outputSize  int
-		knownSize   bool
-		staged      bool
-		s3          bool
+		name       string
+		outputSize int
+		knownSize  bool
+		staged     bool
+
 		truncated   bool
 		cancelFetch bool
 		idPrefix    string
@@ -427,12 +426,6 @@ func TestCodexCompressedParseAdmissionAndStaging(t *testing.T) {
 		{name: "small known size", outputSize: 32, knownSize: true},
 		{name: "large known size", outputSize: 512 << 10, knownSize: true, staged: true},
 		{name: "unknown size", outputSize: 32, staged: true},
-		{name: "S3 small known size", outputSize: 32, knownSize: true, s3: true},
-		{name: "S3 large known size", outputSize: 512 << 10, knownSize: true, staged: true, s3: true},
-		{name: "S3 unknown size", outputSize: 32, staged: true, s3: true},
-		{name: "S3 prefixed unknown size", outputSize: 32, staged: true, s3: true, idPrefix: "mirror~"},
-		{name: "S3 truncated frame", outputSize: 512 << 10, knownSize: true, s3: true, truncated: true},
-		{name: "S3 canceled download", outputSize: 32, s3: true, cancelFetch: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			output := strings.Repeat("x", tc.outputSize)
@@ -495,28 +488,7 @@ func TestCodexCompressedParseAdmissionAndStaging(t *testing.T) {
 			subagentID := "codex:agent-1"
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			if tc.s3 {
-				file.Path = "s3://bucket/laptop/raw/codex/2026/09/01/" + codexCompressedName
-				file.Machine = "laptop"
-				file.SourceMtime = 1788256800000000000
-				file.SourceFingerprint = "s3:compressed-fixture"
-				sessionID = "laptop~" + sessionID
-				subagentID = "laptop~" + subagentID
-				oldFetch, oldStat := fetchS3Object, statS3Object
-				t.Cleanup(func() { fetchS3Object, statS3Object = oldFetch, oldStat })
-				fetchS3Object = func(uri string) (io.ReadCloser, error) {
-					if uri != file.Path {
-						return nil, missingS3ObjectError()
-					}
-					if tc.cancelFetch {
-						cancel()
-					}
-					return io.NopCloser(bytes.NewReader(compressed)), nil
-				}
-				statS3Object = func(string) (parser.S3Object, error) {
-					return parser.S3Object{}, missingS3ObjectError()
-				}
-			}
+
 			sessionID = tc.idPrefix + sessionID
 			subagentID = tc.idPrefix + subagentID
 			result := engine.processFile(ctx, file)
@@ -587,11 +559,6 @@ func TestCodexCompressedParseAdmissionAndStaging(t *testing.T) {
 			storedSize, _, ok := database.GetSessionFileInfo(t.Context(), sessionID)
 			require.True(t, ok)
 			assert.Equal(t, int64(len(compressed)), storedSize)
-			if tc.s3 {
-				storedHash, ok := database.GetSessionFileHash(t.Context(), sessionID)
-				require.True(t, ok)
-				assert.Equal(t, file.SourceFingerprint, storedHash)
-			}
 		})
 	}
 }

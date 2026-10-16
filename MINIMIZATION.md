@@ -110,6 +110,41 @@ Validation for this cut:
 - `go list -deps ./cmd/agentsview` and linked Go symbols contain no docbank or
   PostHog packages.
 
+## S3 removal
+
+Removed the MinIO transport, S3 discovery interfaces and scanners, downloads,
+sidecar hydration, object metadata handling, and periodic object-root polling.
+The dedicated Docker S3 test target and S3 operator instructions are removed.
+Local session-ID prefixing and freshness helpers formerly stored in S3 files
+remain available to local and SSH/HTTP ingestion.
+
+Configured `s3://` roots now fail with an explicit unsupported-source error,
+including uppercase scheme spelling. Existing SQLite conversations are not
+migrated or deleted. Local roots retain their provider discovery, sidecar,
+compressed-rollout, stable-identity, and archive-export paths. The UI is unchanged.
+
+`go mod tidy` removed MinIO and seven supporting modules, reducing declared
+requirements from 144 to 136. The rebuilt executable with the existing embedded
+frontend is 167,969,074 bytes, or 160.19 MiB, down another 1.77 MiB. Its Go import
+closure contains no MinIO, AWS SDK, or Smithy packages.
+
+Validation:
+
+- `CGO_ENABLED=1 go build -tags fts5 -o agentsview ./cmd/agentsview`: passed.
+- Focused tests across config, parser, sync, CLI, and database: passed. These
+  cover S3 configuration rejection, local harness parsing, compressed Codex
+  ingestion and duplicate selection, Cursor ingestion, source-collision handling,
+  Claude archived tool-result preservation, stable machine identity, and
+  conversation exports.
+- `go fmt ./...` and `go vet -tags fts5 ./...`: passed.
+- All ordinary Go test packages compile with `-tags fts5`.
+- Native Tauri packaging, UI browser smoke, and runtime traffic tracing were not
+  repeated in this backend-only cut. No private logs were used.
+
+PostgreSQL remains a later removal. ClickHouse/DuckDB analytics, SQLite vectors,
+MCP, SSH/HTTP sync, and internal-model integration remain pending separate
+scope decisions, as recorded in the requirements and checklist.
+
 ## Next removals
 
 [REMOVALS.md](REMOVALS.md) owns the removal checklist. Continue with automatic

@@ -40,7 +40,7 @@ This document replaces it.
 Trace dependencies before removing packages. In particular, `internal/db`,
 `internal/ingest`, `internal/sync`, `internal/server`, `frontend`, and `desktop`
 are not blanket deletion targets. Local log-to-SQLite sync is core functionality;
-remote replication and hosted sync are removal targets.
+remaining SSH/HTTP sync and internal upload options require a separate decision.
 
 ## Local server
 
@@ -59,11 +59,16 @@ remote replication and hosted sync are removal targets.
 ## Privacy and removal boundary
 
 Remove external integrations and their reachable code rather than relying on
-configuration switches. Targets include telemetry, analytics, crash reporting,
+configuration switches. Targets include telemetry, external usage reporting, crash reporting,
 update checks, self-update, desktop auto-update, online pricing refresh,
-cloud/web imports, publishing, S3, SSH remotes, hosted sync, and PostgreSQL,
-ClickHouse, and DuckDB replication. Remove built-in external LLM and embedding
-clients. Review dependent UI controls as each integration is removed.
+cloud/web imports, publishing, S3, and PostgreSQL. Updates and pricing will be
+maintained internally.
+
+The current cut removes S3 only. Keep ClickHouse and DuckDB pending review of
+analytics needs. Keep SQLite vector support and semantic search, MCP assistant
+access, SSH/HTTP sync for possible internal uploads, and model clients pending
+review of approved internal models. These are undecided features, not authorized
+blanket removals. Review dependent UI controls as each removal is selected.
 
 The application must work without Internet access. Bundle fonts and other UI
 assets locally. Constrain webview navigation and resource requests to approved
@@ -169,7 +174,9 @@ also identify source machines in the archive.
 The second cut removes the artifact vault, folder exchange, raw archive
 backup/recovery, and hosted raw PostgreSQL service. Removing docbank eliminates
 the transitive PostHog dependency. SQLite archive recovery and export remain.
-Updates, pricing refresh, external fonts, and remote features are still present.
+S3 discovery, downloads, polling, and the MinIO client are now removed. Legacy
+S3 configurations are rejected; existing SQLite conversations remain.
+Updates, pricing refresh, external fonts, and other remote features remain.
 This is an intermediate development build, not an offline-approved release.
 The fixed port and access-control requirements above remain pending.
 
