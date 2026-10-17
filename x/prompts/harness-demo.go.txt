@@ -1,0 +1,45 @@
+// Run from a temporary directory inside this repository, as described in README.md.
+// This calls a fake local Claude-compatible executable, never a model.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"go.kenn.io/agentsview/internal/insight"
+)
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
+func main() {
+	dir, err := os.MkdirTemp("/tmp", "agentsview-harness-demo-")
+	must(err)
+	defer os.RemoveAll(dir)
+	bin := filepath.Join(dir, "fake-claude")
+	script := "#!/bin/sh\ncat > " + quote(filepath.Join(dir, "stdin.txt")) + "\nprintf '%s\\n' \"$@\" > " + quote(filepath.Join(dir, "args.txt")) + "\nprintf '%s\\n' '{\"result\":\"Synthetic summary returned by fake harness\",\"model\":\"fake-local\"}'\n"
+	must(os.WriteFile(bin, []byte(script), 0700))
+	prompt := "Summarize this synthetic session: project demo updated README."
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, err := insight.GenerateStreamWithOptions(ctx, "claude", prompt, nil, insight.GenerateOptions{Agents: map[string]insight.AgentConfig{"claude": {Binary: bin}}})
+	must(err)
+	stdin, err := os.ReadFile(filepath.Join(dir, "stdin.txt"))
+	must(err)
+	args, err := os.ReadFile(filepath.Join(dir, "args.txt"))
+	must(err)
+	if string(stdin) != prompt || result.Content != "Synthetic summary returned by fake harness" || result.Model != "fake-local" {
+		panic("harness input/output contract failed")
+	}
+	out, err := json.MarshalIndent(map[string]any{"prompt_received": string(stdin), "arguments": strings.Split(strings.TrimSuffix(string(args), "\n"), "\n"), "result": result}, "", "  ")
+	must(err)
+	fmt.Println(string(out))
+}

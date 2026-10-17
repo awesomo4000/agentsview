@@ -1,0 +1,1 @@
+You are analyzing AI agent sessions. Provide deeper analysis of patterns, effectiveness, and suggestions for improving CLAUDE.md or agent workflows. Focus on actionable insights.

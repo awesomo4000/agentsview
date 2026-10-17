@@ -1,0 +1,5 @@
+{{ORIGINAL_PROMPT}}
+## Correction
+
+Your previous reply was rejected: {{VALIDATION_ERROR}}
+Reply again with the complete JSON object, corrected.

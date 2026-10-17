@@ -1,0 +1,120 @@
+package main
+
+import (
+	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"go.kenn.io/agentsview/internal/insight"
+	"go.kenn.io/agentsview/internal/recall/extract"
+)
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+func write(name, value string) {
+	must(os.WriteFile(filepath.Join("x/prompts", name), []byte(value), 0644))
+}
+func literal(e ast.Expr) (string, bool) {
+	switch v := e.(type) {
+	case *ast.BasicLit:
+		if v.Kind == token.STRING {
+			s, err := strconv.Unquote(v.Value)
+			return s, err == nil
+		}
+	case *ast.BinaryExpr:
+		if v.Op == token.ADD {
+			a, ok := literal(v.X)
+			b, ok2 := literal(v.Y)
+			return a + b, ok && ok2
+		}
+	}
+	return "", false
+}
+func main() {
+	sources := []string{"internal/insight/prompt.go", "internal/insight/canned.go", "internal/insight/tool_effectiveness.go", "internal/recall/extract/prompts.go", "internal/recall/extract/client.go"}
+	type fragment struct {
+		Source string `json:"source"`
+		Line   int    `json:"line"`
+		Owner  string `json:"owner"`
+		Text   string `json:"text"`
+	}
+	fragments := []fragment{}
+	for _, src := range sources {
+		fs := token.NewFileSet()
+		f, err := parser.ParseFile(fs, src, nil, 0)
+		must(err)
+		for _, decl := range f.Decls {
+			switch d := decl.(type) {
+			case *ast.GenDecl:
+				if d.Tok != token.CONST {
+					continue
+				}
+				for _, spec := range d.Specs {
+					v := spec.(*ast.ValueSpec)
+					for i, e := range v.Values {
+						if s, ok := literal(e); ok {
+							name := v.Names[i].Name
+							fragments = append(fragments, fragment{src, fs.Position(e.Pos()).Line, name, s})
+							if name == "toolEffectivenessInstruction" {
+								write("tool-effectiveness.txt", s)
+							}
+							if name == "unexecutedActionPreamble" {
+								write("recall-unexecuted-action.txt", s)
+							}
+						}
+					}
+				}
+			case *ast.FuncDecl:
+				ast.Inspect(d.Body, func(n ast.Node) bool {
+					call, ok := n.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					sel, ok := call.Fun.(*ast.SelectorExpr)
+					if !ok || sel.Sel.Name != "WriteString" || len(call.Args) != 1 {
+						return true
+					}
+					if s, ok := literal(call.Args[0]); ok {
+						fragments = append(fragments, fragment{src, fs.Position(call.Pos()).Line, d.Name.Name, s})
+						if d.Name.Name == "writeSystemInstruction" {
+							if strings.HasPrefix(s, "You are analyzing") {
+								write("agent-analysis.txt", s)
+							}
+							if strings.HasPrefix(s, "You are summarizing") {
+								write("daily-activity-summary.txt", s)
+							}
+						}
+					}
+					return true
+				})
+			}
+		}
+	}
+	b, err := json.MarshalIndent(fragments, "", "  ")
+	must(err)
+	write("literal-fragments.json", string(b)+"\n")
+	profile, err := extract.ResolveProfile("base", "")
+	must(err)
+	for role, prompt := range extract.PromptsFor(profile, nil) {
+		write("recall-"+string(role)+".txt", prompt)
+	}
+	kinds := []insight.CannedKind{insight.CannedPromptMaturityReview, insight.CannedContextSetupReview, insight.CannedWorkflowHygieneReview, insight.CannedToolReliabilityReview, insight.CannedModelCostReview, insight.CannedInstructionOpportunityReview}
+	for _, kind := range kinds {
+		prompt, err := insight.BuildCannedPrompt(insight.CannedAggregatePayload{Kind: kind}, "SYNTHETIC-EMPTY-AGGREGATE")
+		must(err)
+		write("review-"+string(kind)+".txt", prompt)
+	}
+	write("tool-effectiveness-correction.txt", insight.ToolEffectivenessCorrectionPrompt("{{ORIGINAL_PROMPT}}", &placeholderError{}))
+}
+
+type placeholderError struct{}
+
+func (*placeholderError) Error() string { return "{{VALIDATION_ERROR}}" }

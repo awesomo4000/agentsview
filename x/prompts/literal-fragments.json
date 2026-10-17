@@ -1,0 +1,656 @@
+[
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 76,
+    "owner": "buildPrompt",
+    "text": "\n## Date: "
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 79,
+    "owner": "buildPrompt",
+    "text": "\n## Date Range: "
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 81,
+    "owner": "buildPrompt",
+    "text": " to "
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 84,
+    "owner": "buildPrompt",
+    "text": "\n\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 87,
+    "owner": "buildPrompt",
+    "text": "## Project: "
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 89,
+    "owner": "buildPrompt",
+    "text": "\n\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 102,
+    "owner": "buildPrompt",
+    "text": "## Sessions\n\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 105,
+    "owner": "buildPrompt",
+    "text": "No sessions found for this date.\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 109,
+    "owner": "buildPrompt",
+    "text": "No sessions found for this date range.\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 134,
+    "owner": "buildPrompt",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 147,
+    "owner": "buildPrompt",
+    "text": "## User Query\n\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 148,
+    "owner": "buildPrompt",
+    "text": "The user has provided the following specific request. Prioritize addressing this in your response:\n\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 154,
+    "owner": "buildPrompt",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 251,
+    "owner": "writeSessionBody",
+    "text": "\n## Messages\n\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 253,
+    "owner": "writeSessionBody",
+    "text": "No messages found for this session.\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 281,
+    "owner": "writeUserQuery",
+    "text": "## User Query\n\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 283,
+    "owner": "writeUserQuery",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 292,
+    "owner": "writeSystemInstruction",
+    "text": "You are analyzing AI agent sessions. Provide deeper analysis of patterns, effectiveness, and suggestions for improving CLAUDE.md or agent workflows. Focus on actionable insights.\n"
+  },
+  {
+    "source": "internal/insight/prompt.go",
+    "line": 300,
+    "owner": "writeSystemInstruction",
+    "text": "You are summarizing a day of AI agent activity. Provide a concise markdown summary of what was accomplished, key decisions made, and notable patterns. Group by project if multiple projects are present.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 20,
+    "owner": "CannedType",
+    "text": "llm_canned"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 21,
+    "owner": "CannedSchemaVersion",
+    "text": "llm_insight.v1"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 35,
+    "owner": "CannedPromptMaturityReview",
+    "text": "prompt_maturity_review"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 36,
+    "owner": "CannedContextSetupReview",
+    "text": "context_setup_review"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 37,
+    "owner": "CannedWorkflowHygieneReview",
+    "text": "workflow_hygiene_review"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 38,
+    "owner": "CannedToolReliabilityReview",
+    "text": "tool_reliability_review"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 39,
+    "owner": "CannedModelCostReview",
+    "text": "model_cost_review"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 40,
+    "owner": "CannedInstructionOpportunityReview",
+    "text": "instruction_opportunity_review"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 354,
+    "owner": "BuildCannedPrompt",
+    "text": "You are generating an opt-in AI recommendation for agentsview.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 355,
+    "owner": "BuildCannedPrompt",
+    "text": "Use only the deterministic aggregate JSON supplied below. "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 356,
+    "owner": "BuildCannedPrompt",
+    "text": "Do not inspect or infer from raw transcripts. "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 357,
+    "owner": "BuildCannedPrompt",
+    "text": "Do not recalculate, override, or propose changes to canonical health scores or signal rows. "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 358,
+    "owner": "BuildCannedPrompt",
+    "text": "Output JSON only, with no markdown fences or prose outside JSON.\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 359,
+    "owner": "BuildCannedPrompt",
+    "text": "Template: "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 361,
+    "owner": "BuildCannedPrompt",
+    "text": "\nTemplate ID: "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 363,
+    "owner": "BuildCannedPrompt",
+    "text": "\nTemplate Version: "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 365,
+    "owner": "BuildCannedPrompt",
+    "text": "\nSchema Version: "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 367,
+    "owner": "BuildCannedPrompt",
+    "text": "\nAggregate Hash: "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 369,
+    "owner": "BuildCannedPrompt",
+    "text": "\n\nFocus:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 372,
+    "owner": "BuildCannedPrompt",
+    "text": "\n\nUser focus:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 373,
+    "owner": "BuildCannedPrompt",
+    "text": "Use this only to prioritize within the fixed template and supplied aggregates: "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 376,
+    "owner": "BuildCannedPrompt",
+    "text": "\n\nRequired JSON shape:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 377,
+    "owner": "BuildCannedPrompt",
+    "text": "{\"schema_version\":\"llm_insight.v1\",\"kind\":\""
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 379,
+    "owner": "BuildCannedPrompt",
+    "text": "\",\"summary\":\"...\",\"confidence\":\"low|medium|high\",\"recommendations\":[{\"title\":\"...\",\"rationale\":\"...\",\"actions\":[\"...\"],\"evidence_refs\":[\"...\"],\"impact\":\"low|medium|high\",\"effort\":\"low|medium|high\"}],\"risks\":[{\"title\":\"...\",\"explanation\":\"...\",\"evidence_refs\":[\"...\"]}],\"evidence_refs\":[\"...\"]}"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 380,
+    "owner": "BuildCannedPrompt",
+    "text": "\n\nRules:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 381,
+    "owner": "BuildCannedPrompt",
+    "text": "- Include 1 to 5 recommendations.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 382,
+    "owner": "BuildCannedPrompt",
+    "text": "- Include at most 4 risks.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 383,
+    "owner": "BuildCannedPrompt",
+    "text": "- Every recommendation and risk must cite evidence_refs from the aggregate payload.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 384,
+    "owner": "BuildCannedPrompt",
+    "text": "- Do not emit evidence refs that are absent from the valid evidence_ref list below.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 385,
+    "owner": "BuildCannedPrompt",
+    "text": "- Copy evidence_ref IDs exactly; do not invent more specific sub-refs.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 386,
+    "owner": "BuildCannedPrompt",
+    "text": "- Keep fields concise and action-oriented.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 387,
+    "owner": "BuildCannedPrompt",
+    "text": "- If evidence is weak or empty, lower confidence and say what deterministic data is missing.\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 389,
+    "owner": "BuildCannedPrompt",
+    "text": "Valid evidence_ref IDs for this request:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 391,
+    "owner": "BuildCannedPrompt",
+    "text": "- aggregate:empty\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 394,
+    "owner": "BuildCannedPrompt",
+    "text": "- "
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 396,
+    "owner": "BuildCannedPrompt",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 399,
+    "owner": "BuildCannedPrompt",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 400,
+    "owner": "BuildCannedPrompt",
+    "text": "Aggregate payload JSON:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 412,
+    "owner": "writeCannedKindRules",
+    "text": "Context setup template rules:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 413,
+    "owner": "writeCannedKindRules",
+    "text": "- Treat context pressure as an optional signal, not a required finding.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 415,
+    "owner": "writeCannedKindRules",
+    "text": "- Context pressure coverage is zero or unavailable for this request; do not make pressure-related recommendations or risks.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 416,
+    "owner": "writeCannedKindRules",
+    "text": "- Do not use missing context pressure telemetry as the main recommendation. Prefer compactions, mid-task compactions, missing code context, spec-driven starts, and prompt maturity signals when those aggregates are present.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 417,
+    "owner": "writeCannedKindRules",
+    "text": "- If no non-pressure context setup signals are present, set confidence to low and state that deterministic context setup evidence is weak.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 419,
+    "owner": "writeCannedKindRules",
+    "text": "- Context pressure coverage is present; pressure conclusions must cite the aggregate pressure fields and stay proportional to the covered session count.\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 421,
+    "owner": "writeCannedKindRules",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 497,
+    "owner": "RenderCannedMarkdown",
+    "text": "# AI-generated recommendation\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 498,
+    "owner": "RenderCannedMarkdown",
+    "text": "\u003e Generated recommendation text. Deterministic health scores and signal rows were not modified.\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 499,
+    "owner": "RenderCannedMarkdown",
+    "text": "## Summary\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 501,
+    "owner": "RenderCannedMarkdown",
+    "text": "\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 505,
+    "owner": "RenderCannedMarkdown",
+    "text": "## Recommendations\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 511,
+    "owner": "RenderCannedMarkdown",
+    "text": "   - Actions:\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 521,
+    "owner": "RenderCannedMarkdown",
+    "text": "\n## Risks\n\n"
+  },
+  {
+    "source": "internal/insight/canned.go",
+    "line": 527,
+    "owner": "RenderCannedMarkdown",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 20,
+    "owner": "ToolEffectivenessType",
+    "text": "tool_effectiveness"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 21,
+    "owner": "ToolEffectivenessSchemaVersion",
+    "text": "tool_effectiveness.v1"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 28,
+    "owner": "AssessmentHelped",
+    "text": "helped"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 29,
+    "owner": "AssessmentDidNotHelp",
+    "text": "did_not_help"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 30,
+    "owner": "AssessmentUnknown",
+    "text": "unknown"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 35,
+    "owner": "OmissionBudget",
+    "text": "budget"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 36,
+    "owner": "OmissionUnretained",
+    "text": "unretained"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 37,
+    "owner": "OmissionNoResult",
+    "text": "no_result"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 38,
+    "owner": "OmissionPreviews",
+    "text": "previews"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 41,
+    "owner": "toolEffectivenessInstruction",
+    "text": "You are assessing how the tool calls in one AI agent session served its task. Reply with only a JSON object of this shape and no other text: {\"conclusions\":[{\"assessment\":\"helped|did_not_help|unknown\",\"text\":\"...\",\"ordinals\":[N],\"calls\":[{\"ordinal\":N,\"call_index\":I}]}]}. Each conclusion cites the message ordinals that support it in \"ordinals\", and names the exact call in \"calls\" when a message holds several. Cite only message ordinals and calls that appear in this prompt. An empty result can be useful evidence; a call with status completed and an empty result finished without output, as a silent command does. A successful tool call does not prove the task succeeded. Answer unknown when the evidence is insufficient, including inputs or results marked cut, not retained, or not recorded. Do not assign session cost, tokens, or time to a single tool.\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 295,
+    "owner": "buildToolEffectivenessPrompt",
+    "text": "## Omissions\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 297,
+    "owner": "buildToolEffectivenessPrompt",
+    "text": "None.\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 300,
+    "owner": "buildToolEffectivenessPrompt",
+    "text": "- "
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 302,
+    "owner": "buildToolEffectivenessPrompt",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 304,
+    "owner": "buildToolEffectivenessPrompt",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 455,
+    "owner": "writeToolEvidence",
+    "text": "\n## Tool evidence\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 457,
+    "owner": "writeToolEvidence",
+    "text": "No tool calls found for this session.\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 468,
+    "owner": "writeToolEvidence",
+    "text": "- Sequence: none\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 470,
+    "owner": "writeToolEvidence",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 474,
+    "owner": "writeToolEvidence",
+    "text": "Result:\n(result not retained)\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 476,
+    "owner": "writeToolEvidence",
+    "text": "Result:\n(no result recorded)\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 502,
+    "owner": "writeToolSequences",
+    "text": "### Sequences\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 518,
+    "owner": "writeToolSequences",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 570,
+    "owner": "writeFenced",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 573,
+    "owner": "writeFenced",
+    "text": "\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 576,
+    "owner": "writeFenced",
+    "text": "\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 746,
+    "owner": "RenderToolEffectivenessMarkdown",
+    "text": "## Model assessment\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 759,
+    "owner": "RenderToolEffectivenessMarkdown",
+    "text": "\n## Observed tool sequences\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 761,
+    "owner": "RenderToolEffectivenessMarkdown",
+    "text": "None.\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 766,
+    "owner": "RenderToolEffectivenessMarkdown",
+    "text": "\n## Omissions\n\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 768,
+    "owner": "RenderToolEffectivenessMarkdown",
+    "text": "None.\n"
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 771,
+    "owner": "RenderToolEffectivenessMarkdown",
+    "text": "- "
+  },
+  {
+    "source": "internal/insight/tool_effectiveness.go",
+    "line": 773,
+    "owner": "RenderToolEffectivenessMarkdown",
+    "text": "\n"
+  },
+  {
+    "source": "internal/recall/extract/prompts.go",
+    "line": 19,
+    "owner": "baseIntentPrompt",
+    "text": "You distill one user message from a coding-agent session into memory entries for a keyword search index. The text is what the human asked the agent to do, or their feedback on work in progress.\n\nExtract entries capturing the user's intent: the task requested, its targets and constraints (files, repos, branches, tools, APIs, versions, deadlines), corrections or feedback on prior work, standing preferences about how work should be done, and stated success criteria. Emit one entry per distinct item - the count should follow the content, so a one-line instruction may yield a single entry while a detailed request yields several. Do not pad.\n\nRules:\n- Each entry must stand alone without the surrounding session.\n- Quote exact file paths, commands, identifiers, and values verbatim.\n- type: 'fact' for the requested task and stated context, 'preference' for standing user preferences about tools or workflow, 'open_question' for things the user left undecided.\n- title: one specific sentence, at most 120 characters.\n- body: 1-3 dense sentences with the exact identifiers and values.\n- entities: the exact searchable strings (file paths, function names, commands, project names) the entry is about."
+  },
+  {
+    "source": "internal/recall/extract/prompts.go",
+    "line": 31,
+    "owner": "baseActionPrompt",
+    "text": "You distill one segment of a coding agent's recorded work (its replies, file edits, commands, and their results) into memory entries for a keyword search index.\n\nRecord BOTH what the agent did and what it learned. Emit one entry per distinct item - the count should follow the content, so a short segment may yield one or two entries while a dense one yields many. Do not pad and do not stop early when more distinct items remain.\n\n- 'procedure': a sequence of steps that accomplished something, with the exact commands, files, and values used, and its outcome.\n- 'fact' (state change): how the code or system changed - \"X went from A to B\" - with the exact before and after values.\n- 'fact' (finding): concrete facts learned about the codebase or environment: where things live, how components connect, config values, versions, schema shapes, API behaviors, test results. Record these generously even when they are incidental to the task - a future search may need any of them, so incidental findings are wanted content, not padding.\n- 'decision': alternatives the agent proposed or considered, and why one was chosen or rejected.\n- 'warning': errors hit, failing commands, pitfalls or gotchas discovered.\n\nRules:\n- Each entry must stand alone without the session transcript.\n- Quote exact file paths, commands, error messages, and values verbatim.\n- Record outcomes explicitly: what succeeded and what failed.\n- title: one specific sentence, at most 120 characters.\n- body: 1-4 dense sentences with the exact identifiers and values.\n- entities: the exact searchable strings (file paths, function names, commands, error strings, URLs) the entry is about."
+  },
+  {
+    "source": "internal/recall/extract/prompts.go",
+    "line": 52,
+    "owner": "unexecutedActionPreamble",
+    "text": "No tool ran in this segment, so nothing in it was executed and no procedure entry applies; record only observations, findings, warnings, and settled choices, and never state that proposed or planned work was done."
+  },
+  {
+    "source": "internal/recall/extract/client.go",
+    "line": 701,
+    "owner": "detailWithheld",
+    "text": "(withheld: endpoint URL carries credential material)"
+  }
+]

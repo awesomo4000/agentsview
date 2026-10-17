@@ -1,0 +1,72 @@
+const (
+	maxResponseBodyBytes = 16 << 20
+	maxResponseEntries   = 100
+	maxEntryTitleChars   = 500
+	maxEntryBodyChars    = 5000
+	maxEntryEntities     = 50
+	maxEntityChars       = 200
+)
+
+// Entry is one distilled memory entry as the model produces it.
+type Entry struct {
+	Type     string   `json:"type"`
+	Title    string   `json:"title"`
+	Body     string   `json:"body"`
+	Entities []string `json:"entities"`
+}
+
+// Usage reports token consumption for one model call.
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+}
+
+// entryTypes is the closed set of entry kinds, shared by the request
+// schema and the client-side validation of what actually came back.
+var entryTypes = []string{
+	"fact", "decision", "procedure", "warning", "preference", "open_question",
+}
+
+// entrySchema constrains decoding so the model can only produce parseable
+// entries of the given types; validation failures become server-side
+// sampling constraints instead of client-side parse errors.
+func entrySchema(types []string) map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"entries": map[string]any{
+				"type":     "array",
+				"maxItems": maxResponseEntries,
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"type": map[string]any{
+							"type": "string",
+							"enum": types,
+						},
+						"title": map[string]any{
+							"type": "string", "minLength": 1,
+							"maxLength": maxEntryTitleChars,
+						},
+						"body": map[string]any{
+							"type": "string", "minLength": 1,
+						},
+						"entities": map[string]any{
+							"type":     "array",
+							"maxItems": maxEntryEntities,
+							"items": map[string]any{
+								"type":      "string",
+								"maxLength": maxEntityChars,
+							},
+						},
+					},
+					"required":             []string{"type", "title", "body", "entities"},
+					"additionalProperties": false,
+				},
+			},
+		},
+		"required":             []string{"entries"},
+		"additionalProperties": false,
+	}
+}
+

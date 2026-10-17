@@ -1,0 +1,26 @@
+{
+  "source_commit": "a1d005bc0e3389c763a361f8a2ce644860a95d7c",
+  "sources": {
+    "internal/insight/prompt.go": {
+      "sha256": "194b80b6617268d68e7c3251e2056e34b32f1c2040a025f53642be75005a05c1",
+      "snapshot": "source/internal/insight/prompt.go.txt"
+    },
+    "internal/insight/canned.go": {
+      "sha256": "f60a561b5e690d8a6ab95038a2a8d0b016f0f2f1fc910e20f8c3d6911b89de9e",
+      "snapshot": "source/internal/insight/canned.go.txt"
+    },
+    "internal/insight/tool_effectiveness.go": {
+      "sha256": "6658276e08be3773e2bf0687bc9713eabf28eced1c62c360ee77c755107d2639",
+      "snapshot": "source/internal/insight/tool_effectiveness.go.txt"
+    },
+    "internal/recall/extract/prompts.go": {
+      "sha256": "3878e7ca56c46a81b275d83d3ac9babe99c4f4c23d8bfa3c2f3673d8c5e950d0",
+      "snapshot": "source/internal/recall/extract/prompts.go.txt"
+    },
+    "internal/recall/extract/client.go": {
+      "sha256": "d2a905845fe1246df182734b476beffadbdfbbba2a3cb4c5d8f09431c7cad082",
+      "excerpt": "recall-response-schema.go.txt",
+      "function": "entrySchema"
+    }
+  }
+}

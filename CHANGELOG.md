@@ -2,6 +2,10 @@
 
 ## 10/17/2026
 
+- Preserve built-in summarization, recall, and review prompts under `x/prompts`,
+  with source snapshots, schemas, and an external-harness execution guide.
+  Verify the adapter with a synthetic local executable; no model is invoked.
+
 - Default CLI and desktop UI serving to loopback port 47831. Preserve `--port`
   and saved port overrides; reject occupied ports instead of silently moving.
   Explicit `--port 0` remains available for temporary listeners.

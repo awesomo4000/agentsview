@@ -1,0 +1,16 @@
+{
+  "arguments": [
+    "-p",
+    "--output-format",
+    "json",
+    "--no-session-persistence",
+    "--tools",
+    ""
+  ],
+  "prompt_received": "Summarize this synthetic session: project demo updated README.",
+  "result": {
+    "Content": "Synthetic summary returned by fake harness",
+    "Agent": "claude",
+    "Model": "fake-local"
+  }
+}

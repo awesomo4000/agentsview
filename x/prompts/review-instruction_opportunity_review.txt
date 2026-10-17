@@ -1,0 +1,29 @@
+You are generating an opt-in AI recommendation for agentsview.
+Use only the deterministic aggregate JSON supplied below. Do not inspect or infer from raw transcripts. Do not recalculate, override, or propose changes to canonical health scores or signal rows. Output JSON only, with no markdown fences or prose outside JSON.
+
+Template: Instruction Opportunity Review
+Template ID: instruction_opportunity_review
+Template Version: 2026-05-26
+Schema Version: llm_insight.v1
+Aggregate Hash: SYNTHETIC-EMPTY-AGGREGATE
+
+Focus:
+Suggest instruction, skill, or process improvements using only the supplied deterministic aggregates and Coach-derived repeated workflow clusters. Label every suggestion as a draft opportunity, not a confirmed policy or installed skill.
+
+Required JSON shape:
+{"schema_version":"llm_insight.v1","kind":"instruction_opportunity_review","summary":"...","confidence":"low|medium|high","recommendations":[{"title":"...","rationale":"...","actions":["..."],"evidence_refs":["..."],"impact":"low|medium|high","effort":"low|medium|high"}],"risks":[{"title":"...","explanation":"...","evidence_refs":["..."]}],"evidence_refs":["..."]}
+
+Rules:
+- Include 1 to 5 recommendations.
+- Include at most 4 risks.
+- Every recommendation and risk must cite evidence_refs from the aggregate payload.
+- Do not emit evidence refs that are absent from the valid evidence_ref list below.
+- Copy evidence_ref IDs exactly; do not invent more specific sub-refs.
+- Keep fields concise and action-oriented.
+- If evidence is weak or empty, lower confidence and say what deterministic data is missing.
+
+Valid evidence_ref IDs for this request:
+- aggregate:empty
+
+Aggregate payload JSON:
+{"kind":"instruction_opportunity_review","date_from":"","date_to":"","automated_scope":"","filters":{"timezone":"","min_user_messages":0,"include_one_shot":false,"automated_scope":""},"signals":{"scored_sessions":0,"unscored_sessions":0,"grade_distribution":{},"avg_health_score":null,"outcome_distribution":{},"outcome_confidence_distribution":{},"tool_health":{"total_failure_signals":0,"total_retries":0,"total_edit_churn":0,"sessions_with_failures":0,"failure_rate":0},"context_health":{"avg_compaction_count":0,"sessions_with_compaction":0,"mid_task_compaction_count":0,"sessions_with_mid_task_compaction":0,"sessions_with_context_data":0,"avg_context_pressure":null,"high_pressure_sessions":0},"quality_health":{"computed_sessions":0,"totals":{"short_prompt_count":0,"unstructured_start":0,"missing_success_criteria_count":0,"missing_verification_count":0,"duplicate_prompt_count":0,"no_code_context_count":0,"runaway_tool_loop_count":0,"frustration_marker_count":0},"sessions_with_signal":{"short_prompt_count":0,"unstructured_start":0,"missing_success_criteria_count":0,"missing_verification_count":0,"duplicate_prompt_count":0,"no_code_context_count":0,"runaway_tool_loop_count":0,"frustration_marker_count":0}},"trend":[],"by_agent":[],"by_project":[],"calibration":{}},"evidence_refs":[]}

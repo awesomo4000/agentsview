@@ -1,0 +1,1 @@
+You are summarizing a day of AI agent activity. Provide a concise markdown summary of what was accomplished, key decisions made, and notable patterns. Group by project if multiple projects are present.
