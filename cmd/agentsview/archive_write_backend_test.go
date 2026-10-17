@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.kenn.io/agentsview/internal/clickhouse"
 	"os"
 	"path/filepath"
 	stdsync "sync"
@@ -102,7 +103,7 @@ func TestLocalArchiveWriteBackendPGPushStopsAfterCanceledLocalSync(t *testing.T)
 	testLocalArchivePushStopsAfterCanceledSync(t,
 		func(backend *localArchiveWriteBackend, ctx context.Context) error {
 			_, err := backend.ReplicaPush(
-				ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
+				ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
 			)
 			return err
 		})
@@ -120,7 +121,7 @@ func TestLocalPGPushEnsuresPricingBeforeConnecting(t *testing.T) {
 	}
 
 	_, err := backend.ReplicaPush(
-		t.Context(), pgReplica{},
+		t.Context(), clickhouse.Backend{},
 		storage.ConfiguredReplica{Target: storage.ReplicaTarget{URL: unreachablePGURL}},
 		ReplicaPushConfig{}, nil, nil,
 	)
@@ -142,7 +143,7 @@ func TestLocalPGWatchPusherUsesBackendPricingEnsure(t *testing.T) {
 	}
 	target := &fakeTarget{}
 	pusher := backend.newReplicaPusher(
-		pgReplica{},
+		clickhouse.Backend{},
 		func(context.Context) error { return nil },
 		func(context.Context) (storage.Pusher, error) { return target, nil },
 	)
@@ -263,7 +264,7 @@ func TestLocalArchiveWriteBackendPGPushRejectsDeferredProcessing(t *testing.T) {
 	var err error
 	out := captureStdout(t, func() {
 		_, err = backend.ReplicaPush(
-			t.Context(), pgReplica{},
+			t.Context(), clickhouse.Backend{},
 			storage.ConfiguredReplica{Target: storage.ReplicaTarget{URL: unreachablePGURL}},
 			ReplicaPushConfig{}, nil, nil,
 		)
@@ -353,7 +354,7 @@ func TestLocalArchiveWriteBackendPGPushWatchCanceledStartupIsClean(t *testing.T)
 	backend := testLocalArchiveWriteBackend(t)
 
 	err := backend.ReplicaPushWatch(
-		canceledContext(), pgReplica{},
+		canceledContext(), clickhouse.Backend{},
 		storage.ConfiguredReplica{},
 		ReplicaPushConfig{},
 		nil,
@@ -390,7 +391,7 @@ func pushWatchOwnerCases(t *testing.T) []pushWatchOwnerCase {
 			name: "daemon PostgreSQL",
 			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
 				return (daemonArchiveWriteBackend{watchHooks: hooks}).ReplicaPushWatch(
-					ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
+					ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
 					time.Hour, time.Hour,
 				)
 			},
@@ -410,7 +411,7 @@ func pushWatchOwnerCases(t *testing.T) []pushWatchOwnerCase {
 			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
 				localPostgreSQL.watchHooks = hooks
 				return localPostgreSQL.ReplicaPushWatch(
-					ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
+					ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
 					time.Hour, time.Hour,
 				)
 			},
@@ -432,7 +433,7 @@ func TestDaemonPGPushWatchSendsClaimedBatchAndProbesRecovery(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- backend.ReplicaPushWatch(
-			ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
+			ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
 			time.Hour, time.Hour,
 		)
 	}()
@@ -490,7 +491,7 @@ func TestDaemonPGPushWatchRenameProbesDeferredRecoveryAtExecution(t *testing.T) 
 	done := make(chan error, 1)
 	go func() {
 		done <- backend.ReplicaPushWatch(
-			ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
+			ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
 			time.Hour, time.Hour,
 		)
 	}()
@@ -1070,7 +1071,7 @@ func TestDaemonPushWatchOwnersSuppressOpenCodeSHMOnlyBatches(t *testing.T) {
 					appCfg: cfg, watchHooks: hooks,
 				}
 				return backend.ReplicaPushWatch(
-					ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
+					ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
 					time.Hour, time.Hour,
 				)
 			},
@@ -1481,7 +1482,7 @@ func TestLocalPGPushWatchGivesDeferredScopesAPollingOwner(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- backend.ReplicaPushWatch(
-			ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
+			ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
 			time.Hour, time.Hour,
 		)
 	}()

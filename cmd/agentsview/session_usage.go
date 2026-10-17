@@ -94,9 +94,7 @@ func sessionUsageDataForCommand(
 
 	remote, _ := cmd.Flags().GetString("server")
 	if remote != "" {
-		if pgReadRequested(cmd) {
-			return nil, tokenUseExitErr, errors.New("--server and --pg are mutually exclusive")
-		}
+
 		token, err := explicitServerToken(cmd)
 		if err != nil {
 			return nil, tokenUseExitErr, err
@@ -114,13 +112,7 @@ func sessionUsageDataForCommand(
 	if err != nil {
 		return nil, tokenUseExitErr, fmt.Errorf("loading config: %w", err)
 	}
-	if pgReadRequested(cmd) {
-		pgCfg, _, err := resolvePGReadConfig(cmd, cfg)
-		if err != nil {
-			return nil, tokenUseExitErr, err
-		}
-		return pgSessionUsageData(cfg, pgCfg, query)
-	}
+
 	backend, cleanup, err := resolveArchiveQueryBackendWithConfig(
 		ctx,
 		cfg,
@@ -247,22 +239,6 @@ func httpSessionUsageData(
 		out.SubagentCount = int(*wire.SubagentCount)
 	}
 	return &out, usageExitCode(&out.SessionUsage), nil
-}
-
-func pgSessionUsageData(
-	cfg config.Config, pgCfg config.PGConfig, query sessionUsageQuery,
-) (*sessionUsageOutput, int, error) {
-	store, cleanup, err := openPGReadStore(cfg, pgCfg)
-	if err != nil {
-		if cleanup != nil {
-			cleanup()
-		}
-		return nil, tokenUseExitErr, fmt.Errorf("opening pg store: %w", err)
-	}
-	if cleanup != nil {
-		defer cleanup()
-	}
-	return storeSessionUsageData("pg", cfg, store, query)
 }
 
 func storeSessionUsageData(

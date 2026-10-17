@@ -33,7 +33,8 @@ identity. Any later migration must preserve existing attribution.
       Reject configured S3 roots; preserve previously archived conversations.
 - [ ] Review SSH/HTTP sync for a possible future internal upload path. Hold removal.
 - [ ] Review remaining raw sync and remote connectors before further removal.
-- [ ] Remove PostgreSQL and its driver.
+- [x] Remove PostgreSQL, its driver, direct read flags, API routes, and CI service.
+      Reject legacy PostgreSQL configuration; preserve the SQLite archive.
 - [ ] Evaluate whether ClickHouse serves retained analytics before deciding.
 - [ ] Evaluate the DuckDB mirror against retained analytics before deciding.
 - [x] Remove artifact-folder exchange, raw archive vault, and docbank services.

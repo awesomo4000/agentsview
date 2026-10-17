@@ -17,5 +17,7 @@
 - Remove S3 discovery, downloads, sidecar hydration, periodic polling, and the
   MinIO client. Reject legacy S3 configuration while retaining archived SQLite
   conversations and local harness ingestion.
-- Record PostgreSQL as a later removal; retain analytics backends, vectors, MCP,
-  SSH/HTTP sync, and model integration pending separate decisions.
+- Remove PostgreSQL replication, serving, direct reads, background upload
+  services, remote embedding-recipe adoption, and the pgx driver. Reject
+  obsolete PostgreSQL settings. Retain SQLite storage and vector search, the
+  UI, MCP over local/HTTP reads, ClickHouse/DuckDB, and SSH/HTTP sync.

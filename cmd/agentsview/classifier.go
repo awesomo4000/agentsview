@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
-	"go.kenn.io/agentsview/internal/postgres"
 )
 
 func newClassifierCommand() *cobra.Command {
@@ -24,7 +23,7 @@ func newClassifierCommand() *cobra.Command {
 		Short: "Manage the automated-session classifier",
 		// Hidden because routine config.toml edits are auto-detected
 		// on daemon restart via hash comparison; this group is a
-		// recovery hatch (downgrade-then-upgrade, manual PG state
+		// recovery hatch (downgrade-then-upgrade, manual classifier state
 		// surgery) that most users never need.
 		Hidden:       true,
 		GroupID:      groupMeta,
@@ -39,7 +38,6 @@ func newClassifierCommand() *cobra.Command {
 }
 
 func newClassifierRebuildCommand() *cobra.Command {
-	var includePG bool
 	cmd := &cobra.Command{
 		Use:   "rebuild",
 		Short: "Force is_automated re-backfill on next open",
@@ -47,8 +45,7 @@ func newClassifierRebuildCommand() *cobra.Command {
 			"db.Open runs a full is_automated backfill. " +
 			"Use after editing [automated] prefixes in " +
 			"config.toml or after a downgrade-then-upgrade " +
-			"cycle that left flags stale. Pass --pg to also " +
-			"clear the configured PostgreSQL sync store.",
+			"cycle that left flags stale.",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -65,14 +62,10 @@ func newClassifierRebuildCommand() *cobra.Command {
 				return err
 			}
 			return runClassifierRebuild(
-				cmd.Context(), cfg, cmd.OutOrStdout(), includePG,
+				cmd.Context(), cfg, cmd.OutOrStdout(),
 			)
 		},
 	}
-	cmd.Flags().BoolVar(
-		&includePG, "pg", false,
-		"also clear the configured PostgreSQL sync store",
-	)
 	return cmd
 }
 
@@ -101,11 +94,9 @@ func guardClassifierRebuild(tr transport) error {
 }
 
 // runClassifierRebuild prints the loaded user-prefix list, deletes the
-// classifier hash from SQLite stats, and optionally deletes it from PG
-// sync_metadata. Returns an error on PG delete failure when PG cleanup is
-// explicitly requested.
+// classifier hash from SQLite stats so it can be recomputed.
 func runClassifierRebuild(
-	ctx context.Context, cfg config.Config, out io.Writer, includePG bool,
+	ctx context.Context, cfg config.Config, out io.Writer,
 ) error {
 	prefixes := db.UserAutomationPrefixes()
 	fmt.Fprintf(out,
@@ -130,28 +121,6 @@ func runClassifierRebuild(
 		return fmt.Errorf("clearing SQLite hash: %w", err)
 	}
 
-	if includePG {
-		pgCfg, err := cfg.ResolvePG()
-		if err != nil {
-			return fmt.Errorf("resolving pg config: %w", err)
-		}
-		if pgCfg.URL == "" {
-			return errors.New(
-				"pg url not configured; set AGENTSVIEW_PG_URL, use a legacy [pg].url, or configure default_pg with named [pg.NAME] targets",
-			)
-		}
-		if err := clearPGClassifierHash(ctx, cfg, pgCfg); err != nil {
-			return fmt.Errorf(
-				"clearing PG hash: %w (SQLite was cleared "+
-					"successfully; once PG is reachable, retry "+
-					"'agentsview classifier rebuild', or run "+
-					"'agentsview pg push --full' to repopulate "+
-					"PG from the corrected SQLite side)",
-				err,
-			)
-		}
-	}
-
 	fmt.Fprintln(out,
 		"classifier hash cleared. Next db.Open will run "+
 			"the is_automated backfill.")
@@ -173,29 +142,6 @@ func clearSQLiteClassifierHash(ctx context.Context, dbPath string) error {
 	defer conn.Close()
 	_, err = conn.ExecContext(ctx,
 		`DELETE FROM stats WHERE key = ?`,
-		db.ClassifierHashKey,
-	)
-	return err
-}
-
-// clearPGClassifierHash takes the full cfg so the static
-// guardrail (Task 7) sees an applyClassifierConfig call in
-// the same enclosing body as the postgres.Open trigger.
-// The helper is silent and idempotent, so calling it again
-// here on top of the RunE-closure call is harmless.
-func clearPGClassifierHash(
-	ctx context.Context, cfg config.Config, pgCfg config.PGConfig,
-) error {
-	applyClassifierConfig(cfg)
-	pg, err := postgres.Open(
-		pgCfg.URL, pgCfg.Schema, pgCfg.AllowInsecure,
-	)
-	if err != nil {
-		return err
-	}
-	defer pg.Close()
-	_, err = pg.ExecContext(ctx,
-		`DELETE FROM sync_metadata WHERE key = $1`,
 		db.ClassifierHashKey,
 	)
 	return err

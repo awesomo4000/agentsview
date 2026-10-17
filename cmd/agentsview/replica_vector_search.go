@@ -9,7 +9,6 @@ import (
 	kitvec "go.kenn.io/kit/vector"
 
 	"go.kenn.io/agentsview/internal/config"
-	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/storage"
 )
 
@@ -34,9 +33,8 @@ func replicaVectorUnavailableReason(
 // wireReplicaVectorSearch attaches semantic search to store when the local
 // [vector.embeddings] config's fingerprint matches a generation already
 // pushed to the replica. It is the shared startup gate for every replica
-// read surface: `<backend> serve` (which treats the returned error as fatal)
-// and the CLI direct-read path via wireReplicaReadVectorSearch (which warns
-// and degrades). label prefixes the log lines with the calling surface.
+// server. `<backend> serve` treats a returned error as fatal.
+// label prefixes the log lines with the calling server.
 //
 // A miss is never an error: a replica that cannot serve vectors, a
 // fingerprint mismatch, or a generation that is not fully written each leave
@@ -70,15 +68,7 @@ func wireReplicaVectorSearch(
 			"vector search is unavailable for usage-only archives")
 		return nil
 	}
-	if !appCfg.Vector.Enabled && appCfg.DeploymentEmbeddings != nil {
-		adopted, err := adoptReplicaVectorConfig(ctx, appCfg, backend, store)
-		if err != nil {
-			vectorStore.SetSemanticUnavailableReason(err.Error())
-			log.Printf("%s: %v", label, err)
-			return nil
-		}
-		appCfg = adopted
-	}
+
 	if !appCfg.Vector.Enabled {
 		vectorStore.SetSemanticUnavailableReason(fmt.Sprintf(
 			"semantic search: %s requires [vector] enabled with a matching "+
@@ -114,34 +104,4 @@ func wireReplicaVectorSearch(
 	log.Printf("%s: semantic search enabled (fingerprint %s, model %s)",
 		label, info.Fingerprint, gen.Model)
 	return nil
-}
-
-// wireReplicaReadVectorSearchFn is the direct-read service constructors' seam
-// for the vector wiring call, overridable in tests that inject fake stores.
-var wireReplicaReadVectorSearchFn = wireReplicaReadVectorSearch
-
-// wireReplicaReadVectorSearch runs the shared replica vector gate for the CLI
-// direct-read path (`session search --pg --semantic|--hybrid`, `mcp --pg`).
-// It mirrors installDirectVectorSearcher's error semantics on the SQLite
-// direct path: wiring failures never fail service construction, because
-// every direct-read command shares this constructor and a vector-side
-// failure must not break unrelated reads. A genuine query failure is logged
-// as a warning and the command continues with semantic search returning
-// db.ErrSemanticUnavailable. Stores that are not replica stores (test fakes
-// injected through the store opener) are left untouched.
-func wireReplicaReadVectorSearch(
-	cfg config.Config, backend storage.Replica, store db.Store,
-) {
-	replicaStore, ok := store.(storage.ReplicaStore)
-	if !ok {
-		return
-	}
-	if err := wireReplicaVectorSearch(
-		context.Background(), cfg, backend, replicaStore, backend.Name()+" read",
-	); err != nil {
-		log.Printf(
-			"warning: wiring %s semantic search: %v; continuing without semantic search",
-			backend.DisplayName(), err,
-		)
-	}
 }

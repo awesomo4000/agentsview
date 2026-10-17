@@ -271,26 +271,6 @@ current head, not the age of pending work. Its credential is read only from
 device ID and credential; there is no public enrollment command yet. See
 [Hosted Raw Sync](/docs/hosted-raw-sync/) for the current boundary.
 
-`raw-sync clean-uploads` runs one server-side cleanup pass for the PostgreSQL
-upload sessions and private spool used by `agentsview pg serve`:
-
-```bash
-agentsview raw-sync clean-uploads
-```
-
-The command uses the effective PostgreSQL target and AgentsView data directory
-from the current configuration. It can run while `pg serve` is stopped. Each
-pass uses the existing bound of up to 128 rows per SQL batch and 128 spool
-entries per directory scan. The command starts a fresh spool cursor on every
-invocation and inspects at most the first 128 entries in that scan window.
-Repeating the command can revisit the same preserved entries, so spool entries
-beyond that window require the long-running server, which keeps its cursor
-between the existing startup pass and its 15-minute cleanup passes. The
-command prints `Raw upload cleanup pass completed.` only after the pass
-succeeds. The PostgreSQL target must have the provisioned raw-sync schema and
-its write privileges. The command checks that capability before creating the
-upload spool.
-
 ______________________________________________________________________
 
 ### `agentsview daemon`
@@ -326,7 +306,7 @@ for a one-off unauthenticated non-loopback bind; a persistent non-loopback
 These commands manage only the writable SQLite daemon for the current data
 directory, including a foreground `serve` process or a daemon auto-started by a
 CLI command. `daemon stop` stops the web UI and background sync together. They
-ignore read-only `agentsview pg serve` and `agentsview duckdb serve` processes.
+ignore read-only `agentsview clickhouse serve` and `agentsview duckdb serve` processes.
 If only read-only servers are running, `daemon status` reports that no daemon is
 running, and `daemon stop` and `daemon restart` leave those servers alive.
 
@@ -1192,128 +1172,6 @@ for the full field reference and exit-code contract.
 
 ______________________________________________________________________
 
-### `agentsview pg push`
-
-Sync sessions from local SQLite to PostgreSQL. See
-[PostgreSQL Sync](/docs/pg-sync/) for full documentation.
-
-```bash
-agentsview pg push [target] [flags]
-```
-
-| Flag                 | Default | Description                                                    |
-| -------------------- | ------- | -------------------------------------------------------------- |
-| `--full`             | `false` | Force full local resync and re-push                            |
-| `--no-vectors`       | `false` | Skip the semantic-search vector phase for this run             |
-| `--embed`            | `false` | Push sessions first, then build and push vectors; watch builds after syncs and pushes vectors on the next interval |
-| `--projects`         |         | Comma-separated projects to push (inclusive)                   |
-| `--exclude-projects` |         | Comma-separated projects to exclude from push                  |
-| `--all-projects`     | `false` | Ignore configured project filters for this run                 |
-| `--all`              | `false` | Push every configured PostgreSQL target sequentially           |
-| `--watch`            | `false` | Run continuously, pushing on change plus a periodic floor      |
-| `--debounce`         | `30s`   | Coalesce window after a change before pushing (`--watch` only) |
-| `--interval`         | `15m`   | Periodic floor push interval (`--watch` only)                  |
-
-See [PostgreSQL Sync — Project Filtering](/docs/pg-sync/#project-filtering) for
-details on how filtering interacts with the push watermark.
-
-`--embed` pushes sessions first, then builds and pushes embeddings in the same
-push, using `[vector]` or a recipe published to PostgreSQL. `--full --embed`
-repairs vector rows too. Watch mode builds in the background after each sync
-that commits changes and pushes built vectors
-on the next interval. It never starts a daemon and refuses to run while one owns
-the archive. It cannot be combined with
-`--no-vectors`, `--all`, or a target with `push_vectors = false`. See
-[Build and push embeddings in a container](/docs/pg-sync/#build-and-push-embeddings-in-a-container).
-
-______________________________________________________________________
-
-### `agentsview pg status`
-
-Show PostgreSQL sync status.
-
-```bash
-agentsview pg status [target] [flags]
-```
-
-| Flag                 | Default | Description                                                 |
-| -------------------- | ------- | ----------------------------------------------------------- |
-| `--all`              | `false` | Show status for every configured PostgreSQL target          |
-| `--projects`         |         | Comma-separated projects whose push status to show          |
-| `--exclude-projects` |         | Comma-separated excluded projects whose push status to show |
-| `--all-projects`     | `false` | Ignore configured project filters for this status           |
-
-______________________________________________________________________
-
-### `agentsview pg serve`
-
-Start a read-only session web UI backed by PostgreSQL. On a writable PostgreSQL
-schema, the same server also registers the
-[hosted raw-sync control plane](/docs/hosted-raw-sync/#http-control-plane). See
-[PostgreSQL Sync](/docs/pg-sync/) for full server documentation.
-
-```bash
-agentsview pg serve [flags]
-```
-
-Accepts the same serve flags (`--host`, `--port`, `--proxy`, etc.) plus
-PostgreSQL configuration from `config.toml`. When the host's `[vector]` config
-matches a generation pushed to PostgreSQL, semantic and hybrid search are served
-from pgvector — see
-[Semantic Search — PostgreSQL](/docs/semantic-search/#postgresql).
-
-______________________________________________________________________
-
-### `agentsview pg service`
-
-Install and manage the PostgreSQL auto-push service, which runs
-`agentsview pg push --watch` in the background. Supported service managers are
-launchd on macOS and `systemd --user` on Linux. See
-[PostgreSQL Sync — `agentsview pg service`](/docs/pg-sync/#agentsview-pg-service)
-for setup notes.
-
-```bash
-agentsview pg service install
-agentsview pg service status
-agentsview pg service logs [-f]
-agentsview pg service start
-agentsview pg service stop
-agentsview pg service uninstall
-```
-
-| Command     | Description                                               |
-| ----------- | --------------------------------------------------------- |
-| `install`   | Generate the service unit, enable it, and start it        |
-| `status`    | Show the service-manager status plus last successful push |
-| `logs -f`   | Follow `pg-watch.log` under the AgentsView data directory |
-| `start`     | Start the installed service                               |
-| `stop`      | Stop the installed service                                |
-| `uninstall` | Stop and remove the service unit                          |
-
-______________________________________________________________________
-
-### `agentsview pg vectors`
-
-Inspect and drop semantic-search embedding generations stored in PostgreSQL. See
-[Semantic Search — Maintenance](/docs/semantic-search/#maintenance) for details.
-
-```bash
-agentsview pg vectors list [flags]
-agentsview pg vectors drop <id> [flags]
-```
-
-| Command     | Description                                                                              |
-| ----------- | ---------------------------------------------------------------------------------------- |
-| `list`      | List generations with model, dimension, document/chunk counts, and contributing machines |
-| `drop <id>` | Drop a generation and all of its embeddings (prompts for confirmation)                   |
-
-| Flag       | Default | Description                                             |
-| ---------- | ------- | ------------------------------------------------------- |
-| `--target` |         | PG target name (default: the default configured target) |
-| `--yes`    | `false` | Skip the confirmation prompt (`drop` only)              |
-
-______________________________________________________________________
-
 ### `agentsview duckdb`
 
 Mirror the local SQLite archive into DuckDB and serve from it, locally or over
@@ -1337,7 +1195,7 @@ mirror remotely with `duckdb quack serve` instead. `duckdb status` and
 `AGENTSVIEW_DUCKDB_URL` is set, and the local mirror file otherwise. When
 `[duckdb].path` or `AGENTSVIEW_DUCKDB_PATH` is set, `duckdb quack serve` exposes
 that same mirror by default unless `--path` overrides it. `duckdb serve` accepts
-the same serve flags as `pg serve`. The DuckDB backend is unavailable on Windows
+the same serve flags as `serve`. The DuckDB backend is unavailable on Windows
 ARM64 (the upstream bindings ship no prebuilt library for that platform); all
 other commands work normally there.
 
@@ -1360,7 +1218,7 @@ agentsview clickhouse service install
 `--interval` flags as `pg push`, except there is no `--no-vectors` flag.
 ClickHouse has no vector phase. `--all --watch` is rejected.
 
-`clickhouse serve` accepts the same serve flags as `pg serve`.
+`clickhouse serve` accepts the same serve flags as `serve`.
 `clickhouse service` installs `clickhouse push --watch` as a launchd or systemd
 user unit and writes `clickhouse-watch.log`.
 
@@ -1746,19 +1604,15 @@ for that scripting mode. `session export` and `session watch` are the
 exceptions: they stream raw bytes and NDJSON respectively, so they reject
 `--format`/`--json`. Use `--server <url>` to target an explicit running daemon,
 `AGENTSVIEW_SERVER_TOKEN` or `--server-token-file <path>` when that daemon
-requires auth, or `--pg` to read from configured PostgreSQL.
+requires auth.
 
 `agentsview session list` excludes one-shot and automated sessions by default.
 When that hides matching sessions on the first page, it reports the counts and
 the corresponding `--include-one-shot` or `--include-automated` flags on stderr.
 Stdout, including `--format json`, keeps its existing shape for pipelines.
 
-`AGENTSVIEW_PG_URL`, a legacy `[pg].url`, or the effective default target from
-`default_pg` plus `[pg.NAME]` are sync configuration only; they do not change
-the default read path. Read commands use local SQLite unless `--pg` is supplied,
-in which case they fail fast if no connection URL is available. Mutating
-commands such as `session sync` and local-only raw source export continue to use
-the local archive.
+Read commands use the local daemon unless `--server` is supplied. Mutating
+commands and local-only source export continue to use the local archive.
 
 Use [`agentsview health`](#agentsview-health) for a human-first signal view and
 [Session API](/docs/session-api/) for the full programmatic contract, including
@@ -1868,7 +1722,6 @@ Inspect the selected conversation-memory target and the local client package:
 ```bash
 agentsview doctor memory
 agentsview doctor memory --server <url> [--server-token-file <path>]
-agentsview doctor memory --pg
 agentsview doctor memory --plugin-root <path> --format json
 ```
 
@@ -1897,42 +1750,24 @@ ______________________________________________________________________
 
 ### `agentsview memory session-start`
 
-Run the bounded conversation-memory lifecycle action used by native agent
-packages:
+Run the bounded conversation-memory action used by native agent packages:
 
 ```bash
 agentsview memory session-start
-agentsview memory session-start --mode hosted-contributor [--target <pg-name>]
 agentsview memory session-start --mode hosted-reader --server <url> \
   [--server-token-file <path>]
-agentsview memory session-start --mode hosted-reader --pg [--target <pg-name>]
 agentsview memory session-start --hook [--plugin-root <path>]
 ```
 
-The default `local` mode ensures the writable local daemon is available, then
-asks it to run a coalesced background reconciliation. `hosted-contributor`
-notifies the already running PostgreSQL push watcher for the selected target;
-that owner keeps its existing debounce, credentials, embedding work, and push
-cadence. It does not start another writer. `hosted-reader` checks an explicit
-authenticated daemon or configured PostgreSQL read target without starting a
-local archive or claiming to refresh hosted data.
+Local mode ensures the writable local daemon is available and requests a
+background reconciliation. Hosted-reader mode checks an explicit HTTP daemon.
+Set `AGENTSVIEW_DISABLE_AUTO_SYNC=1` to skip automatic requests. The `--hook`
+flag reports failures without preventing the agent session from starting.
 
-Every mode returns within 1.9 seconds and does not wait for archive-scale work.
-Set `AGENTSVIEW_DISABLE_AUTO_SYNC=1` to skip only this automatic request;
-explicit sync commands and searches remain available. A contributor owner
-started by an older binary must be restarted once so it can advertise the
-lifecycle wake endpoint. The contributor wake is available on macOS and Linux;
-Windows contributors continue on the watcher's normal event and interval
-cadence.
-
-Native packages can configure these flags with `AGENTSVIEW_MEMORY_MODE`,
-`AGENTSVIEW_MEMORY_TARGET`, `AGENTSVIEW_MEMORY_SERVER`,
-`AGENTSVIEW_MEMORY_SERVER_TOKEN_FILE`, and `AGENTSVIEW_MEMORY_PG`. Explicit
-target flags override the package environment as a group. `--hook` reports a
-failure to stderr and exits successfully so startup problems do not prevent the
-agent session from opening. `--plugin-root` also diagnoses standalone skill
-copies that would be loaded alongside the native package; it never changes
-those files.
+Native packages can use `AGENTSVIEW_MEMORY_MODE`, `AGENTSVIEW_MEMORY_SERVER`,
+and `AGENTSVIEW_MEMORY_SERVER_TOKEN_FILE`. Explicit target flags override those
+environment values as a group. PostgreSQL and hosted-contributor modes have
+been removed from this fork.
 
 ______________________________________________________________________
 
@@ -1978,9 +1813,7 @@ with both stdio and StreamableHTTP and does not change backend selection.
 
 Use `--server <url>` to point at an explicit running daemon. When the daemon
 requires auth, provide `AGENTSVIEW_SERVER_TOKEN` or
-`--server-token-file <path>`. Use `--pg` to read from configured PostgreSQL
-directly, or run [`agentsview pg serve`](/docs/pg-sync/#agentsview-pg-serve) and
-pass its URL with `--server`.
+`--server-token-file <path>`.
 
 | Flag                         | Default | Description                                         |
 | ---------------------------- | ------- | --------------------------------------------------- |
@@ -1988,7 +1821,6 @@ pass its URL with `--server`.
 | `--http-allow-insecure`      | `false` | Allow non-loopback HTTP binds; requires bearer auth |
 | `--server <url>`             |         | Explicit daemon URL for MCP tool calls              |
 | `--server-token-file <path>` |         | Bearer token file for an explicit daemon URL        |
-| `--pg`                       | `false` | Read from configured PostgreSQL                     |
 | `--profile <name>`           | `full`  | Advertise the `full` or focused `memory` tool set    |
 
 ______________________________________________________________________
@@ -2180,10 +2012,6 @@ agentsview help
 | `AGENTSVIEW_AUTH_TOKEN_FILE`          |                                                      | Bearer token file under `AGENTSVIEW_MODE`; overrides `auth_token` in `config.toml`                  |
 | `AGENTSVIEW_SKILLS_SERVER`            |                                                      | Remote daemon URL baked into `skills install` examples; not a default for `session` commands        |
 | `AGENTSVIEW_SKILLS_SERVER_TOKEN_FILE` |                                                      | Token file path baked into `skills install` examples with `AGENTSVIEW_SKILLS_SERVER`                |
-| `AGENTSVIEW_PG_URL`                   |                                                      | PostgreSQL connection URL                                                                           |
-| `AGENTSVIEW_PG_MACHINE`               |                                                      | Machine name for PG push sync                                                                       |
-| `AGENTSVIEW_PG_SCHEMA`                | `agentsview`                                         | PostgreSQL schema name                                                                              |
-| `AGENTSVIEW_PG_ALLOW_INSECURE`        |                                                      | Allow a plaintext default PostgreSQL target under `AGENTSVIEW_MODE`                                 |
 | `AGENTSVIEW_EMBEDDINGS_ENDPOINT`      |                                                      | Embeddings endpoint for adopting a recipe published to PostgreSQL, under `AGENTSVIEW_MODE`          |
 | `AGENTSVIEW_EMBEDDINGS_API_KEY_FILE`  |                                                      | API key file for `AGENTSVIEW_EMBEDDINGS_ENDPOINT`                                                   |
 | `AGENTSVIEW_EMBEDDINGS_BATCH_SIZE`    | `32`                                                 | Positive number of inputs per embeddings request when adopting a published PostgreSQL recipe       |

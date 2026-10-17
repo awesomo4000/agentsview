@@ -1,6 +1,6 @@
 // ABOUTME: `session sync` subcommand — triggers a one-off sync for
 // ABOUTME: a single session, either by path or by id. Refuses
-// ABOUTME: against read-only daemons (pg serve).
+// ABOUTME: against read-only daemons (clickhouse serve).
 package main
 
 import (

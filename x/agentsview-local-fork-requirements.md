@@ -176,6 +176,10 @@ backup/recovery, and hosted raw PostgreSQL service. Removing docbank eliminates
 the transitive PostHog dependency. SQLite archive recovery and export remain.
 S3 discovery, downloads, polling, and the MinIO client are now removed. Legacy
 S3 configurations are rejected; existing SQLite conversations remain.
+PostgreSQL replication, serving, direct reads, and its driver are removed.
+The `pg` commands, `--pg` flags, and hosted-contributor memory mode are gone.
+Legacy PostgreSQL configuration is rejected. Local/HTTP MCP and memory reads,
+SQLite vectors, and ClickHouse/DuckDB remain.
 Updates, pricing refresh, external fonts, and other remote features remain.
 This is an intermediate development build, not an offline-approved release.
 The fixed port and access-control requirements above remain pending.

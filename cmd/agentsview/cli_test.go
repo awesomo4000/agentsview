@@ -75,7 +75,7 @@ func TestRootHelpShowsKeySectionsAndCommands(t *testing.T) {
 		"Other Commands:",
 		"serve                  Start the web UI and sync server",
 		"duckdb status          Show DuckDB sync status",
-		"pg push                Push local data to PostgreSQL",
+		"clickhouse push        Push local data to ClickHouse",
 		"duckdb quack           Quack remote protocol commands",
 		"usage daily            Daily cost summary",
 		"completion             Generate the autocompletion script for the specified shell",
@@ -142,7 +142,7 @@ func TestDuckDBPushHelpShowsProjectFlags(t *testing.T) {
 }
 
 func TestPGStatusHelpShowsProjectFlags(t *testing.T) {
-	help, err := executeCommand(newRootCommand(), "pg", "status", "--help")
+	help, err := executeCommand(newRootCommand(), "clickhouse", "status", "--help")
 	require.NoError(t, err, "Execute")
 	for _, want := range []string{
 		"--projects",

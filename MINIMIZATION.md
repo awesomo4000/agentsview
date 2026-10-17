@@ -141,9 +141,48 @@ Validation:
 - Native Tauri packaging, UI browser smoke, and runtime traffic tracing were not
   repeated in this backend-only cut. No private logs were used.
 
-PostgreSQL remains a later removal. ClickHouse/DuckDB analytics, SQLite vectors,
+PostgreSQL was the next cut, recorded below. ClickHouse/DuckDB analytics, SQLite vectors,
 MCP, SSH/HTTP sync, and internal-model integration remain pending separate
 scope decisions, as recorded in the requirements and checklist.
+
+## PostgreSQL removal
+
+Removed the PostgreSQL implementation and pgx driver, `pg` commands, direct
+`--pg` reads, PostgreSQL push API routes, and the PostgreSQL CI database.
+The PostgreSQL-only upload embedding builder, remote recipe adoption, raw
+upload cleanup command, and hosted-contributor memory mode are also removed.
+Shared watch and OS-service helpers now live under `replica_*` filenames for
+ClickHouse. API clients were regenerated.
+
+Legacy `[pg]`, named `[pg.*]`, `default_pg`, and `AGENTSVIEW_PG_*` settings
+fail explicitly. `pg-serve` deployment mode is rejected. Existing SQLite
+archives are not migrated or deleted. The UI, discovery, parsers, conversation
+exports, local/HTTP MCP and memory access, SQLite vectors, ClickHouse/DuckDB,
+and SSH/HTTP sync remain.
+
+Declared module requirements fell from 136 to 131. The rebuilt embedded-UI
+executable is 159,026,802 bytes, or 151.66 MiB, down 8.53 MiB from the S3 cut
+and 56.58 MiB from the upstream baseline. Its import closure and linked module
+inventory contain no pgx, jackc, or PostgreSQL implementation packages.
+
+Validation:
+
+- `make build`: passed, including the existing embedded UI.
+- Regenerated API clients and `npm run check`: passed with zero errors or warnings.
+- `go fmt ./...` and `go vet -tags fts5 ./...`: passed.
+- All ordinary Go test packages and the retained `benchdb` benchmark package
+  compile. No external database was started.
+- Focused CLI, config, server, local/HTTP MCP, conversation-export, stable
+  installation-identity, and ClickHouse service tests passed. SQLite semantic
+  search and vector export regressions passed.
+- Three daemon-discovery tests fail in both this checkout and an isolated
+  checkout of the preceding commit: `TestSessionGetVariants`,
+  `TestSessionUsage_NoSyncDiscoveredDaemon`, and
+  `TestSessionUsage_UsesDiscoveredDaemon`. Each attempts forbidden test-binary
+  daemon autostart after failing to discover its fixture. These pre-existing
+  failures were excluded from the passing focused suite.
+- Native Tauri packaging, browser smoke, and runtime traffic tracing were not
+  performed. No private logs were used.
 
 ## Next removals
 

@@ -23,7 +23,7 @@ import (
 // connecting and reconnecting after errors so a transiently
 // unreachable database never crashes the daemon.
 type replicaPusher struct {
-	// label prefixes log lines, e.g. "pg watch".
+	// label prefixes log lines, e.g. "clickhouse watch".
 	label string
 	// displayName names the replica product in operator-facing warnings.
 	displayName string
@@ -360,7 +360,7 @@ func runReplicaPushWatch(
 
 	// --embed builds in this process, so it never auto-starts a daemon; a
 	// live daemon still wins the writer and rejects the request.
-	appCfg.NoDaemonAutostart = cfg.Embed
+
 	writer, cleanup, err := resolveArchiveWriteBackend(ctx, appCfg, transportIntentLongLived)
 	if err != nil {
 		return fmt.Errorf("opening writer: %w", err)

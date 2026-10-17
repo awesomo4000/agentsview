@@ -66,60 +66,6 @@ type ProxyConfig struct {
 	AllowedSubnets []string `json:"allowed_subnets,omitempty" toml:"allowed_subnets"`
 }
 
-// PGConfig holds PostgreSQL connection settings.
-type PGConfig struct {
-	RawTenant         string `toml:"raw_tenant" json:"raw_tenant,omitempty"`
-	RawDerivation     bool   `toml:"raw_derivation" json:"raw_derivation,omitempty"`
-	RawPollSeconds    int    `toml:"raw_poll_seconds" json:"raw_poll_seconds,omitempty"`
-	RawAttemptSeconds int    `toml:"raw_attempt_seconds" json:"raw_attempt_seconds,omitempty"`
-	RawMaxAttempts    int    `toml:"raw_max_attempts" json:"raw_max_attempts,omitempty"`
-
-	URL             string   `toml:"url" json:"url"`
-	Schema          string   `toml:"schema" json:"schema"`
-	MachineName     string   `toml:"machine_name" json:"machine_name"`
-	AllowInsecure   bool     `toml:"allow_insecure" json:"allow_insecure"`
-	Projects        []string `toml:"projects" json:"projects,omitempty"`
-	ExcludeProjects []string `toml:"exclude_projects" json:"exclude_projects,omitempty"`
-	// PushVectors gates the vector phase of pg push. A pointer so an
-	// absent key defaults to enabled without a load-time default pass.
-	PushVectors *bool `toml:"push_vectors" json:"push_vectors,omitempty"`
-}
-
-// PushVectorsEnabled reports whether pg push should run its vector phase
-// for this target; unset means enabled.
-func (p PGConfig) PushVectorsEnabled() bool {
-	return p.PushVectors == nil || *p.PushVectors
-}
-
-type pgEnvOverrides struct {
-	URL         string
-	Schema      string
-	MachineName string
-	// AllowInsecure comes from AGENTSVIEW_PG_ALLOW_INSECURE under a
-	// deployment mode; nil leaves the target's setting in place.
-	AllowInsecure *bool
-}
-
-// ResolvedPGTarget is one PostgreSQL target after target selection,
-// defaulting, and default-target env overrides are applied.
-type ResolvedPGTarget struct {
-	Name      string
-	Config    PGConfig
-	IsDefault bool
-}
-
-var pgConfigKeys = map[string]struct{}{
-	"raw_tenant": {}, "raw_derivation": {}, "raw_poll_seconds": {}, "raw_attempt_seconds": {}, "raw_max_attempts": {},
-
-	"url":              {},
-	"schema":           {},
-	"machine_name":     {},
-	"allow_insecure":   {},
-	"projects":         {},
-	"exclude_projects": {},
-	"push_vectors":     {},
-}
-
 // ClickHouseConfig holds ClickHouse connection settings for push and serve.
 type ClickHouseConfig struct {
 	URL             string   `toml:"url" json:"url"`
@@ -937,9 +883,6 @@ type Config struct {
 	NoSync               bool                        `json:"-" toml:"-"`
 	SkipInitialSync      bool                        `json:"-" toml:"-"`
 	ArchiveContent       ArchiveContent              `json:"archive_content" toml:"archive_content"`
-	PG                   PGConfig                    `json:"pg,omitempty" toml:"pg"`
-	DefaultPG            string                      `json:"default_pg,omitempty" toml:"default_pg"`
-	PGTargets            map[string]PGConfig         `json:"-" toml:"-"`
 	ClickHouse           ClickHouseConfig            `json:"clickhouse,omitempty" toml:"clickhouse"`
 	DefaultClickHouse    string                      `json:"default_clickhouse,omitempty" toml:"default_clickhouse"`
 	ClickHouseTargets    map[string]ClickHouseConfig `json:"-" toml:"-"`
@@ -1036,9 +979,7 @@ type Config struct {
 	NoDaemonAutostart bool `json:"-" toml:"-"`
 
 	// vectorSectionDefined records a [vector] section in config.toml.
-	vectorSectionDefined bool
-
-	pgEnvOverrides         pgEnvOverrides
+	vectorSectionDefined   bool
 	clickHouseEnvOverrides clickHouseEnvOverrides
 }
 
@@ -1418,7 +1359,7 @@ func LoadPFlags(fs *pflag.FlagSet) (Config, error) {
 // FlagSet. It uses isolated serve defaults so the remote serve never picks up
 // the local archive path.
 func LoadRemoteServePFlags(fs *pflag.FlagSet) (Config, error) {
-	cfg, err := loadPGServeBase()
+	cfg, err := loadRemoteServeBase()
 	if err != nil {
 		return cfg, err
 	}
@@ -1429,7 +1370,7 @@ func LoadRemoteServePFlags(fs *pflag.FlagSet) (Config, error) {
 	return cfg, nil
 }
 
-func loadPGServeBase() (Config, error) {
+func loadRemoteServeBase() (Config, error) {
 	cfg, err := Default()
 	if err != nil {
 		return cfg, err
@@ -1490,6 +1431,7 @@ func loadConfigLayers() (Config, error) {
 }
 
 func finishLoadedConfig(cfg *Config) error {
+
 	// Resolve installation identity before source roots and their metadata.
 	if err := cfg.ensureInstallationID(); err != nil {
 		return fmt.Errorf("ensuring installation identity: %w", err)
@@ -1588,6 +1530,12 @@ func (c *Config) loadFileReadOnly() error {
 }
 
 func (c *Config) loadFileWithMigration(migrate bool) error {
+	for _, name := range []string{"AGENTSVIEW_PG_URL", "AGENTSVIEW_PG_SCHEMA", "AGENTSVIEW_PG_MACHINE", "AGENTSVIEW_PG_ALLOW_INSECURE"} {
+		if os.Getenv(name) != "" {
+			return fmt.Errorf("%s: PostgreSQL is not supported in this fork", name)
+		}
+	}
+
 	if migrate {
 		if err := c.migrateJSONToTOML(); err != nil {
 			return err
@@ -1724,8 +1672,6 @@ func (c *Config) applyConfigTOML(data string) error {
 		RemoteAccess                   bool                   `toml:"remote_access"`
 		DisableUpdateCheck             bool                   `toml:"disable_update_check"`
 		ArchiveContent                 string                 `toml:"archive_content"`
-		DefaultPG                      string                 `toml:"default_pg"`
-		PG                             PGConfig               `toml:"pg"`
 		DefaultClickHouse              string                 `toml:"default_clickhouse"`
 		ClickHouse                     ClickHouseConfig       `toml:"clickhouse"`
 		DuckDB                         DuckDBConfig           `toml:"duckdb"`
@@ -1854,42 +1800,11 @@ func (c *Config) applyConfigTOML(data string) error {
 		}
 		c.ArchiveContent = policy
 	}
-	if meta.IsDefined("default_pg") {
-		c.DefaultPG = normalizePGTargetName(file.DefaultPG)
+	if meta.IsDefined("default_pg") || meta.IsDefined("pg") {
+		return errors.New("PostgreSQL configuration is not supported in this fork")
 	}
 	if meta.IsDefined("default_clickhouse") {
 		c.DefaultClickHouse = normalizeTargetName(file.DefaultClickHouse)
-	}
-	legacyPG, namedPG, err := parsePGConfigSection(raw["pg"])
-	if err != nil {
-		return fmt.Errorf("pg: %w", err)
-	}
-	if len(namedPG) > 0 {
-		c.PG = PGConfig{}
-		c.PGTargets = namedPG
-	} else {
-		c.PGTargets = nil
-		if legacyPG.URL != "" {
-			c.PG.URL = legacyPG.URL
-		}
-		if legacyPG.Schema != "" {
-			c.PG.Schema = legacyPG.Schema
-		}
-		if legacyPG.MachineName != "" {
-			c.PG.MachineName = legacyPG.MachineName
-		}
-		if legacyPG.AllowInsecure {
-			c.PG.AllowInsecure = true
-		}
-		if legacyPG.Projects != nil {
-			c.PG.Projects = legacyPG.Projects
-		}
-		if legacyPG.ExcludeProjects != nil {
-			c.PG.ExcludeProjects = legacyPG.ExcludeProjects
-		}
-		if legacyPG.PushVectors != nil {
-			c.PG.PushVectors = legacyPG.PushVectors
-		}
 	}
 	legacyCH, namedCH, err := parseClickHouseConfigSection(raw["clickhouse"])
 	if err != nil {
@@ -2238,15 +2153,7 @@ func (c *Config) loadEnv() {
 	if v := os.Getenv("AGENTSVIEW_AUTH_TOKEN"); v != "" {
 		c.AuthToken = v
 	}
-	if v := os.Getenv("AGENTSVIEW_PG_URL"); v != "" {
-		c.pgEnvOverrides.URL = v
-	}
-	if v := os.Getenv("AGENTSVIEW_PG_SCHEMA"); v != "" {
-		c.pgEnvOverrides.Schema = v
-	}
-	if v := os.Getenv("AGENTSVIEW_PG_MACHINE"); v != "" {
-		c.pgEnvOverrides.MachineName = v
-	}
+
 	if v := os.Getenv("AGENTSVIEW_CLICKHOUSE_URL"); v != "" {
 		c.clickHouseEnvOverrides.URL = v
 	}
@@ -2539,10 +2446,6 @@ func applyFlagValue(cfg *Config, name, value string) {
 		if d, err := time.ParseDuration(value); err == nil {
 			cfg.WriteTimeout = d
 		}
-	case "pg":
-		// Read-routing only. The CLI resolver combines this flag
-		// with cfg.PG from env/config and does not persist a new
-		// config field for it.
 	}
 }
 
@@ -3096,20 +2999,6 @@ func hostLiteral(host string) string {
 	return host
 }
 
-func normalizePGTargetName(name string) string {
-	return normalizeTargetName(name)
-}
-
-func isReservedPGTargetName(name string) bool {
-	return isReservedMirrorTargetName(name)
-}
-
-func parsePGConfigSection(value any) (PGConfig, map[string]PGConfig, error) {
-	return parseNamedTargetSection[PGConfig](
-		"pg", "PG", value, pgConfigKeys, isReservedPGTargetName,
-	)
-}
-
 func parseClickHouseConfigSection(value any) (ClickHouseConfig, map[string]ClickHouseConfig, error) {
 	return parseNamedTargetSection[ClickHouseConfig](
 		"clickhouse", "ClickHouse", value, clickHouseConfigKeys, isReservedMirrorTargetName,
@@ -3180,163 +3069,6 @@ func IsDefaultAgentsviewDBPath(dbPath string) bool {
 
 func defaultAgentsviewDBDir(dbPath string) bool {
 	return filepath.Base(filepath.Dir(filepath.Clean(dbPath))) == ".agentsview"
-}
-
-// DefaultPGTargetName returns the effective named PG target for this config.
-func (c *Config) DefaultPGTargetName() (string, error) {
-	return defaultNamedTargetName("pg", "default_pg", c.DefaultPG, c.PGTargets)
-}
-
-func (c *Config) validatePGTargets() error {
-	_, err := c.DefaultPGTargetName()
-	return err
-}
-
-func (c *Config) PGTargetNames() ([]string, string, error) {
-	return namedTargetNames("pg", "default_pg", c.DefaultPG, c.PGTargets)
-}
-
-// RawPGTarget returns the configured PG target before env expansion and
-// default-field synthesis. An empty name selects the effective default target.
-func (c *Config) RawPGTarget(name string) (PGConfig, error) {
-	if err := c.validatePGTargets(); err != nil {
-		return PGConfig{}, err
-	}
-	targetName := normalizePGTargetName(name)
-	if len(c.PGTargets) == 0 {
-		if targetName != "" {
-			return PGConfig{}, fmt.Errorf(
-				"pg target %q is not configured; config uses a single legacy [pg] block",
-				name,
-			)
-		}
-		return c.PG, nil
-	}
-	if targetName == "" {
-		var err error
-		targetName, err = c.DefaultPGTargetName()
-		if err != nil {
-			return PGConfig{}, err
-		}
-	}
-	targetCfg, ok := c.PGTargets[targetName]
-	if !ok {
-		return PGConfig{}, fmt.Errorf(
-			"pg target %q is not configured",
-			targetName,
-		)
-	}
-	return targetCfg, nil
-}
-
-func (c *Config) resolvePGConfig(
-	pg PGConfig, applyDefaultEnv bool,
-) (PGConfig, error) {
-	if applyDefaultEnv {
-		if c.pgEnvOverrides.URL != "" {
-			pg.URL = c.pgEnvOverrides.URL
-		}
-		if c.pgEnvOverrides.Schema != "" {
-			pg.Schema = c.pgEnvOverrides.Schema
-		}
-		if c.pgEnvOverrides.MachineName != "" {
-			pg.MachineName = c.pgEnvOverrides.MachineName
-		}
-		if c.pgEnvOverrides.AllowInsecure != nil {
-			pg.AllowInsecure = *c.pgEnvOverrides.AllowInsecure
-		}
-	}
-	if pg.URL != "" {
-		expanded, err := expandBracedEnv(pg.URL)
-		if err != nil {
-			return pg, fmt.Errorf("expanding url: %w", err)
-		}
-		pg.URL = expanded
-	}
-	if pg.Schema == "" {
-		pg.Schema = "agentsview"
-	}
-	if pg.MachineName == "" {
-		pg.MachineName = c.InstallationID
-	}
-	return pg, nil
-}
-
-// ResolvePG returns the effective default PG target with defaults applied
-// and environment variables expanded in URL.
-func (c *Config) ResolvePG() (PGConfig, error) {
-	return c.ResolvePGTarget("")
-}
-
-// ResolvePGTarget resolves one named PG target, or the effective default
-// target when name is empty. In legacy single-target mode, only the empty
-// name is valid.
-func (c *Config) ResolvePGTarget(name string) (PGConfig, error) {
-	if err := c.validatePGTargets(); err != nil {
-		return PGConfig{}, err
-	}
-	targetName := normalizePGTargetName(name)
-	if len(c.PGTargets) == 0 {
-		if targetName != "" {
-			return PGConfig{}, fmt.Errorf(
-				"pg target %q is not configured; config uses a single legacy [pg] block",
-				name,
-			)
-		}
-		return c.resolvePGConfig(c.PG, true)
-	}
-	defaultName, err := c.DefaultPGTargetName()
-	if err != nil {
-		return PGConfig{}, err
-	}
-	if targetName == "" {
-		targetName = defaultName
-	}
-	targetCfg, ok := c.PGTargets[targetName]
-	if !ok {
-		return PGConfig{}, fmt.Errorf(
-			"pg target %q is not configured",
-			targetName,
-		)
-	}
-	return c.resolvePGConfig(targetCfg, targetName == defaultName)
-}
-
-// ResolvePGTargets resolves every configured PG target. Legacy single-target
-// mode returns one unnamed default target.
-func (c *Config) ResolvePGTargets() ([]ResolvedPGTarget, error) {
-	if err := c.validatePGTargets(); err != nil {
-		return nil, err
-	}
-	if len(c.PGTargets) == 0 {
-		pg, err := c.resolvePGConfig(c.PG, true)
-		if err != nil {
-			return nil, err
-		}
-		return []ResolvedPGTarget{{
-			Config:    pg,
-			IsDefault: true,
-		}}, nil
-	}
-	names, defaultName, err := c.PGTargetNames()
-	if err != nil {
-		return nil, err
-	}
-	targets := make([]ResolvedPGTarget, 0, len(names))
-	for _, name := range names {
-		targetCfg, err := c.resolvePGConfig(
-			c.PGTargets[name], name == defaultName,
-		)
-		if err != nil {
-			return nil, err
-		}
-		targets = append(targets, ResolvedPGTarget{
-			Name:      name,
-			Config:    targetCfg,
-			IsDefault: name == defaultName,
-		})
-	}
-	return targets, nil
 }
 
 func (c *Config) DefaultClickHouseTargetName() (string, error) {

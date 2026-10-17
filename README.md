@@ -29,6 +29,7 @@ Removed so far: application telemetry, UI tracking, the artifact vault and
 folder exchange, raw archive backup/recovery, and the hosted raw PostgreSQL
 service. Removing docbank also removes the transitive PostHog dependency.
 S3 discovery and ingestion are also removed, including the MinIO client.
+PostgreSQL replication, serving, direct reads, and the pgx driver are removed.
 Other external integrations remain. This is a development fork, not yet an
 Internet-independent or privacy-approved release.
 

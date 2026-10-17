@@ -12,14 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/testcontainers/testcontainers-go"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
-
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/duckdb"
 	"go.kenn.io/agentsview/internal/money"
-	"go.kenn.io/agentsview/internal/postgres"
 	"go.kenn.io/agentsview/internal/storage"
 )
 
@@ -212,12 +207,10 @@ func setupBenchmarkStores(ctx context.Context, b *testing.B, fixture benchmarkFi
 	seedBenchmarkFixture(b, local, fixture)
 
 	duck := openDuckDBStore(ctx, b, local)
-	pg := openPostgresStore(ctx, b, local)
 
 	return []benchmarkStore{
 		{name: "sqlite", store: local},
 		{name: "duckdb", store: duck},
-		{name: "postgres", store: pg},
 	}
 }
 
@@ -259,77 +252,6 @@ func openDuckDBStore(ctx context.Context, b *testing.B, local *db.DB) db.Store {
 		}
 	})
 
-	return store
-}
-
-func openPostgresStore(ctx context.Context, b *testing.B, local *db.DB) db.Store {
-	b.Helper()
-
-	container, err := tcpostgres.Run(
-		ctx,
-		"postgres:17-alpine",
-		tcpostgres.WithDatabase("agentsview_bench"),
-		tcpostgres.WithUsername("agentsview_bench"),
-		tcpostgres.WithPassword("agentsview_bench"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(2*time.Minute),
-		),
-	)
-	if err != nil {
-		b.Fatalf("start postgres container: %v", err)
-	}
-	b.Cleanup(func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := container.Terminate(
-			stopCtx,
-			testcontainers.StopTimeout(10*time.Second),
-		); err != nil {
-			b.Errorf("terminate postgres container: %v", err)
-		}
-	})
-
-	pgURL, err := container.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		b.Fatalf("postgres connection string: %v", err)
-	}
-
-	syncer, err := postgres.New(
-		pgURL,
-		benchmarkSchema,
-		local,
-		benchmarkMachine,
-		true,
-		storage.PusherOptions{},
-	)
-	if err != nil {
-		b.Fatalf("open postgres sync: %v", err)
-	}
-	b.Cleanup(func() {
-		if err := syncer.Close(); err != nil {
-			b.Errorf("close postgres sync: %v", err)
-		}
-	})
-
-	result, err := syncer.Push(ctx, true, nil)
-	if err != nil {
-		b.Fatalf("push postgres fixture: %v", err)
-	}
-	if result.SessionsPushed == 0 || result.MessagesPushed == 0 {
-		b.Fatalf("postgres fixture push wrote no rows: %+v", result)
-	}
-
-	store, err := postgres.NewStore(pgURL, benchmarkSchema, true)
-	if err != nil {
-		b.Fatalf("open postgres store: %v", err)
-	}
-	b.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			b.Errorf("close postgres store: %v", err)
-		}
-	})
 	return store
 }
 

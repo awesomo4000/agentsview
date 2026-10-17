@@ -72,7 +72,7 @@ func resolveRecallEntryService(
 
 // resolveWritableRecallEntryService is the write-capable counterpart of
 // resolveRecallEntryService for `recall import`. Local imports go through
-// resolveWritableService so a read-only daemon (pg serve) is refused up front
+// resolveWritableService so a read-only daemon (clickhouse serve) is refused up front
 // with actionable guidance instead of failing at the import endpoint.
 func resolveWritableRecallEntryService(
 	cmd *cobra.Command,

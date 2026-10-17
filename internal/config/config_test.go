@@ -1864,280 +1864,6 @@ func TestLoadFile_DaemonIdleTimeout(t *testing.T) {
 	}
 }
 
-func TestLoadFile_PGConfig(t *testing.T) {
-	tests := []struct {
-		name   string
-		config map[string]any
-		envURL string
-		want   PGConfig
-	}{
-		{
-			"NoConfig",
-			map[string]any{},
-			"",
-			PGConfig{},
-		},
-		{
-			"FromConfigFile",
-			map[string]any{
-				"pg": map[string]any{
-					"url":          "postgres://localhost/test",
-					"machine_name": "laptop",
-				},
-			},
-			"",
-			PGConfig{
-				URL:         "postgres://localhost/test",
-				MachineName: "laptop",
-			},
-		},
-		{
-			"EnvOverridesConfig",
-			map[string]any{
-				"pg": map[string]any{
-					"url": "postgres://from-config",
-				},
-			},
-			"postgres://from-env",
-			PGConfig{
-				URL: "postgres://from-env",
-			},
-		},
-		{
-			"EnvURLMergesFileFields",
-			map[string]any{
-				"pg": map[string]any{
-					"url":          "postgres://from-config",
-					"machine_name": "laptop",
-				},
-			},
-			"postgres://from-env",
-			PGConfig{
-				URL:         "postgres://from-env",
-				MachineName: "laptop",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := newConfigFixture(t)
-			f.WriteTOML(t, tt.config)
-			if tt.envURL != "" {
-				t.Setenv("AGENTSVIEW_PG_URL", tt.envURL)
-			}
-
-			cfg := f.LoadMinimal(t)
-
-			resolved, err := cfg.ResolvePG()
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.want.URL, resolved.URL)
-			if tt.want.MachineName == "" {
-				assert.NotEmpty(t, resolved.MachineName)
-			} else {
-				assert.Equal(t, tt.want.MachineName, resolved.MachineName)
-			}
-		})
-	}
-}
-
-func TestResolvePGTarget_NamedTargets(t *testing.T) {
-	cfg := Config{
-		DefaultPG: "work",
-		PGTargets: map[string]PGConfig{
-			"work": {
-				URL:         "postgres://work",
-				MachineName: "workbox",
-			},
-			"archive": {
-				URL:         "postgres://archive",
-				MachineName: "archivebox",
-			},
-		},
-		pgEnvOverrides: pgEnvOverrides{
-			URL:         "postgres://env-default",
-			MachineName: "envbox",
-		},
-	}
-
-	defaultTarget, err := cfg.ResolvePG()
-	require.NoError(t, err)
-	assert.Equal(t, "postgres://env-default", defaultTarget.URL)
-	assert.Equal(t, "envbox", defaultTarget.MachineName)
-
-	archiveTarget, err := cfg.ResolvePGTarget("archive")
-	require.NoError(t, err)
-	assert.Equal(t, "postgres://archive", archiveTarget.URL)
-	assert.Equal(t, "archivebox", archiveTarget.MachineName)
-}
-
-func TestResolvePGTargets_DefaultFirst(t *testing.T) {
-	cfg := Config{
-		DefaultPG: "work",
-		PGTargets: map[string]PGConfig{
-			"archive": {URL: "postgres://archive"},
-			"work":    {URL: "postgres://work"},
-		},
-	}
-
-	targets, err := cfg.ResolvePGTargets()
-	require.NoError(t, err)
-	require.Len(t, targets, 2)
-	assert.Equal(t, "work", targets[0].Name)
-	assert.True(t, targets[0].IsDefault)
-	assert.Equal(t, "archive", targets[1].Name)
-	assert.False(t, targets[1].IsDefault)
-}
-
-func TestResolvePGTargets_OneNamedTargetWithoutDefault(t *testing.T) {
-	cfg := Config{
-		PGTargets: map[string]PGConfig{
-			"work": {URL: "postgres://work"},
-		},
-	}
-
-	targets, err := cfg.ResolvePGTargets()
-	require.NoError(t, err)
-	require.Len(t, targets, 1)
-	assert.Equal(t, "work", targets[0].Name)
-	assert.True(t, targets[0].IsDefault)
-}
-
-func TestResolvePGTargets_MultipleNamedTargetsRequireDefault(t *testing.T) {
-	cfg := Config{
-		PGTargets: map[string]PGConfig{
-			"work":    {URL: "postgres://work"},
-			"archive": {URL: "postgres://archive"},
-		},
-	}
-
-	_, err := cfg.ResolvePGTargets()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "default_pg is required")
-}
-
-func TestLoadMinimal_DefersNamedPGValidationForNonPGCommands(t *testing.T) {
-	dir := setupTestEnv(t)
-	path := filepath.Join(dir, configFileName)
-	data := []byte(`
-default_pg = "missing"
-
-[pg.work]
-url = "postgres://work"
-`)
-	require.NoError(t, os.WriteFile(path, data, 0o600))
-
-	cfg, err := LoadMinimal()
-	require.NoError(t, err)
-
-	_, err = cfg.ResolvePG()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `default_pg "missing" does not match any named [pg.NAME] target`)
-}
-
-func TestLoadFile_PGMixedLegacyAndNamedTargetsFails(t *testing.T) {
-	dir := setupTestEnv(t)
-	path := filepath.Join(dir, configFileName)
-	data := []byte(`
-[pg]
-url = "postgres://legacy"
-
-[pg.archive]
-url = "postgres://archive"
-`)
-	require.NoError(t, os.WriteFile(path, data, 0o600))
-
-	_, err := LoadMinimal()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot mix legacy [pg] fields with named [pg.NAME] targets")
-}
-
-func TestLoadFile_PGNamedTargetValidationErrors(t *testing.T) {
-	tests := []struct {
-		name    string
-		toml    string
-		wantErr string
-	}{
-		{
-			name: "reserved all target",
-			toml: `
-[pg.all]
-url = "postgres://all"
-`,
-			wantErr: `named PG target "all" is reserved`,
-		},
-		{
-			name: "reserved local target",
-			toml: `
-[pg.local]
-url = "postgres://local"
-`,
-			wantErr: `named PG target "local" is reserved`,
-		},
-		{
-			name: "duplicate normalized target names",
-			toml: `
-[pg.Work]
-url = "postgres://work"
-
-[pg.work]
-url = "postgres://work2"
-`,
-			wantErr: `normalize to the same name "work"`,
-		},
-		{
-			name: "named target must be table",
-			toml: `
-[pg]
-archive = "postgres://archive"
-`,
-			wantErr: `[pg].archive must be a named target table`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := setupTestEnv(t)
-			path := filepath.Join(dir, configFileName)
-			require.NoError(t, os.WriteFile(path, []byte(tt.toml), 0o600))
-
-			_, err := LoadMinimal()
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-		})
-	}
-}
-
-func TestPGConfig_ProjectFilter(t *testing.T) {
-	f := newConfigFixture(t)
-	f.WriteConfigText(t, `
-[pg]
-url = "postgres://localhost/test"
-projects = ["alpha", "beta"]
-`)
-
-	cfg := f.LoadFile(t)
-
-	require.Len(t, cfg.PG.Projects, 2)
-	assert.Equal(t, "alpha", cfg.PG.Projects[0])
-	assert.Equal(t, "beta", cfg.PG.Projects[1])
-}
-
-func TestPGConfig_ExcludeProjectFilter(t *testing.T) {
-	f := newConfigFixture(t)
-	f.WriteConfigText(t, `
-[pg]
-url = "postgres://localhost/test"
-exclude_projects = ["gamma"]
-`)
-
-	cfg := f.LoadFile(t)
-
-	require.Len(t, cfg.PG.ExcludeProjects, 1)
-	assert.Equal(t, "gamma", cfg.PG.ExcludeProjects[0])
-}
-
 func TestEnsureAuthTokenAdoptsPersistedToken(t *testing.T) {
 	f := newConfigFixture(t)
 	f.WriteConfigText(t, `
@@ -2156,20 +1882,6 @@ require_auth = true
 	data, err := os.ReadFile(f.Path(configFileName))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `auth_token = "persisted-token"`)
-}
-
-func TestResolvePG_Defaults(t *testing.T) {
-	cfg := Config{
-		InstallationID: "installation-a",
-		PG: PGConfig{
-			URL: "postgres://localhost/test",
-		},
-	}
-	resolved, err := cfg.ResolvePG()
-	require.NoError(t, err, "ResolvePG")
-
-	assert.Equal(t, "agentsview", resolved.Schema)
-	assert.Equal(t, "installation-a", resolved.MachineName)
 }
 
 func TestLoadResolvesLocalMachineNameFromHostname(t *testing.T) {
@@ -2204,8 +1916,8 @@ func TestInstallationIDSurvivesHostnameChanges(t *testing.T) {
 		require.Len(t, cfg.SessionSources, 2)
 		assert.Equal(t, id, cfg.SessionSources[0].Machine)
 		assert.Equal(t, "host-c.example", cfg.SessionSources[1].Machine)
-		cfg.PG.URL = "postgres://localhost/test"
-		pg, err := cfg.ResolvePG()
+		cfg.ClickHouse.URL = "postgres://localhost/test"
+		pg, err := cfg.ResolveClickHouse()
 		require.NoError(t, err)
 		assert.Equal(t, id, pg.MachineName)
 		duck, err := cfg.ResolveDuckDB()
@@ -2265,74 +1977,6 @@ func TestSavedMachineNamePreservesSymlinkedCodexMetadata(t *testing.T) {
 	assert.Contains(t, cfg.ProviderMetadata[parser.AgentCodex][root], home)
 }
 
-func TestResolvePG_ExpandsEnvVars(t *testing.T) {
-	t.Setenv("PGPASS", "env-secret")
-	t.Setenv("PGURL", "postgres://localhost/test")
-
-	cfg := Config{
-		PG: PGConfig{
-			URL: "${PGURL}?password=${PGPASS}",
-		},
-	}
-
-	resolved, err := cfg.ResolvePG()
-	require.NoError(t, err, "ResolvePG")
-
-	assert.Equal(t, "postgres://localhost/test?password=env-secret", resolved.URL)
-}
-
-func TestResolvePG_ExpandsBareEnvOnlyForWholeValue(t *testing.T) {
-	t.Setenv("PGURL", "postgres://localhost/test")
-
-	cfg := Config{
-		PG: PGConfig{
-			URL: "$PGURL",
-		},
-	}
-
-	resolved, err := cfg.ResolvePG()
-	require.NoError(t, err, "ResolvePG")
-
-	assert.Equal(t, "postgres://localhost/test", resolved.URL)
-}
-
-func TestResolvePG_PreservesLiteralDollarSequencesInURL(t *testing.T) {
-	t.Setenv("PGPASS", "env-secret")
-
-	cfg := Config{
-		PG: PGConfig{
-			URL: "postgres://user:pa$word@localhost/db?application_name=$client&password=${PGPASS}",
-		},
-	}
-
-	resolved, err := cfg.ResolvePG()
-	require.NoError(t, err, "ResolvePG")
-
-	assert.Equal(t, "postgres://user:pa$word@localhost/db?application_name=$client&password=env-secret", resolved.URL)
-}
-
-func TestResolvePG_ErrorsOnMissingEnvVar(t *testing.T) {
-	cfg := Config{
-		PG: PGConfig{
-			URL: "${NONEXISTENT_PG_VAR}",
-		},
-	}
-
-	_, err := cfg.ResolvePG()
-	requireErrorContains(t, err, "NONEXISTENT_PG_VAR")
-}
-
-func TestResolvePG_ErrorsOnMissingBareEnvVar(t *testing.T) {
-	cfg := Config{
-		PG: PGConfig{
-			URL: "$NONEXISTENT_PG_BARE_VAR",
-		},
-	}
-
-	_, err := cfg.ResolvePG()
-	requireErrorContains(t, err, "NONEXISTENT_PG_BARE_VAR")
-}
-
 // TestIsEnvDependentURL locks the helper to the same expansion semantics
 // as expandBracedEnv: any ${VAR}, or a whole-string bare $VAR, is
 // env-dependent; an embedded bare $VAR or literal dollar sequence is not.
@@ -2358,21 +2002,10 @@ func TestIsEnvDependentURL(t *testing.T) {
 	}
 }
 
-// ResolvePG must not reject configs with both filter lists —
+// ResolveClickHouse must not reject configs with both filter lists —
 // that's a push-specific concern validated in runPGPush after
-// CLI flags are merged. status and serve use ResolvePG too and
+// CLI flags are merged. status and serve use ResolveClickHouse too and
 // shouldn't fail on push-only filter conflicts.
-func TestResolvePG_AllowsBothFilterLists(t *testing.T) {
-	cfg := Config{
-		PG: PGConfig{
-			URL:             "postgres://localhost/test",
-			Projects:        []string{"alpha"},
-			ExcludeProjects: []string{"beta"},
-		},
-	}
-	_, err := cfg.ResolvePG()
-	require.NoError(t, err, "ResolvePG should not reject filter conflicts")
-}
 
 func TestDuckDBConfig_LoadsFileAndEnv(t *testing.T) {
 	f := newConfigFixture(t)
@@ -2884,51 +2517,6 @@ func TestIsDefaultAgentsviewDBPath(t *testing.T) {
 	}
 }
 
-func TestPGConfigPushVectorsEnabled(t *testing.T) {
-	boolPtr := func(b bool) *bool { return &b }
-	tests := []struct {
-		name string
-		cfg  PGConfig
-		want bool
-	}{
-		{"unset defaults to true", PGConfig{}, true},
-		{"explicit false", PGConfig{PushVectors: boolPtr(false)}, false},
-		{"explicit true", PGConfig{PushVectors: boolPtr(true)}, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.cfg.PushVectorsEnabled())
-		})
-	}
-}
-
-func TestPGConfig_LoadsFromTOML(t *testing.T) {
-	f := newConfigFixture(t)
-	f.WriteTOML(t, map[string]any{
-		"pg": map[string]any{
-			"url":          "postgres://localhost/test",
-			"push_vectors": false,
-		},
-	})
-
-	cfg := f.LoadMinimal(t)
-
-	assert.False(t, cfg.PG.PushVectorsEnabled())
-}
-
-func TestPGConfig_PushVectorsDefaultsTrue(t *testing.T) {
-	f := newConfigFixture(t)
-	f.WriteTOML(t, map[string]any{
-		"pg": map[string]any{
-			"url": "postgres://localhost/test",
-		},
-	})
-
-	cfg := f.LoadMinimal(t)
-
-	assert.True(t, cfg.PG.PushVectorsEnabled())
-}
-
 func TestValidateArtifactOriginID(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -3181,4 +2769,36 @@ func TestLoadRejectsLegacyS3Roots(t *testing.T) {
 			require.ErrorContains(t, err, "S3 session sources are not supported")
 		})
 	}
+}
+
+func TestLoadRejectsPostgreSQL(t *testing.T) {
+	for _, text := range []string{`[pg]
+url = "postgres://example.invalid/archive"`, `[pg.team]
+url = "postgres://example.invalid/archive"`, `default_pg = "team"`} {
+		t.Run(text, func(t *testing.T) {
+			f := newConfigFixture(t)
+			require.NoError(t, os.WriteFile(f.Path(configFileName), []byte(text), 0600))
+			_, err := LoadMinimal()
+			require.ErrorContains(t, err, "PostgreSQL configuration is not supported")
+		})
+	}
+	for _, key := range []string{"AGENTSVIEW_PG_URL", "AGENTSVIEW_PG_SCHEMA", "AGENTSVIEW_PG_MACHINE", "AGENTSVIEW_PG_ALLOW_INSECURE"} {
+		t.Run(key, func(t *testing.T) {
+			newConfigFixture(t)
+			t.Setenv(key, "obsolete-setting")
+			_, err := LoadMinimal()
+			require.ErrorContains(t, err, "PostgreSQL is not supported")
+			assert.NotContains(t, err.Error(), "obsolete-setting")
+		})
+	}
+}
+
+func TestDeploymentRejectsPostgreSQL(t *testing.T) {
+	t.Setenv("AGENTSVIEW_MODE", "pg-serve")
+	_, _, err := DeploymentMode()
+	require.Error(t, err)
+	t.Setenv("AGENTSVIEW_MODE", "serve")
+	t.Setenv("PG_SERVE", "true")
+	_, _, err = DeploymentMode()
+	require.ErrorContains(t, err, "PostgreSQL is not supported")
 }

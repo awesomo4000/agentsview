@@ -124,7 +124,7 @@ func initializeConversationExport(command *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	// A read-only runtime (pg serve, duckdb serve) does not own the SQLite
+	// A read-only runtime (clickhouse serve, duckdb serve) does not own the SQLite
 	// archive, so it is treated like no daemon; openWriteDB still refuses when
 	// a writable daemon holds the archive.
 	if tr.Mode == transportHTTP && !tr.ReadOnly {

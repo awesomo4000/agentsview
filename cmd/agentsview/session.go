@@ -38,10 +38,6 @@ func newSessionCommand() *cobra.Command {
 		"server-token-file", "",
 		"File containing bearer token for explicit --server requests",
 	)
-	cmd.PersistentFlags().Bool(
-		"pg", false,
-		"Read session data from configured PostgreSQL",
-	)
 
 	cmd.AddCommand(newSessionGetCommand())
 	cmd.AddCommand(newSessionUsageCommand())
@@ -65,11 +61,7 @@ func resolveService(
 ) (service.SessionService, func(), error) {
 	remote, _ := cmd.Flags().GetString("server")
 	if remote != "" {
-		if pgReadRequested(cmd) {
-			return nil, nil, errors.New(
-				"--server and --pg are mutually exclusive",
-			)
-		}
+
 		token, err := explicitServerToken(cmd)
 		if err != nil {
 			return nil, nil, err
@@ -82,13 +74,6 @@ func resolveService(
 		return nil, nil, fmt.Errorf(
 			"loading config: %w", err,
 		)
-	}
-	pgCfg, usePG, err := resolvePGReadConfig(cmd, cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-	if usePG {
-		return newPGReadService(cfg, pgCfg)
 	}
 	tr, err := ensureTransport(&cfg, transportIntentRead, 0)
 	if err != nil {
@@ -139,11 +124,7 @@ func resolveWritableServiceWithIntent(
 	cmd *cobra.Command, fresh bool,
 ) (service.SessionService, func(), error) {
 	if remote, _ := cmd.Flags().GetString("server"); remote != "" {
-		if pgReadRequested(cmd) {
-			return nil, nil, errors.New(
-				"--server and --pg are mutually exclusive",
-			)
-		}
+
 		token, err := explicitServerToken(cmd)
 		if err != nil {
 			return nil, nil, err
@@ -151,11 +132,7 @@ func resolveWritableServiceWithIntent(
 		return servicehttp.NewHTTPBackend(remote, token, false, ""),
 			func() {}, nil
 	}
-	if pgReadRequested(cmd) {
-		return nil, nil, errors.New(
-			"--pg is read-only and cannot be used with write commands",
-		)
-	}
+
 	cfg, err := config.LoadPFlags(cmd.Flags())
 	if err != nil {
 		return nil, nil, fmt.Errorf("loading config: %w", err)
@@ -188,33 +165,6 @@ func resolveWritableServiceWithIntent(
 		)
 	}
 	return syncService(cmd.Context(), cfg, tr)
-}
-
-func resolvePGReadConfig(
-	cmd *cobra.Command, cfg config.Config,
-) (config.PGConfig, bool, error) {
-	if !pgReadRequested(cmd) {
-		return config.PGConfig{}, false, nil
-	}
-	pgCfg, err := cfg.ResolvePG()
-	if err != nil {
-		return config.PGConfig{}, false,
-			fmt.Errorf("resolving pg config: %w", err)
-	}
-	if pgCfg.URL == "" {
-		return config.PGConfig{}, false, errors.New(
-			"pg url not configured; set AGENTSVIEW_PG_URL, use a legacy [pg].url, or configure default_pg with named [pg.NAME] targets",
-		)
-	}
-	return pgCfg, true, nil
-}
-
-func pgReadRequested(cmd *cobra.Command) bool {
-	if cmd == nil {
-		return false
-	}
-	v, err := cmd.Flags().GetBool("pg")
-	return err == nil && v
 }
 
 func explicitServerToken(cmd *cobra.Command) (string, error) {

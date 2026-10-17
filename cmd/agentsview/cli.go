@@ -122,7 +122,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newHealthCommand())
 	root.AddCommand(newUsageCommand())
 	root.AddCommand(newActivityCommand())
-	root.AddCommand(newPGCommand())
 	root.AddCommand(newRawSyncCommand())
 	root.AddCommand(newDuckDBCommand())
 	root.AddCommand(newClickHouseCommand())
@@ -297,7 +296,7 @@ func newServeStopCommand() *cobra.Command {
 		Short: "Stop the server, including sync and file watchers",
 		Long: "Stop the server and its background work, including a server started\n" +
 			"by `agentsview daemon start` or automatically by a CLI command.\n\n" +
-			"This also stops read-only PostgreSQL and DuckDB servers for the data\n" +
+			"This also stops read-only ClickHouse and DuckDB servers for the data\n" +
 			"directory. Use `agentsview daemon stop` to stop only the writable server.",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
@@ -314,7 +313,7 @@ func newServeRestartCommand(deps daemonCommandDeps) *cobra.Command {
 		Long: "Restart only the writable SQLite background daemon using settings " +
 			"from config.toml.\n\n" +
 			"Unlike `agentsview serve stop`, this command intentionally leaves " +
-			"read-only PostgreSQL and DuckDB servers running.",
+			"read-only ClickHouse and DuckDB servers running.",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -675,12 +674,6 @@ func newActivityReportCommand() *cobra.Command {
 	return cmd
 }
 
-func newPGCommand() *cobra.Command {
-	return newReplicaCommand(
-		pgReplica{}, newPGVectorsCommand(), newPGServiceCommand(),
-	)
-}
-
 func newClickHouseCommand() *cobra.Command {
 	return newReplicaCommand(clickhouse.Backend{}, newClickHouseServiceCommand())
 }
@@ -884,9 +877,6 @@ func writeRootHelp(w io.Writer, root *cobra.Command) {
 	fmt.Fprintln(w, "  CODEBUDDY_DIR           CodeBuddy data directory")
 	fmt.Fprintln(w, "  PIEBALD_DIR             Piebald data directory")
 	fmt.Fprintln(w, "  AGENTSVIEW_DATA_DIR     Data directory (database, config)")
-	fmt.Fprintln(w, "  AGENTSVIEW_PG_URL       PostgreSQL connection URL for sync")
-	fmt.Fprintln(w, "  AGENTSVIEW_PG_MACHINE   Machine name for PG sync")
-	fmt.Fprintln(w, "  AGENTSVIEW_PG_SCHEMA    PG schema name (default \"agentsview\")")
 	fmt.Fprintln(w, "  AGENTSVIEW_DUCKDB_PATH  DuckDB mirror database path")
 	fmt.Fprintln(w, "  AGENTSVIEW_DUCKDB_URL   Quack connection URL for DuckDB serve")
 	fmt.Fprintln(w, "  AGENTSVIEW_DUCKDB_TOKEN Quack authentication token")

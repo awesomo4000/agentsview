@@ -99,7 +99,7 @@ func TestDeploymentEnvIgnoredWithoutMode(t *testing.T) {
 				writeConfig(t, dir, map[string]any{
 					"host":       "127.0.0.1",
 					"auth_token": "file-token",
-					"pg":         map[string]any{"url": "postgres://db.example/agentsview"},
+					"clickhouse": map[string]any{"url": "clickhouse://db.example/agentsview"},
 				})
 				want, err := loader.load()
 				require.NoError(t, err)
@@ -111,7 +111,6 @@ func TestDeploymentEnvIgnoredWithoutMode(t *testing.T) {
 				t.Setenv("AGENTSVIEW_HOST", "192.0.2.10")
 				t.Setenv("AGENTSVIEW_REQUIRE_AUTH", "maybe")
 				t.Setenv("AGENTSVIEW_NO_BROWSER", "maybe")
-				t.Setenv("AGENTSVIEW_PG_ALLOW_INSECURE", "maybe")
 				t.Setenv("AGENTSVIEW_AUTH_TOKEN_FILE", "/nonexistent/x")
 				t.Setenv("AGENTSVIEW_EMBEDDINGS_ENDPOINT", " ")
 				t.Setenv("AGENTSVIEW_EMBEDDINGS_API_KEY_FILE", "/nonexistent/key")
@@ -119,9 +118,9 @@ func TestDeploymentEnvIgnoredWithoutMode(t *testing.T) {
 				got, err := loader.load()
 				require.NoError(t, err)
 				assert.Equal(t, want, got)
-				wantPG, err := want.ResolvePG()
+				wantPG, err := want.ResolveClickHouse()
 				require.NoError(t, err)
-				gotPG, err := got.ResolvePG()
+				gotPG, err := got.ResolveClickHouse()
 				require.NoError(t, err)
 				assert.Equal(t, wantPG, gotPG)
 			})
@@ -199,7 +198,6 @@ func TestDeploymentEnvRejectsInvalidValues(t *testing.T) {
 		{name: "mode", variable: "AGENTSVIEW_MODE", value: "daemon", want: "AGENTSVIEW_MODE"},
 		{name: "require auth", variable: "AGENTSVIEW_REQUIRE_AUTH", value: "maybe", want: "AGENTSVIEW_REQUIRE_AUTH must be a boolean"},
 		{name: "no browser", variable: "AGENTSVIEW_NO_BROWSER", value: "maybe", want: "AGENTSVIEW_NO_BROWSER must be a boolean"},
-		{name: "pg allow insecure", variable: "AGENTSVIEW_PG_ALLOW_INSECURE", value: "maybe", want: "AGENTSVIEW_PG_ALLOW_INSECURE must be a boolean"},
 		{name: "blank host", variable: "AGENTSVIEW_HOST", value: " ", want: "AGENTSVIEW_HOST"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -222,8 +220,6 @@ func TestDeploymentMode(t *testing.T) {
 		{name: "blank", mode: " \t"},
 		{name: "pg serve ignored without mode", pgServe: "1"},
 		{name: "serve", mode: "serve", want: DeploymentModeServe, set: true},
-		{name: "pg-serve", mode: "pg-serve", want: DeploymentModePGServe, set: true},
-		{name: "pg serve selector", mode: "serve", pgServe: "ON", want: DeploymentModePGServe, set: true},
 		{name: "pg serve falsy", mode: "serve", pgServe: "0", want: DeploymentModeServe, set: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -318,11 +314,11 @@ func TestDeploymentInlineSecretsUnchanged(t *testing.T) {
 			env:    map[string]string{"AGENTSVIEW_AUTH_TOKEN": "env-token"},
 		},
 		{name: "pg url password", config: map[string]any{
-			"pg": map[string]any{"url": "postgres://user:inline-pass@db.example/agentsview"},
+			"clickhouse": map[string]any{"url": "clickhouse://user:inline-pass@db.example/agentsview"},
 		}},
 		{name: "env pg url with expansion", env: map[string]string{
-			"AGENTSVIEW_PG_URL":   "postgres://user:${DEPLOY_TEST_PG_PASS}@db.example/agentsview",
-			"DEPLOY_TEST_PG_PASS": "expanded-pass",
+			"AGENTSVIEW_CLICKHOUSE_URL": "clickhouse://user:${DEPLOY_TEST_PG_PASS}@db.example/agentsview",
+			"DEPLOY_TEST_PG_PASS":       "expanded-pass",
 		}},
 		{name: "embedding api_key_env", config: map[string]any{
 			"vector": map[string]any{
@@ -353,9 +349,9 @@ func TestDeploymentInlineSecretsUnchanged(t *testing.T) {
 
 			assert.Equal(t, want, got)
 			assert.Equal(t, want.AuthToken, got.AuthToken)
-			wantPG, err := want.ResolvePG()
+			wantPG, err := want.ResolveClickHouse()
 			require.NoError(t, err)
-			gotPG, err := got.ResolvePG()
+			gotPG, err := got.ResolveClickHouse()
 			require.NoError(t, err)
 			assert.Equal(t, wantPG.URL, gotPG.URL)
 			if server, ok := got.Vector.Embeddings.Servers["local"]; ok {
@@ -377,7 +373,7 @@ func TestDeploymentEmbeddings(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				unsetDeploymentEnv(t)
 				setupTestEnv(t)
-				t.Setenv("AGENTSVIEW_MODE", "pg-serve")
+				t.Setenv("AGENTSVIEW_MODE", "serve")
 				t.Setenv("AGENTSVIEW_EMBEDDINGS_ENDPOINT", " http://embeddings.internal/v1 ")
 				if tc.batchSize != "" {
 					t.Setenv("AGENTSVIEW_EMBEDDINGS_BATCH_SIZE", tc.batchSize)
@@ -458,69 +454,4 @@ func TestDeploymentEmbeddingsRejectInvalid(t *testing.T) {
 			assert.NotContains(t, err.Error(), "key-secret")
 		})
 	}
-}
-
-func TestDeploymentPGAllowInsecure(t *testing.T) {
-	t.Run("legacy default target", func(t *testing.T) {
-		for _, tc := range []struct {
-			name, value string
-			file, want  bool
-		}{
-			{name: "enables", value: "1", want: true},
-			{name: "disables file setting", value: "false", file: true, want: false},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				unsetDeploymentEnv(t)
-				dir := setupTestEnv(t)
-				writeConfig(t, dir, map[string]any{"pg": map[string]any{
-					"url": "postgres://db.example/agentsview", "allow_insecure": tc.file,
-				}})
-				t.Setenv("AGENTSVIEW_MODE", "serve")
-				t.Setenv("AGENTSVIEW_PG_ALLOW_INSECURE", tc.value)
-				cfg, err := LoadMinimal()
-				require.NoError(t, err)
-				pg, err := cfg.ResolvePG()
-				require.NoError(t, err)
-				assert.Equal(t, tc.want, pg.AllowInsecure)
-			})
-		}
-	})
-
-	t.Run("named targets other than the default are untouched", func(t *testing.T) {
-		unsetDeploymentEnv(t)
-		dir := setupTestEnv(t)
-		require.NoError(t, os.WriteFile(filepath.Join(dir, configFileName), []byte(`
-default_pg = "hub"
-
-[pg.hub]
-url = "postgres://hub.example/agentsview"
-
-[pg.other]
-url = "postgres://other.example/agentsview"
-`), 0o600))
-		t.Setenv("AGENTSVIEW_MODE", "serve")
-		t.Setenv("AGENTSVIEW_PG_ALLOW_INSECURE", "true")
-		cfg, err := LoadMinimal()
-		require.NoError(t, err)
-		hub, err := cfg.ResolvePGTarget("hub")
-		require.NoError(t, err)
-		assert.True(t, hub.AllowInsecure)
-		other, err := cfg.ResolvePGTarget("other")
-		require.NoError(t, err)
-		assert.False(t, other.AllowInsecure)
-	})
-
-	t.Run("unset keeps the file setting", func(t *testing.T) {
-		unsetDeploymentEnv(t)
-		dir := setupTestEnv(t)
-		writeConfig(t, dir, map[string]any{"pg": map[string]any{
-			"url": "postgres://db.example/agentsview", "allow_insecure": true,
-		}})
-		t.Setenv("AGENTSVIEW_MODE", "serve")
-		cfg, err := LoadMinimal()
-		require.NoError(t, err)
-		pg, err := cfg.ResolvePG()
-		require.NoError(t, err)
-		assert.True(t, pg.AllowInsecure)
-	})
 }

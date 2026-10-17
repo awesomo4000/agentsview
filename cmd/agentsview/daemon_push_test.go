@@ -79,7 +79,7 @@ func TestParseDaemonPushSSE(t *testing.T) {
 func TestPostDaemonPushConsumesSSE(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/api/v1/push/pg", r.URL.Path)
+			assert.Equal(t, "/api/v1/push/clickhouse", r.URL.Path)
 			assert.Contains(t, r.Header.Get("Accept"), "text/event-stream")
 			w.Header().Set("Content-Type", "text/event-stream")
 			_, _ = w.Write([]byte(

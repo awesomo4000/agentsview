@@ -337,12 +337,12 @@ func TestDetectTransport_LocalServeWritableRecordWins(t *testing.T) {
 }
 
 // TestDetectTransport_PGServeUnreachable_AllowsDirectWrite verifies
-// that an unprobeable pg serve runtime record does not prove daemon
+// that an unprobeable clickhouse serve runtime record does not prove daemon
 // ownership, so direct access remains available.
 func TestDetectTransport_PGServeUnreachable_AllowsDirectWrite(t *testing.T) {
 	t.Parallel()
 	dir := daemonRuntimeDir(t)
-	writeUnreachableDaemonRuntime(t, dir, true) // readOnly = pg serve
+	writeUnreachableDaemonRuntime(t, dir, true) // readOnly = clickhouse serve
 
 	tr, err := detectTransport(dir, "", 100*time.Millisecond)
 	require.NoError(t, err)

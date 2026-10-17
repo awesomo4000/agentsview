@@ -499,9 +499,7 @@ func (b daemonArchiveWriteBackend) ReplicaPush(
 	projects []string,
 	excludeProjects []string,
 ) (storage.PushResult, error) {
-	if cfg.Embed {
-		return storage.PushResult{}, errEmbedNeedsLocalArchive
-	}
+
 	operation, err := replicaPushOperation(backend.Name())
 	if err != nil {
 		return storage.PushResult{}, err
@@ -693,9 +691,7 @@ func (b daemonArchiveWriteBackend) ReplicaPushWatch(
 	debounce time.Duration,
 	interval time.Duration,
 ) error {
-	if cfg.Embed {
-		return errEmbedNeedsLocalArchive
-	}
+
 	if err := requireDaemonSourceSync(ctx, b.appCfg); err != nil {
 		return err
 	}
@@ -832,21 +828,7 @@ func (b *localArchiveWriteBackend) ReplicaPush(
 		return storage.PushResult{}, err
 	}
 	display := backend.DisplayName()
-	var embedder *replicaEmbedder
-	if cfg.Embed {
-		var err error
-		if embedder, err = newReplicaEmbedder(b.appCfg, backend, target, b.database); err != nil {
-			return storage.PushResult{}, err
-		}
-		embedder.buildOnPrepare = true
-		embedder.out = os.Stdout
-		defer closeVectorPushSource(embedder)
-		// Adopt the published recipe before the local sync, so a missing
-		// or ambiguous recipe fails before any session work.
-		if err := embedder.resolve(ctx); err != nil {
-			return storage.PushResult{}, err
-		}
-	}
+
 	didResync, err := runLocalSyncAuthoritative(
 		ctx, b.appCfg, b.database, cfg.Full,
 	)
@@ -870,13 +852,8 @@ func (b *localArchiveWriteBackend) ReplicaPush(
 	}
 	forceFull := cfg.Full || didResync
 
-	var vectorSource storage.VectorPushSource
-	if embedder != nil {
-		vectorSource = embedder
-	} else {
-		vectorSource = replicaVectorPushSource(b.appCfg, target, cfg)
-		defer closeVectorPushSource(vectorSource)
-	}
+	vectorSource := replicaVectorPushSource(b.appCfg, target, cfg)
+	defer closeVectorPushSource(vectorSource)
 
 	fmt.Printf("Connecting to %s...\n", display)
 	connectStart := time.Now()
@@ -1188,19 +1165,7 @@ func (b *localArchiveWriteBackend) ReplicaPushWatch(
 	}
 	cleanResyncTemp(b.appCfg.DBPath)
 
-	var embedder *replicaEmbedder
-	var emitter syncpkg.Emitter
-	if cfg.Embed {
-		var err error
-		if embedder, err = newReplicaEmbedder(b.appCfg, backend, target, b.database); err != nil {
-			return err
-		}
-		embedder.resolveRetry = interval
-		emitter = embedder
-	}
-
 	engine := syncpkg.NewEngine(ctx, b.database, syncpkg.EngineConfig{
-		Emitter:                 emitter,
 		AgentDirs:               b.appCfg.AgentDirs,
 		SourceMachines:          b.appCfg.SourceMachines,
 		ProviderMetadata:        b.appCfg.ProviderMetadata,
@@ -1218,21 +1183,15 @@ func (b *localArchiveWriteBackend) ReplicaPushWatch(
 	var pusher *replicaPusher
 	if b.watchHooks != nil && b.watchHooks.newReplicaPusher != nil {
 		pusher = b.watchHooks.newReplicaPusher(engine)
-		if embedder != nil {
-			defer closeVectorPushSource(embedder)
-		}
+
 	} else {
 		// One vectors.db adapter for the watch loop's lifetime: connect runs on
 		// every reconnect, and a fresh source per reconnect would leak the
 		// previous one's memoized read-only handle (the pusher never closes
 		// its source). The adapter is designed for reuse — it reopens lazily
 		// after transient failures.
-		var vectorSource storage.VectorPushSource
-		if embedder != nil {
-			vectorSource = embedder
-		} else {
-			vectorSource = replicaVectorPushSource(b.appCfg, target, cfg)
-		}
+		vectorSource := replicaVectorPushSource(b.appCfg, target, cfg)
+
 		defer closeVectorPushSource(vectorSource)
 		pusher = b.newReplicaPusher(
 			backend,
@@ -1296,9 +1255,7 @@ func (b *localArchiveWriteBackend) ReplicaPushWatch(
 			err := pusher.pushBatch(
 				c, r, false, batch, watchRecoveryForBatch(b.appCfg, batch),
 			)
-			if embedder != nil && r != reasonShutdown {
-				embedder.ensureScheduler(ctx)
-			}
+
 			return err
 		},
 	)
@@ -1329,9 +1286,7 @@ func (b *localArchiveWriteBackend) ReplicaPushWatch(
 		return nil
 	}
 	initialErr := startupErr
-	if embedder != nil {
-		embedder.ensureScheduler(ctx)
-	}
+
 	if initialErr == nil {
 		initialErr = pusher.push(ctx, reasonStartup, didResync)
 	}

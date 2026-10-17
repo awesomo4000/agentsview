@@ -32,7 +32,6 @@ import (
 	"go.kenn.io/agentsview/internal/dbtest"
 	"go.kenn.io/agentsview/internal/duckdb"
 	"go.kenn.io/agentsview/internal/parser"
-	"go.kenn.io/agentsview/internal/postgres"
 	"go.kenn.io/agentsview/internal/remotesync"
 	"go.kenn.io/agentsview/internal/service"
 	"go.kenn.io/agentsview/internal/sshremote"
@@ -170,7 +169,7 @@ func newSyncRouteFixture(
 		serverConfig.AgentDirs[agent] = append([]string(nil), dirs...)
 	}
 	serverOptions := []Option{
-		WithReplicas(postgres.Backend{}, clickhouse.Backend{}), WithMirror(duckdb.Mirror{}),
+		WithReplicas(clickhouse.Backend{}), WithMirror(duckdb.Mirror{}),
 	}
 	if cfg.broadcaster != nil {
 		serverOptions = append(serverOptions, WithBroadcaster(cfg.broadcaster))

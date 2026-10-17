@@ -24,7 +24,6 @@ import (
 	"go.kenn.io/agentsview/internal/duckdb"
 	"go.kenn.io/agentsview/internal/money"
 	"go.kenn.io/agentsview/internal/parser"
-	"go.kenn.io/agentsview/internal/postgres"
 	"go.kenn.io/agentsview/internal/storage"
 	syncpkg "go.kenn.io/agentsview/internal/sync"
 )
@@ -72,10 +71,10 @@ func TestPGPushProgressLoggerThrottlesAndReportsPhases(t *testing.T) {
 	log.SetOutput(&buf)
 	t.Cleanup(func() { log.SetOutput(origOut) })
 
-	logProgress := newReplicaPushProgressLogger("pg")
+	logProgress := newReplicaPushProgressLogger("clickhouse")
 	logProgress(storage.PushProgress{SessionsDone: 1, SessionsTotal: 10, MessagesDone: 5})
 	logProgress(storage.PushProgress{SessionsDone: 2, SessionsTotal: 10, MessagesDone: 9})
-	assert.Contains(t, buf.String(), "pg push: 1/10 session(s), 5 messages")
+	assert.Contains(t, buf.String(), "clickhouse push: 1/10 session(s), 5 messages")
 	assert.NotContains(t, buf.String(), "2/10",
 		"second report inside the throttle window must not log")
 
@@ -87,18 +86,18 @@ func TestPGPushProgressLoggerThrottlesAndReportsPhases(t *testing.T) {
 		VectorChunksPushed:  42,
 	})
 	assert.Contains(t, buf.String(),
-		"pg push: vectors 3/7 session(s) scanned, 42 chunks")
+		"clickhouse push: vectors 3/7 session(s) scanned, 42 chunks")
 
 	logProgress(storage.PushProgress{
 		Phase:         "preparing",
 		SessionsDone:  500,
 		SessionsTotal: 46000,
 	})
-	assert.Contains(t, buf.String(), "pg push: preparing 500/46000 session(s)")
+	assert.Contains(t, buf.String(), "clickhouse push: preparing 500/46000 session(s)")
 
 	logProgress(storage.PushProgress{Phase: "preparing"})
 	assert.Contains(t, buf.String(),
-		"pg push: preparing (sync state, metadata, fingerprints)",
+		"clickhouse push: preparing (sync state, metadata, fingerprints)",
 		"zero-total preparing report renders the setup-stage line")
 }
 
@@ -161,7 +160,7 @@ func missingEnvRef(tb testing.TB, name string) string {
 func testServerWithConfig(cfg config.Config) *Server {
 	return &Server{
 		cfg:      cfg,
-		replicas: []storage.Replica{postgres.Backend{}, clickhouse.Backend{}},
+		replicas: []storage.Replica{clickhouse.Backend{}},
 		mirror:   duckdb.Mirror{},
 	}
 }
@@ -203,19 +202,19 @@ func assertStreamingResponseContent(
 func TestPGPushConfigRequestOverrideSkipsDaemonEnvResolution(t *testing.T) {
 	const envName = "AGENTSVIEW_TEST_MISSING_PG_URL_25053"
 	s := testServerWithConfig(config.Config{
-		PG: config.PGConfig{URL: missingEnvRef(t, envName)},
+		ClickHouse: config.ClickHouseConfig{URL: missingEnvRef(t, envName)},
 	})
 	req := daemonPushRequest{
 		Replica: &daemonReplicaTarget{
-			URL:         "postgres://user:pass@host/db",
+			URL:         "clickhouse://user:pass@host/db",
 			Schema:      "mirror",
 			MachineName: "laptop",
 		},
 	}
 
-	got, err := s.replicaPushTarget(postgres.Backend{}, req)
+	got, err := s.replicaPushTarget(clickhouse.Backend{}, req)
 	require.NoError(t, err)
-	assert.Equal(t, "postgres://user:pass@host/db", got.URL)
+	assert.Equal(t, "clickhouse://user:pass@host/db", got.URL)
 	assert.Equal(t, "mirror", got.Schema)
 	assert.Equal(t, "laptop", got.MachineName)
 }
@@ -265,7 +264,7 @@ func TestClickHousePushRejectsIncludeAndExcludeProjects(t *testing.T) {
 func TestPGPushRejectsIncludeAndExcludeProjects(t *testing.T) {
 	s := testServerWithConfig(config.Config{})
 
-	_, err := s.humaReplicaPush(t.Context(), postgres.Backend{}, &daemonPushInput{
+	_, err := s.humaReplicaPush(t.Context(), clickhouse.Backend{}, &daemonPushInput{
 		Body: daemonPushRequest{
 			Projects:        []string{"alpha"},
 			ExcludeProjects: []string{"beta"},
@@ -295,8 +294,8 @@ func TestPGPushEnsuresPricingAfterLocalSync(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(t.Context(),
 		http.MethodPost,
-		"/api/v1/push/pg",
-		strings.NewReader(`{"full":false,"replica":{"url":"postgres://nobody:nobody@127.0.0.1:1/test?sslmode=disable","schema":"agentsview","machine_name":"test","allow_insecure":false}}`),
+		"/api/v1/push/clickhouse",
+		strings.NewReader(`{"full":false,"replica":{"url":"clickhouse://nobody:nobody@127.0.0.1:1/test?sslmode=disable","schema":"agentsview","machine_name":"test","allow_insecure":false}}`),
 	)
 	req.Host = "127.0.0.1:0"
 	req.RemoteAddr = "127.0.0.1:1234"
@@ -476,7 +475,7 @@ func TestSyncRemotesRouteIsStreaming(t *testing.T) {
 func TestPushRoutesAreStreaming(t *testing.T) {
 	s := testServer(t, 30)
 	spec := readOpenAPISpec(t, s.Handler())
-	for _, path := range []string{"/api/v1/push/pg", "/api/v1/push/duckdb"} {
+	for _, path := range []string{"/api/v1/push/clickhouse", "/api/v1/push/duckdb"} {
 		op := requireOpenAPIOperation(t, spec, "post", path)
 		require.Contains(t, op.Responses, "200", path)
 		assertStreamingResponseContent(t, op.Responses["200"].Content)
@@ -493,7 +492,7 @@ func TestPushRoutesReturn503WhileWriterClosedForSSE(t *testing.T) {
 	require.NoError(t, database.CloseWriter())
 	defer func() { assert.NoError(t, database.ReopenWriter()) }()
 
-	for _, path := range []string{"/api/v1/push/pg", "/api/v1/push/duckdb"} {
+	for _, path := range []string{"/api/v1/push/clickhouse", "/api/v1/push/duckdb"} {
 		req := httptest.NewRequestWithContext(t.Context(),
 			http.MethodPost, path, strings.NewReader(`{"full":false}`),
 		)
@@ -641,7 +640,7 @@ func TestSyncThenRunForPushCopiesHealthyArchiveBesideCorruptSource(t *testing.T)
 		t.Run(accept, func(t *testing.T) {
 			var copied []string
 			recorder := httptest.NewRecorder()
-			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/push/pg", nil)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/push/clickhouse", nil)
 			request.Header.Set("Accept", accept)
 			hctx := humago.NewContext(&huma.Operation{}, request, recorder)
 			runPushStream(hctx, func(_ func(storage.PushProgress)) (any, error) {
@@ -788,13 +787,13 @@ func TestPGPushRejectsMalformedWatchScopeBeforeSSE(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.body["full"] = false
 			tt.body["replica"] = map[string]any{
-				"url":            "postgres://nobody:nobody@127.0.0.1:1/test?sslmode=disable",
+				"url":            "clickhouse://nobody:nobody@127.0.0.1:1/test?sslmode=disable",
 				"schema":         "agentsview",
 				"machine_name":   "test",
 				"allow_insecure": false,
 			}
 			w := serveJSON(
-				t, f.handler, http.MethodPost, "/api/v1/push/pg", tt.body,
+				t, f.handler, http.MethodPost, "/api/v1/push/clickhouse", tt.body,
 				withAccept("text/event-stream"),
 			)
 			require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
@@ -871,13 +870,13 @@ func TestPGPushRejectsWatchPathsOutsideStartupProviderRoots(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.body["full"] = false
 			tt.body["replica"] = map[string]any{
-				"url":            "postgres://nobody:nobody@127.0.0.1:1/test?sslmode=disable",
+				"url":            "clickhouse://nobody:nobody@127.0.0.1:1/test?sslmode=disable",
 				"schema":         "agentsview",
 				"machine_name":   "test",
 				"allow_insecure": false,
 			}
 			w := serveJSON(
-				t, f.handler, http.MethodPost, "/api/v1/push/pg",
+				t, f.handler, http.MethodPost, "/api/v1/push/clickhouse",
 				tt.body,
 				withAccept("text/event-stream"),
 			)
@@ -918,11 +917,11 @@ func TestPGPushFullRoutesResyncThroughWorkerRunner(t *testing.T) {
 	f.writeClaudeSession(t, "proj/session.jsonl", "full push worker routing")
 	f.srv.ensurePricing = func(context.Context, *db.DB) error { return nil }
 
-	w := serveJSON(t, f.handler, http.MethodPost, "/api/v1/push/pg",
+	w := serveJSON(t, f.handler, http.MethodPost, "/api/v1/push/clickhouse",
 		map[string]any{
 			"full": true,
 			"replica": map[string]any{
-				"url":            "postgres://nobody:nobody@127.0.0.1:1/test?sslmode=disable",
+				"url":            "clickhouse://nobody:nobody@127.0.0.1:1/test?sslmode=disable",
 				"schema":         "agentsview",
 				"machine_name":   "test",
 				"allow_insecure": false,
@@ -985,14 +984,14 @@ func TestReplicaPushTargetOmittedPushVectorsDefaultsOn(t *testing.T) {
 		body string
 		want bool
 	}{
-		{name: "omitted", body: `{"url":"postgres://h/db","machine_name":"m"}`, want: true},
-		{name: "explicit true", body: `{"url":"postgres://h/db","machine_name":"m","push_vectors":true}`, want: true},
-		{name: "explicit false", body: `{"url":"postgres://h/db","machine_name":"m","push_vectors":false}`, want: false},
+		{name: "omitted", body: `{"url":"clickhouse://h/db","machine_name":"m"}`, want: true},
+		{name: "explicit true", body: `{"url":"clickhouse://h/db","machine_name":"m","push_vectors":true}`, want: true},
+		{name: "explicit false", body: `{"url":"clickhouse://h/db","machine_name":"m","push_vectors":false}`, want: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var wire daemonReplicaTarget
 			require.NoError(t, json.Unmarshal([]byte(tt.body), &wire))
-			got, err := s.replicaPushTarget(postgres.Backend{}, daemonPushRequest{Replica: &wire})
+			got, err := s.replicaPushTarget(clickhouse.Backend{}, daemonPushRequest{Replica: &wire})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.PushVectors)
 		})

@@ -13,8 +13,7 @@ import (
 
 // Container deployment modes selected by AGENTSVIEW_MODE.
 const (
-	DeploymentModeServe   = "serve"
-	DeploymentModePGServe = "pg-serve"
+	DeploymentModeServe = "serve"
 )
 
 // deploymentEmbeddingsServer names the embeddings server built from
@@ -23,7 +22,7 @@ const deploymentEmbeddingsServer = "deployment"
 
 // DeploymentMode reports the container deployment mode. set is false when
 // AGENTSVIEW_MODE is unset or blank; then no deployment variable applies.
-// PG_SERVE (1/true/yes/on, any case) selects pg-serve only when set is true.
+// The removed PG_SERVE selector is rejected when deployment mode is set.
 func DeploymentMode() (mode string, set bool, err error) {
 	raw := strings.TrimSpace(os.Getenv("AGENTSVIEW_MODE"))
 	if raw == "" {
@@ -32,19 +31,17 @@ func DeploymentMode() (mode string, set bool, err error) {
 	switch mode := strings.ToLower(raw); mode {
 	case DeploymentModeServe:
 		if pgServeSelected() {
-			return DeploymentModePGServe, true, nil
+			return "", true, errors.New("PG_SERVE: PostgreSQL is not supported in this fork")
 		}
-		return mode, true, nil
-	case DeploymentModePGServe:
 		return mode, true, nil
 	default:
 		return "", true, fmt.Errorf(
-			"AGENTSVIEW_MODE must be %q or %q, got %q",
-			DeploymentModeServe, DeploymentModePGServe, raw)
+			"AGENTSVIEW_MODE must be %q, got %q",
+			DeploymentModeServe, raw)
 	}
 }
 
-// pgServeSelected keeps the image's legacy PG_SERVE selector.
+// pgServeSelected detects the removed legacy selector.
 func pgServeSelected() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("PG_SERVE"))) {
 	case "1", "true", "yes", "on":
@@ -77,11 +74,6 @@ func (c *Config) applyDeploymentEnv() error {
 		return err
 	} else if set {
 		c.NoBrowser = v
-	}
-	if v, set, err := lookupEnvBool("AGENTSVIEW_PG_ALLOW_INSECURE"); err != nil {
-		return err
-	} else if set {
-		c.pgEnvOverrides.AllowInsecure = &v
 	}
 	if path, set := os.LookupEnv("AGENTSVIEW_AUTH_TOKEN_FILE"); set {
 		if os.Getenv("AGENTSVIEW_AUTH_TOKEN") != "" {

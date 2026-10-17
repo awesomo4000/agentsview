@@ -32,9 +32,6 @@ type ReplicaPushConfig struct {
 	Debounce        time.Duration
 	Interval        time.Duration
 	NoVectors       bool
-	// Embed builds pending embeddings in this process before each push
-	// (pg push --embed). It requires the local archive writer.
-	Embed bool
 	// ScopeVectorsToChangedSessions is set internally by the watch
 	// loop for change-triggered pushes; it has no CLI flag.
 	ScopeVectorsToChangedSessions bool
@@ -110,7 +107,7 @@ func runReplicaPush(
 
 	// --embed builds in this process, so it never auto-starts a daemon; a
 	// live daemon still wins the writer and rejects the request.
-	appCfg.NoDaemonAutostart = cfg.Embed
+
 	writer, cleanup, err := resolveArchiveWriteBackend(ctx, appCfg, transportIntentArchiveWrite)
 	if err != nil {
 		return fmt.Errorf("opening writer: %w", err)
@@ -160,15 +157,7 @@ func runReplicaPushTarget(
 	cfg ReplicaPushConfig,
 	ref storage.ReplicaTargetRef,
 ) error {
-	if backend.Name() == "pg" {
-		pg, err := appCfg.ResolvePGTarget(ref.Name)
-		if err != nil {
-			return err
-		}
-		if pg.RawTenant != "" || pg.RawDerivation {
-			return errors.New("pg push cannot mutate a hosted-owned projection")
-		}
-	}
+
 	target, err := backend.ResolveTarget(appCfg, ref)
 	if err != nil {
 		return err
@@ -514,18 +503,6 @@ func prepareReplicaServeImpl(
 	}
 	if target.Target.URL == "" {
 		return replicaServeStartup{}, fmt.Errorf("%s serve: url not configured", name)
-	}
-	if name == "pg" {
-		pg, err := appCfg.ResolvePG()
-		if err != nil {
-			return replicaServeStartup{}, err
-		}
-		if err := pg.ValidateRawDerivation(appCfg.RequireAuth); err != nil {
-			return replicaServeStartup{}, err
-		}
-		if pg.RawTenant != "" {
-			return replicaServeStartup{}, fmt.Errorf("hosted raw PostgreSQL serving has been removed from this fork")
-		}
 	}
 
 	applyClassifierConfig(appCfg)

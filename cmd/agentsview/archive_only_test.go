@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
+	"go.kenn.io/agentsview/internal/clickhouse"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -266,7 +267,7 @@ func TestArchiveOnlyRefusesDaemonPushWatch(t *testing.T) {
 			return b.DuckDBPushWatch(ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil, time.Hour, time.Hour)
 		}},
 		{name: "replica", run: func(ctx context.Context, b daemonArchiveWriteBackend) error {
-			return b.ReplicaPushWatch(ctx, pgReplica{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil, time.Hour, time.Hour)
+			return b.ReplicaPushWatch(ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil, time.Hour, time.Hour)
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

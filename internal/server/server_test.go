@@ -34,7 +34,6 @@ import (
 	"go.kenn.io/agentsview/internal/dbtest"
 	"go.kenn.io/agentsview/internal/duckdb"
 	"go.kenn.io/agentsview/internal/parser"
-	"go.kenn.io/agentsview/internal/postgres"
 	"go.kenn.io/agentsview/internal/server"
 	"go.kenn.io/agentsview/internal/service"
 	"go.kenn.io/agentsview/internal/sessionwatch"
@@ -163,7 +162,7 @@ func setupWithServerOptsAndDBTemplate(
 
 	// Prepend so caller-provided srvOpts can still override.
 	srvOpts = append([]server.Option{server.WithBroadcaster(broadcaster)}, srvOpts...)
-	srvOpts = append(srvOpts, server.WithReplicas(postgres.Backend{}, clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{}))
+	srvOpts = append(srvOpts, server.WithReplicas(clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{}))
 	srv := server.New(cfg, database, engine, srvOpts...)
 
 	return &testEnv{
@@ -277,7 +276,7 @@ func setupNoSyncMode(t *testing.T) *testEnv {
 	srv := server.New(
 		cfg, database, nil,
 		server.WithBroadcaster(broadcaster),
-		server.WithReplicas(postgres.Backend{}, clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{}),
+		server.WithReplicas(clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{}),
 	)
 
 	return &testEnv{
@@ -2707,10 +2706,10 @@ func TestSyncEndpointLocalNoSyncDaemonUsesOnDemandEngine(t *testing.T) {
 func TestPGPushLocalNoSyncDaemonReachesConfigValidation(t *testing.T) {
 	te := setupNoSyncMode(t)
 
-	w := te.post(t, "/api/v1/push/pg", `{"full":false}`)
+	w := te.post(t, "/api/v1/push/clickhouse", `{"full":false}`)
 
 	assertStatus(t, w, http.StatusBadRequest)
-	assert.Contains(t, w.Body.String(), "pg push: url not configured")
+	assert.Contains(t, w.Body.String(), "clickhouse push: url not configured")
 }
 
 func TestDuckDBPushLocalNoSyncDaemonWritesConfiguredPath(t *testing.T) {
@@ -3320,7 +3319,7 @@ func TestPingReportsStalledSyncWithoutLosingDaemonIdentity(t *testing.T) {
 	})
 	t.Cleanup(engine.Close)
 	te := &testEnv{
-		srv: server.New(cfg, database, engine, server.WithReplicas(postgres.Backend{}, clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{})), db: database, engine: engine,
+		srv: server.New(cfg, database, engine, server.WithReplicas(clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{})), db: database, engine: engine,
 		dataDir: dir,
 	}
 	te.handler = wrapTestHandler(cfg, te.srv.Handler())

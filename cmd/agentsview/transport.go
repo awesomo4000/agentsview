@@ -18,7 +18,6 @@ import (
 
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
-	"go.kenn.io/agentsview/internal/postgres"
 	"go.kenn.io/agentsview/internal/service"
 	"go.kenn.io/agentsview/internal/servicehttp"
 	"go.kenn.io/agentsview/internal/update"
@@ -75,7 +74,7 @@ type transport struct {
 	Mode               transportMode
 	URL                string
 	BrowserURL         string
-	ReadOnly           bool // daemon runtime ReadOnly flag (true for pg serve)
+	ReadOnly           bool // daemon runtime ReadOnly flag (true for clickhouse serve)
 	DirectReadOnly     bool // writable daemon owns DB but is not reachable
 	DirectIncompatible bool // live daemon owns DB but cannot serve this client
 	DirectDaemonAhead  bool // that daemon runs a newer API or data version than this client
@@ -86,37 +85,6 @@ type transport struct {
 
 type customPricingStore interface {
 	SetCustomPricing(map[string]config.CustomModelRate)
-}
-
-var openPGReadStore = func(
-	cfg config.Config,
-	pgCfg config.PGConfig,
-) (db.Store, func(), error) {
-	applyClassifierConfig(cfg)
-	if err := pgCfg.ValidateRawDerivation(cfg.RequireAuth); err != nil {
-		return nil, nil, err
-	}
-	if pgCfg.RawTenant != "" {
-		store, err := postgres.NewHostedStore(pgCfg.URL, pgCfg.Schema, pgCfg.RawTenant, pgCfg.AllowInsecure)
-		if err != nil {
-			return nil, nil, err
-		}
-		if err = applyRequiredCursorSecret(store, cfg); err != nil {
-			store.Close()
-			return nil, nil, err
-		}
-		return store, func() { _ = store.Close() }, nil
-	}
-	backend := pgReplica{}
-	store, err := backend.OpenStore(postgres.ReplicaTarget(pgCfg))
-	if err != nil {
-		return nil, nil, err
-	}
-	if err := applyRequiredCursorSecret(store, cfg); err != nil {
-		_ = store.Close()
-		return nil, nil, err
-	}
-	return store, func() { _ = store.Close() }, nil
 }
 
 // detectTransport picks the transport mode:
@@ -597,30 +565,4 @@ func appendDaemonCompatibilityHint(tr transport, err error) error {
 		return fmt.Errorf("%w\n\n%s", err, staleClientUpgradeHint())
 	}
 	return appendDaemonRestartUpgradeHint(err)
-}
-
-// newPGReadService builds a read-only SessionService over the
-// configured PostgreSQL sync store. It shares the same store
-// construction path as pg serve, but leaves schema repair/migration
-// to pg push/serve because CLI read commands never mutate PG. Like
-// pg serve, it runs the replica vector gate so `session search --pg
-// --semantic|--hybrid` and `mcp --pg` get the same semantic search
-// the SQLite direct path wires via installDirectVectorSearcher.
-func newPGReadService(
-	cfg config.Config, pgCfg config.PGConfig,
-) (service.SessionService, func(), error) {
-	store, cleanup, err := openPGReadStore(cfg, pgCfg)
-	if err != nil {
-		if cleanup != nil {
-			cleanup()
-		}
-		return nil, nil, fmt.Errorf("opening pg store: %w", err)
-	}
-	if len(cfg.CustomModelPricing) > 0 {
-		if priced, ok := store.(customPricingStore); ok {
-			priced.SetCustomPricing(cfg.CustomModelPricing)
-		}
-	}
-	wireReplicaReadVectorSearchFn(cfg, pgReplica{}, store)
-	return service.NewReadOnlyBackend(store), cleanup, nil
 }

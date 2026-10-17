@@ -9,6 +9,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"go.kenn.io/agentsview/internal/clickhouse"
 	"io"
 	"log"
 	"math"
@@ -624,7 +625,7 @@ func TestRunPGRuntimeWarningHelperProcess(t *testing.T) {
 	// This is only an orphan guard if the parent dies; normal completion is
 	// driven by the parent observing the warning on stdout.
 	time.AfterFunc(2*time.Minute, func() { os.Exit(0) })
-	runReplicaServe(pgReplica{}, appCfg, "")
+	runReplicaServe(clickhouse.Backend{}, appCfg, "")
 }
 
 func TestMustLoadConfig(t *testing.T) {

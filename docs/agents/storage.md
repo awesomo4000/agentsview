@@ -1,5 +1,9 @@
 # Storage Rules
 
+Fork status: PostgreSQL and CockroachDB support is removed. PostgreSQL
+sections below describe upstream history, not supported fork behavior.
+SQLite, DuckDB, and ClickHouse guidance still applies.
+
 Read this file before changing SQLite, PostgreSQL, CockroachDB, DuckDB,
 ClickHouse, archive resync, or storage queries.
 
