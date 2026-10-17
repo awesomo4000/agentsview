@@ -74,7 +74,7 @@ type transport struct {
 	Mode               transportMode
 	URL                string
 	BrowserURL         string
-	ReadOnly           bool // daemon runtime ReadOnly flag (true for clickhouse serve)
+	ReadOnly           bool // daemon runtime ReadOnly flag (true for duckdb serve)
 	DirectReadOnly     bool // writable daemon owns DB but is not reachable
 	DirectIncompatible bool // live daemon owns DB but cannot serve this client
 	DirectDaemonAhead  bool // that daemon runs a newer API or data version than this client

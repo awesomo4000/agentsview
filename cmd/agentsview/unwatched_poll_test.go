@@ -24,8 +24,6 @@ import (
 
 // reconcileGroupsSequentially adapts a per-group fake to the grouped syncer
 // interface, mirroring the engine contract pinned by
-// TestReconcileProviderRootsGrouped*: every group is attempted in order and
-// failures are joined.
 func reconcileGroupsSequentially(
 	ctx context.Context,
 	groups []agentsync.ProviderRootsGroup,

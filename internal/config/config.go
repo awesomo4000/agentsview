@@ -66,55 +66,6 @@ type ProxyConfig struct {
 	AllowedSubnets []string `json:"allowed_subnets,omitempty" toml:"allowed_subnets"`
 }
 
-// ClickHouseConfig holds ClickHouse connection settings for push and serve.
-type ClickHouseConfig struct {
-	URL             string   `toml:"url" json:"url"`
-	Database        string   `toml:"database" json:"database"`
-	MachineName     string   `toml:"machine_name" json:"machine_name"`
-	AllowInsecure   bool     `toml:"allow_insecure" json:"allow_insecure"`
-	Projects        []string `toml:"projects" json:"projects,omitempty"`
-	ExcludeProjects []string `toml:"exclude_projects" json:"exclude_projects,omitempty"`
-	// PushVectors gates the vector phase of clickhouse push. A pointer so an
-	// omitted key keeps the default (enabled) while an explicit false opts out.
-	PushVectors *bool `toml:"push_vectors" json:"push_vectors,omitempty"`
-	// PushBatchSize sets how many sessions clickhouse push writes per batch.
-	// Each batch runs one lightweight DELETE per dependent table, so larger
-	// batches mean fewer part rewrites but more session payloads in memory
-	// at once. Nil keeps the push default.
-	PushBatchSize *int `toml:"push_batch_size" json:"push_batch_size,omitempty"`
-}
-
-// PushVectorsEnabled reports whether clickhouse push should run its vector
-// phase: on unless push_vectors = false.
-func (c ClickHouseConfig) PushVectorsEnabled() bool {
-	return c.PushVectors == nil || *c.PushVectors
-}
-
-type clickHouseEnvOverrides struct {
-	URL         string
-	Database    string
-	MachineName string
-}
-
-// ResolvedClickHouseTarget is one ClickHouse target after target selection,
-// defaulting, and default-target env overrides are applied.
-type ResolvedClickHouseTarget struct {
-	Name      string
-	Config    ClickHouseConfig
-	IsDefault bool
-}
-
-var clickHouseConfigKeys = map[string]struct{}{
-	"url":              {},
-	"database":         {},
-	"machine_name":     {},
-	"allow_insecure":   {},
-	"projects":         {},
-	"exclude_projects": {},
-	"push_vectors":     {},
-	"push_batch_size":  {},
-}
-
 // DuckDBConfig holds DuckDB mirror and Quack connection settings.
 //
 //nolint:recvcheck // Value encoding and pointer decoding intentionally implement distinct interfaces.
@@ -859,40 +810,37 @@ type sessionSourceConfig struct {
 //
 //nolint:recvcheck // Value encoding and pointer decoding intentionally implement distinct interfaces.
 type Config struct {
-	Host                 string                      `json:"host" toml:"host"`
-	Port                 int                         `json:"port" toml:"port"`
-	ChartPalette         ChartPalette                `json:"chart_palette" toml:"chart_palette"`
-	ZoomLevel            *ZoomLevel                  `json:"zoom_level,omitempty" toml:"zoom_level,omitempty"`
-	DataDir              string                      `json:"data_dir" toml:"data_dir"`
-	DBPath               string                      `json:"-" toml:"-"`
-	PublicURL            string                      `json:"public_url,omitempty" toml:"public_url"`
-	PublicOrigins        []string                    `json:"public_origins,omitempty" toml:"public_origins"`
-	Proxy                ProxyConfig                 `json:"proxy,omitempty" toml:"proxy"`
-	WatchExcludePatterns []string                    `json:"watch_exclude_patterns,omitempty" toml:"watch_exclude_patterns"`
-	DisabledAgents       []parser.AgentType          `json:"disabled_agents,omitempty" toml:"disabled_agents"`
-	CursorSecret         string                      `json:"cursor_secret" toml:"cursor_secret"`
-	CursorAdminAPIKey    string                      `json:"cursor_admin_api_key,omitempty" toml:"cursor_admin_api_key"`
-	CursorAdminEmail     string                      `json:"cursor_admin_email,omitempty" toml:"cursor_admin_email"`
-	CursorAdminUserID    string                      `json:"cursor_admin_user_id,omitempty" toml:"cursor_admin_user_id"`
-	GithubToken          string                      `json:"github_token,omitempty" toml:"github_token"`
-	Terminal             TerminalConfig              `json:"terminal,omitempty" toml:"terminal"`
-	AuthToken            string                      `json:"auth_token,omitempty" toml:"auth_token"`
-	RequireAuth          bool                        `json:"require_auth" toml:"require_auth"`
-	NoBrowser            bool                        `json:"no_browser" toml:"no_browser"`
-	NoSync               bool                        `json:"-" toml:"-"`
-	SkipInitialSync      bool                        `json:"-" toml:"-"`
-	ArchiveContent       ArchiveContent              `json:"archive_content" toml:"archive_content"`
-	ClickHouse           ClickHouseConfig            `json:"clickhouse,omitempty" toml:"clickhouse"`
-	DefaultClickHouse    string                      `json:"default_clickhouse,omitempty" toml:"default_clickhouse"`
-	ClickHouseTargets    map[string]ClickHouseConfig `json:"-" toml:"-"`
-	DuckDB               DuckDBConfig                `json:"duckdb,omitempty" toml:"duckdb"`
-	Vector               VectorConfig                `json:"vector,omitempty" toml:"vector"`
-	Recall               RecallConfig                `json:"recall,omitempty" toml:"recall"`
-	Insights             InsightsConfig              `json:"insights,omitempty" toml:"insights"`
-	Friction             FrictionConfig              `json:"friction,omitempty" toml:"friction"`
-	Automated            AutomatedConfig             `json:"automated,omitempty" toml:"automated"`
-	Agent                map[string]AgentConfig      `json:"agent,omitempty" toml:"agent"`
-	WriteTimeout         time.Duration               `json:"-" toml:"-"`
+	Host                 string                 `json:"host" toml:"host"`
+	Port                 int                    `json:"port" toml:"port"`
+	ChartPalette         ChartPalette           `json:"chart_palette" toml:"chart_palette"`
+	ZoomLevel            *ZoomLevel             `json:"zoom_level,omitempty" toml:"zoom_level,omitempty"`
+	DataDir              string                 `json:"data_dir" toml:"data_dir"`
+	DBPath               string                 `json:"-" toml:"-"`
+	PublicURL            string                 `json:"public_url,omitempty" toml:"public_url"`
+	PublicOrigins        []string               `json:"public_origins,omitempty" toml:"public_origins"`
+	Proxy                ProxyConfig            `json:"proxy,omitempty" toml:"proxy"`
+	WatchExcludePatterns []string               `json:"watch_exclude_patterns,omitempty" toml:"watch_exclude_patterns"`
+	DisabledAgents       []parser.AgentType     `json:"disabled_agents,omitempty" toml:"disabled_agents"`
+	CursorSecret         string                 `json:"cursor_secret" toml:"cursor_secret"`
+	CursorAdminAPIKey    string                 `json:"cursor_admin_api_key,omitempty" toml:"cursor_admin_api_key"`
+	CursorAdminEmail     string                 `json:"cursor_admin_email,omitempty" toml:"cursor_admin_email"`
+	CursorAdminUserID    string                 `json:"cursor_admin_user_id,omitempty" toml:"cursor_admin_user_id"`
+	GithubToken          string                 `json:"github_token,omitempty" toml:"github_token"`
+	Terminal             TerminalConfig         `json:"terminal,omitempty" toml:"terminal"`
+	AuthToken            string                 `json:"auth_token,omitempty" toml:"auth_token"`
+	RequireAuth          bool                   `json:"require_auth" toml:"require_auth"`
+	NoBrowser            bool                   `json:"no_browser" toml:"no_browser"`
+	NoSync               bool                   `json:"-" toml:"-"`
+	SkipInitialSync      bool                   `json:"-" toml:"-"`
+	ArchiveContent       ArchiveContent         `json:"archive_content" toml:"archive_content"`
+	DuckDB               DuckDBConfig           `json:"duckdb,omitempty" toml:"duckdb"`
+	Vector               VectorConfig           `json:"vector,omitempty" toml:"vector"`
+	Recall               RecallConfig           `json:"recall,omitempty" toml:"recall"`
+	Insights             InsightsConfig         `json:"insights,omitempty" toml:"insights"`
+	Friction             FrictionConfig         `json:"friction,omitempty" toml:"friction"`
+	Automated            AutomatedConfig        `json:"automated,omitempty" toml:"automated"`
+	Agent                map[string]AgentConfig `json:"agent,omitempty" toml:"agent"`
+	WriteTimeout         time.Duration          `json:"-" toml:"-"`
 	// InstallationID identifies this data directory independently of its label.
 	InstallationID string `json:"-" toml:"-"`
 	// InstallationCreatedAt is when InstallationID was created, or zero for
@@ -978,8 +926,7 @@ type Config struct {
 	NoDaemonAutostart bool `json:"-" toml:"-"`
 
 	// vectorSectionDefined records a [vector] section in config.toml.
-	vectorSectionDefined   bool
-	clickHouseEnvOverrides clickHouseEnvOverrides
+	vectorSectionDefined bool
 }
 
 type configJSON Config
@@ -1529,6 +1476,12 @@ func (c *Config) loadFileReadOnly() error {
 }
 
 func (c *Config) loadFileWithMigration(migrate bool) error {
+	for _, name := range []string{"AGENTSVIEW_CLICKHOUSE_URL", "AGENTSVIEW_CLICKHOUSE_DATABASE", "AGENTSVIEW_CLICKHOUSE_MACHINE"} {
+		if os.Getenv(name) != "" {
+			return fmt.Errorf("%s: ClickHouse is not supported in this fork", name)
+		}
+	}
+
 	for _, name := range []string{"AGENTSVIEW_PG_URL", "AGENTSVIEW_PG_SCHEMA", "AGENTSVIEW_PG_MACHINE", "AGENTSVIEW_PG_ALLOW_INSECURE"} {
 		if os.Getenv(name) != "" {
 			return fmt.Errorf("%s: PostgreSQL is not supported in this fork", name)
@@ -1670,8 +1623,6 @@ func (c *Config) applyConfigTOML(data string) error {
 		RequireAuth                    bool                   `toml:"require_auth"`
 		RemoteAccess                   bool                   `toml:"remote_access"`
 		ArchiveContent                 string                 `toml:"archive_content"`
-		DefaultClickHouse              string                 `toml:"default_clickhouse"`
-		ClickHouse                     ClickHouseConfig       `toml:"clickhouse"`
 		DuckDB                         DuckDBConfig           `toml:"duckdb"`
 		Vector                         VectorConfig           `toml:"vector"`
 		Recall                         RecallConfig           `toml:"recall"`
@@ -1800,43 +1751,10 @@ func (c *Config) applyConfigTOML(data string) error {
 	if meta.IsDefined("default_pg") || meta.IsDefined("pg") {
 		return errors.New("PostgreSQL configuration is not supported in this fork")
 	}
-	if meta.IsDefined("default_clickhouse") {
-		c.DefaultClickHouse = normalizeTargetName(file.DefaultClickHouse)
+	if meta.IsDefined("clickhouse") || meta.IsDefined("default_clickhouse") {
+		return errors.New("ClickHouse configuration is not supported in this fork")
 	}
-	legacyCH, namedCH, err := parseClickHouseConfigSection(raw["clickhouse"])
-	if err != nil {
-		return fmt.Errorf("clickhouse: %w", err)
-	}
-	if len(namedCH) > 0 {
-		c.ClickHouse = ClickHouseConfig{}
-		c.ClickHouseTargets = namedCH
-	} else {
-		c.ClickHouseTargets = nil
-		if legacyCH.URL != "" {
-			c.ClickHouse.URL = legacyCH.URL
-		}
-		if legacyCH.Database != "" {
-			c.ClickHouse.Database = legacyCH.Database
-		}
-		if legacyCH.MachineName != "" {
-			c.ClickHouse.MachineName = legacyCH.MachineName
-		}
-		if legacyCH.AllowInsecure {
-			c.ClickHouse.AllowInsecure = true
-		}
-		if legacyCH.Projects != nil {
-			c.ClickHouse.Projects = legacyCH.Projects
-		}
-		if legacyCH.ExcludeProjects != nil {
-			c.ClickHouse.ExcludeProjects = legacyCH.ExcludeProjects
-		}
-		if legacyCH.PushVectors != nil {
-			c.ClickHouse.PushVectors = legacyCH.PushVectors
-		}
-		if legacyCH.PushBatchSize != nil {
-			c.ClickHouse.PushBatchSize = legacyCH.PushBatchSize
-		}
-	}
+
 	// Merge duckdb field-by-field so env vars override only
 	// the fields they set, preserving config-file settings.
 	if file.DuckDB.Path != "" && c.DuckDB.Path == "" {
@@ -2151,15 +2069,6 @@ func (c *Config) loadEnv() {
 		c.AuthToken = v
 	}
 
-	if v := os.Getenv("AGENTSVIEW_CLICKHOUSE_URL"); v != "" {
-		c.clickHouseEnvOverrides.URL = v
-	}
-	if v := os.Getenv("AGENTSVIEW_CLICKHOUSE_DATABASE"); v != "" {
-		c.clickHouseEnvOverrides.Database = v
-	}
-	if v := os.Getenv("AGENTSVIEW_CLICKHOUSE_MACHINE"); v != "" {
-		c.clickHouseEnvOverrides.MachineName = v
-	}
 	if v := firstEnv(
 		"AGENTSVIEW_CURSOR_ADMIN_API_KEY",
 		"CURSOR_ADMIN_API_KEY",
@@ -2984,12 +2893,6 @@ func hostLiteral(host string) string {
 	return host
 }
 
-func parseClickHouseConfigSection(value any) (ClickHouseConfig, map[string]ClickHouseConfig, error) {
-	return parseNamedTargetSection[ClickHouseConfig](
-		"clickhouse", "ClickHouse", value, clickHouseConfigKeys, isReservedMirrorTargetName,
-	)
-}
-
 // ResolveDataDir returns the effective data directory by applying
 // defaults and environment overrides, without reading any files.
 // Use this to determine where migration should target before
@@ -3054,182 +2957,6 @@ func IsDefaultAgentsviewDBPath(dbPath string) bool {
 
 func defaultAgentsviewDBDir(dbPath string) bool {
 	return filepath.Base(filepath.Dir(filepath.Clean(dbPath))) == ".agentsview"
-}
-
-func (c *Config) DefaultClickHouseTargetName() (string, error) {
-	return defaultNamedTargetName(
-		"clickhouse", "default_clickhouse", c.DefaultClickHouse, c.ClickHouseTargets,
-	)
-}
-
-func (c *Config) validateClickHouseTargets() error {
-	_, err := c.DefaultClickHouseTargetName()
-	return err
-}
-
-func (c *Config) ClickHouseTargetNames() ([]string, string, error) {
-	return namedTargetNames(
-		"clickhouse", "default_clickhouse", c.DefaultClickHouse, c.ClickHouseTargets,
-	)
-}
-
-func (c *Config) RawClickHouseTarget(name string) (ClickHouseConfig, error) {
-	if err := c.validateClickHouseTargets(); err != nil {
-		return ClickHouseConfig{}, err
-	}
-	targetName := normalizeTargetName(name)
-	if len(c.ClickHouseTargets) == 0 {
-		if targetName != "" {
-			return ClickHouseConfig{}, fmt.Errorf(
-				"clickhouse target %q is not configured; config uses a single legacy [clickhouse] block",
-				name,
-			)
-		}
-		return c.ClickHouse, nil
-	}
-	if targetName == "" {
-		var err error
-		targetName, err = c.DefaultClickHouseTargetName()
-		if err != nil {
-			return ClickHouseConfig{}, err
-		}
-	}
-	targetCfg, ok := c.ClickHouseTargets[targetName]
-	if !ok {
-		return ClickHouseConfig{}, fmt.Errorf(
-			"clickhouse target %q is not configured",
-			targetName,
-		)
-	}
-	return targetCfg, nil
-}
-
-func (c *Config) resolveClickHouseConfig(
-	name string, ch ClickHouseConfig, applyDefaultEnv bool,
-) (ClickHouseConfig, error) {
-	if ch.PushBatchSize != nil && *ch.PushBatchSize < 1 {
-		section := "[clickhouse]"
-		if name != "" {
-			section = "[clickhouse." + name + "]"
-		}
-		return ch, fmt.Errorf(
-			"%s push_batch_size must be at least 1, got %d; remove the key to use the default",
-			section, *ch.PushBatchSize,
-		)
-	}
-	if applyDefaultEnv {
-		if c.clickHouseEnvOverrides.URL != "" {
-			ch.URL = c.clickHouseEnvOverrides.URL
-		}
-		if c.clickHouseEnvOverrides.Database != "" {
-			ch.Database = c.clickHouseEnvOverrides.Database
-		}
-		if c.clickHouseEnvOverrides.MachineName != "" {
-			ch.MachineName = c.clickHouseEnvOverrides.MachineName
-		}
-	}
-	if ch.URL != "" {
-		expanded, err := expandBracedEnv(ch.URL)
-		if err != nil {
-			return ch, fmt.Errorf("expanding url: %w", err)
-		}
-		ch.URL = expanded
-	}
-	if ch.Database == "" {
-		if name := clickHouseURLDatabase(ch.URL); name != "" {
-			ch.Database = name
-		} else {
-			ch.Database = "agentsview"
-		}
-	}
-	if ch.MachineName == "" {
-		ch.MachineName = c.InstallationID
-	}
-	return ch, nil
-}
-
-// clickHouseURLDatabase returns the database name from a clickhouse-go DSN
-// path, or empty when the URL has no path.
-func clickHouseURLDatabase(raw string) string {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	name := strings.Trim(u.Path, "/")
-	if i := strings.IndexByte(name, '/'); i >= 0 {
-		name = name[:i]
-	}
-	return name
-}
-
-func (c *Config) ResolveClickHouse() (ClickHouseConfig, error) {
-	return c.ResolveClickHouseTarget("")
-}
-
-func (c *Config) ResolveClickHouseTarget(name string) (ClickHouseConfig, error) {
-	if err := c.validateClickHouseTargets(); err != nil {
-		return ClickHouseConfig{}, err
-	}
-	targetName := normalizeTargetName(name)
-	if len(c.ClickHouseTargets) == 0 {
-		if targetName != "" {
-			return ClickHouseConfig{}, fmt.Errorf(
-				"clickhouse target %q is not configured; config uses a single legacy [clickhouse] block",
-				name,
-			)
-		}
-		return c.resolveClickHouseConfig("", c.ClickHouse, true)
-	}
-	defaultName, err := c.DefaultClickHouseTargetName()
-	if err != nil {
-		return ClickHouseConfig{}, err
-	}
-	if targetName == "" {
-		targetName = defaultName
-	}
-	targetCfg, ok := c.ClickHouseTargets[targetName]
-	if !ok {
-		return ClickHouseConfig{}, fmt.Errorf(
-			"clickhouse target %q is not configured",
-			targetName,
-		)
-	}
-	return c.resolveClickHouseConfig(targetName, targetCfg, targetName == defaultName)
-}
-
-func (c *Config) ResolveClickHouseTargets() ([]ResolvedClickHouseTarget, error) {
-	if err := c.validateClickHouseTargets(); err != nil {
-		return nil, err
-	}
-	if len(c.ClickHouseTargets) == 0 {
-		ch, err := c.resolveClickHouseConfig("", c.ClickHouse, true)
-		if err != nil {
-			return nil, err
-		}
-		return []ResolvedClickHouseTarget{{
-			Config:    ch,
-			IsDefault: true,
-		}}, nil
-	}
-	names, defaultName, err := c.ClickHouseTargetNames()
-	if err != nil {
-		return nil, err
-	}
-	targets := make([]ResolvedClickHouseTarget, 0, len(names))
-	for _, name := range names {
-		targetCfg, err := c.resolveClickHouseConfig(
-			name, c.ClickHouseTargets[name], name == defaultName,
-		)
-		if err != nil {
-			return nil, err
-		}
-		targets = append(targets, ResolvedClickHouseTarget{
-			Name:      name,
-			Config:    targetCfg,
-			IsDefault: name == defaultName,
-		})
-	}
-	return targets, nil
 }
 
 // ResolveDuckDB returns a copy of DuckDB config with defaults applied

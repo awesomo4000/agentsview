@@ -301,7 +301,7 @@ func TestServeRestartHelpExplainsWriterOnlyAsymmetry(t *testing.T) {
 	assert.Contains(t, out, "config.toml")
 	assert.Contains(t, out,
 		"Unlike `agentsview serve stop`, this command intentionally leaves "+
-			"read-only ClickHouse and DuckDB servers running.")
+			"read-only DuckDB servers running.")
 }
 
 func TestStopDaemonProcessTerminatesAndCleansRecord(t *testing.T) {

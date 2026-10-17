@@ -627,38 +627,6 @@ jobs:
       - name: Run Windows desktop unit tests
         run: cargo test --locked --manifest-path desktop/src-tauri/Cargo.toml --lib
 
-  integration:
-    name: ClickHouse integration
-    runs-on: ubuntu-latest
-    services:
-      clickhouse:
-        image: clickhouse/clickhouse-server:26.8
-        env:
-          CLICKHOUSE_SKIP_USER_SETUP: "1"
-        ports:
-          - 18123:8123
-          - 19000:9000
-        options: >-
-          --tmpfs /var/lib/clickhouse
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Run ClickHouse integration tests
-        run: make test-clickhouse-ci
-        env:
-          CGO_ENABLED: "1"
-          TEST_CLICKHOUSE_URL: clickhouse://localhost:19000/default
 
   e2e:
     runs-on: ubuntu-latest

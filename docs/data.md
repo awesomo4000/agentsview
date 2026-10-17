@@ -131,7 +131,7 @@ targets link back to the corresponding inventory row.
 
 ## Read-Only Servers
 
-On a read-only server (`pg serve`, `duckdb serve`, or `clickhouse serve`),
+On a read-only server (`duckdb serve`),
 manage rules and session assignments from the writable SQLite archive. The rules
 table remains readable; enabled workspace builds also show the inventory and
 folder suggestions, with editing controls replaced by a notice.

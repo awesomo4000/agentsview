@@ -410,7 +410,7 @@ func TestNormalizeSQLHelperDoesNotMaskPlaceholders(t *testing.T) {
 }
 
 func TestBuildSessionFilterSQLPRHost(t *testing.T) {
-	for _, dialect := range []QueryDialect{SQLiteQueryDialect(), PostgresQueryDialect(), DuckDBQueryDialect(), ClickHouseQueryDialect()} {
+	for _, dialect := range []QueryDialect{SQLiteQueryDialect(), PostgresQueryDialect(), DuckDBQueryDialect()} {
 		t.Run(dialect.name, func(t *testing.T) {
 			where, args := BuildSessionFilterSQL(SessionFilter{PR: PRFilter{Number: 12}}, dialect)
 			assert.Equal(t, []any{12}, args)
@@ -436,7 +436,6 @@ func TestBuildSessionFilterSQLPRHost(t *testing.T) {
 func TestQueryDialectPosition(t *testing.T) {
 	assert.Equal(t, "position('needle' in content)", PostgresQueryDialect().Position("content", "'needle'"))
 	assert.Equal(t, "position('needle' in content)", DuckDBQueryDialect().Position("content", "'needle'"))
-	assert.Equal(t, "position(content, 'needle')", ClickHouseQueryDialect().Position("content", "'needle'"))
 	assert.PanicsWithValue(t, "SQL position is unsupported for dialect missing", func() {
 		QueryDialect{name: "missing"}.Position("content", "'needle'")
 	})

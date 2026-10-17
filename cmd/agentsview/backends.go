@@ -3,16 +3,14 @@ package main
 import (
 	"fmt"
 
-	"go.kenn.io/agentsview/internal/clickhouse"
 	"go.kenn.io/agentsview/internal/duckdb"
 	"go.kenn.io/agentsview/internal/server"
 	"go.kenn.io/agentsview/internal/storage"
 )
 
-// replicaBackends lists every remote replica compiled into this binary. A new
-// backend is added here; newReplicaCommand gives it its CLI verb and
-// pushBackendOptions gives the daemon its push route.
-var replicaBackends = []storage.Replica{clickhouse.Backend{}}
+// No remote SQL replica is compiled into this fork. The shared registry remains
+// for mirror orchestration; it registers no replica commands or HTTP routes.
+var replicaBackends = []storage.Replica{}
 
 // replicaBackendNamed returns the registered replica with the given CLI name.
 func replicaBackendNamed(name string) (storage.Replica, error) {

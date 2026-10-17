@@ -229,7 +229,6 @@ zoom_level = 120
 | `scan_protected_paths`              | Allow Git discovery inside macOS privacy-protected folders and volumes under `/Volumes`, accepting one consent prompt per location — see [macOS Protected Folders](#macos-protected-folders)                                                                                                                                                                                                                                                                                                                    |
 | `[pg]`                              | PostgreSQL sync configuration — see [PostgreSQL Sync](/docs/pg-sync/)                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `[duckdb]`                          | DuckDB mirror configuration — see [DuckDB Mirror](/docs/duckdb/)                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `[clickhouse]`                      | ClickHouse sync configuration — see [ClickHouse Sync](/docs/clickhouse-sync/)                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `[vector]`                          | Opt-in semantic-search index; model settings live in `[vector.embeddings]`, named endpoints in `[vector.embeddings.servers.<name>]`, embedding schedule in `[vector.embed]` — see [Semantic Search](/docs/semantic-search/#enabling-vector) for every key                                                                                                                                                                                                                        |
 | `[recall.extract]`                  | Opt-in model-backed recall extraction; named endpoints in `[recall.extract.servers.<name>]`, prompt selection in `[recall.extract.prompts]`, request overrides in `[recall.extract.request]` — see [Recall](/docs/recall/#automatic-extraction)                                                                                                                                                                                                                                  |
 | `[insights]`                        | Optional generated-insights endpoint and model, plus `default_agent`, the agent CLI new reports start with; local loopback HTTP is allowed, remote plaintext requires `allow_http = true`, and endpoint failures do not retry through a CLI — see [Recall](/docs/recall/#current-surface)                                                                                                                                                                                          |
@@ -1161,7 +1160,7 @@ A change saved on the Settings page applies to the running daemon right away:
 file watching and polling switch to the new provider set. Sessions already on
 disk for a newly enabled provider arrive with the next sync. The daemon reads
 edits made directly to `config.toml` at its next start. Restart any separate
-`pg push --watch`, `clickhouse push --watch`, or `duckdb push --watch` process
+`duckdb push --watch` process
 after changing the setting. Previously archived sessions from a disabled
 provider remain available and exportable, including during archive rebuilds.
 The setting does not disable that provider as a Recall execution backend.
@@ -1864,8 +1863,6 @@ Optional features that send data externally when you enable them:
     hosted custody service configured by your deployment operator.
 - [PostgreSQL sync](/docs/pg-sync/) (`pg push`) sends session data to a
   PostgreSQL database you configure.
-- [ClickHouse sync](/docs/clickhouse-sync/) (`clickhouse push`) sends session
-  data to a ClickHouse database you configure.
 - The [DuckDB mirror](/docs/duckdb/) writes a local DuckDB file by default; data
     only leaves the machine if you expose the mirror over a remote Quack
     endpoint.

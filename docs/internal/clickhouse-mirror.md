@@ -1,3 +1,6 @@
+> Historical upstream design. ClickHouse was removed from this fork.
+> See [removal notice](../clickhouse-sync.md).
+
 # ClickHouse push and serve
 
 SQLite is the archive. `agentsview clickhouse push` copies sessions from that

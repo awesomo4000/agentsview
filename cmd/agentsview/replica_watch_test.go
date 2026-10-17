@@ -2,18 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json/v2"
 	"errors"
-	"go.kenn.io/agentsview/internal/clickhouse"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.kenn.io/agentsview/internal/apiclient"
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/storage"
 )
@@ -68,64 +64,10 @@ func TestResolvePushProjects(t *testing.T) {
 	)
 }
 
-func TestArchiveWriteBackendPGPushPostsToDaemon(t *testing.T) {
-	var gotAuth string
-	ts := pushRuntimeServer(t, "/api/v1/push/clickhouse", func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
-		gotAuth = r.Header.Get("Authorization")
-		var req apiclient.DaemonPushRequest
-		if !assert.NoError(t, json.UnmarshalRead(r.Body, &req)) {
-			return
-		}
-		assert.True(t, req.Full)
-		assert.Equal(t, []string{"a"}, req.Projects)
-		assert.Equal(t, []string{"b"}, req.ExcludeProjects)
-		if !assert.NotNil(t, req.Replica) {
-			return
-		}
-		assert.Equal(t, "clickhouse://user:pass@host/db", req.Replica.URL)
-		assert.Equal(t, new("mirror"), req.Replica.Schema)
-		assert.Equal(t, "laptop", req.Replica.MachineName)
-		assert.Equal(t, new(true), req.Replica.AllowInsecure)
-		assert.Equal(t, new("work"), req.SyncStateTarget)
-		assert.Equal(t, new(true), req.MigrateLegacySyncState)
-		writeTestJSON(t, w, storage.PushResult{
-			SessionsPushed: 2,
-			MessagesPushed: 3,
-			Duration:       time.Second,
-		})
-	})
-
-	backend := newDaemonArchiveWriteBackendForTest(
-		config.Config{AuthToken: "secret"}, ts.URL,
-	)
-	result, err := backend.ReplicaPush(
-		t.Context(), clickhouse.Backend{},
-		storage.ConfiguredReplica{
-			Name: "work", IsDefault: true,
-			Target: storage.ReplicaTarget{
-				URL:           "clickhouse://user:pass@host/db",
-				Schema:        "mirror",
-				MachineName:   "laptop",
-				AllowInsecure: true,
-			},
-		},
-		ReplicaPushConfig{Full: true},
-		[]string{"a"},
-		[]string{"b"},
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "Bearer secret", gotAuth)
-	assert.Equal(t, 2, result.SessionsPushed)
-	assert.Equal(t, 3, result.MessagesPushed)
-}
-
 func TestResolveArchiveWriteBackendSkipsReadOnlyDaemon(t *testing.T) {
 	dataDir := t.TempDir()
 	called := false
-	ts := pushRuntimeServer(t, "/api/v1/push/clickhouse", func(
+	ts := pushRuntimeServer(t, "/api/v1/push/duckdb", func(
 		w http.ResponseWriter,
 		r *http.Request,
 	) {
@@ -145,57 +87,6 @@ func TestResolveArchiveWriteBackendSkipsReadOnlyDaemon(t *testing.T) {
 	defer cleanup()
 	assert.IsType(t, &localArchiveWriteBackend{}, backend)
 	assert.False(t, called)
-}
-
-func TestArchiveWriteBackendPGPushWatchReResolvesDaemon(t *testing.T) {
-	dataDir := t.TempDir()
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-	setTestVersion(t, "v1.1.0-2-g123456")
-	stubStartBackgroundServeForTransport(t, func(context.Context, *config.Config, time.Duration, bool) (*DaemonRuntime, error) {
-		cancel()
-		return nil, context.Canceled
-	})
-	var startupPushes int
-	startup := pushRuntimeServer(t, "/api/v1/push/clickhouse", func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
-		startupPushes++
-		writeTestJSON(t, w, storage.PushResult{SessionsPushed: 1})
-	})
-	var resolvedPushes int
-	resolved := pushRuntimeServer(t, "/api/v1/push/clickhouse", func(
-		w http.ResponseWriter,
-		r *http.Request,
-	) {
-		resolvedPushes++
-		if resolvedPushes == 2 {
-			cancel()
-		}
-		writeTestJSON(t, w, storage.PushResult{SessionsPushed: 1})
-	})
-	host, port := splitTestServerURL(t, resolved.URL)
-	writeDaemonRuntimeForTest(t, dataDir, host, port, "v1.1.0-3-gabcdef", false)
-
-	backend := newDaemonArchiveWriteBackendForTest(
-		config.Config{DataDir: dataDir}, startup.URL,
-	)
-	err := backend.ReplicaPushWatch(
-		ctx, clickhouse.Backend{},
-		storage.ConfiguredReplica{Target: storage.ReplicaTarget{
-			URL: "clickhouse://user:pass@host/db",
-		}},
-		ReplicaPushConfig{},
-		nil,
-		nil,
-		time.Millisecond,
-		time.Millisecond,
-	)
-	require.NoError(t, err)
-	assert.Equal(t, 1, startupPushes)
-	assert.GreaterOrEqual(t, resolvedPushes, 2)
-	assert.NoFileExists(t, filepath.Join(dataDir, "sessions.db"))
 }
 
 // fakeTarget is a test double for storage.Pusher.
@@ -542,104 +433,6 @@ func TestPgPusher_LogsSkippedConflicts(t *testing.T) {
 	assert.Contains(t, got, "change")
 }
 
-func TestResolveWatchTargets_ErrorsOnEmptyURL(t *testing.T) {
-	appCfg := config.Config{} // no PG URL
-	_, _, _, err := resolveWatchTarget(
-		clickhouse.Backend{}, appCfg, ReplicaPushConfig{}, "",
-	)
-	require.Error(t, err, "expected error when url not configured")
-}
-
-func TestResolveWatchTargets_ResolvesProjects(t *testing.T) {
-	appCfg := config.Config{
-		ClickHouse: config.ClickHouseConfig{
-			URL:         "clickhouse://u:p@localhost:5432/db?sslmode=disable",
-			MachineName: "box1",
-		},
-	}
-	target, inc, _, err := resolveWatchTarget(
-		clickhouse.Backend{}, appCfg, ReplicaPushConfig{ProjectsFlag: "a,b"}, "",
-	)
-	require.NoError(t, err)
-	assert.NotEmpty(t, target.Target.URL, "expected resolved URL")
-	assert.Equal(t, []string{"a", "b"}, inc)
-}
-
-func TestResolveWatchTargets_IgnoresBrokenUnselectedTarget(t *testing.T) {
-	restoreUnsetEnv(t, "BROKEN_WORK_TARGET")
-	appCfg := config.Config{
-		DefaultClickHouse: "work",
-		ClickHouseTargets: map[string]config.ClickHouseConfig{
-			"work": {
-				URL:         "${BROKEN_WORK_TARGET}",
-				MachineName: "workbox",
-			},
-			"archive": {
-				URL:         "clickhouse://archive",
-				MachineName: "archivebox",
-			},
-		},
-	}
-
-	target, _, _, err := resolveWatchTarget(
-		clickhouse.Backend{}, appCfg, ReplicaPushConfig{}, "archive",
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "archive", target.Name)
-	assert.Equal(t, "clickhouse://archive", target.Target.URL)
-}
-
-func TestResolveClickHouseTargetSelections_DefaultAndAll(t *testing.T) {
-	appCfg := config.Config{
-		DefaultClickHouse: "work",
-		ClickHouseTargets: map[string]config.ClickHouseConfig{
-			"work":    {URL: "clickhouse://work", MachineName: "workbox"},
-			"archive": {URL: "clickhouse://archive", MachineName: "archivebox"},
-		},
-	}
-
-	defaultTarget, err := storage.SelectTargets(
-		clickhouse.Backend{}, appCfg, "", false,
-	)
-	require.NoError(t, err)
-	require.Len(t, defaultTarget, 1)
-	assert.Equal(t, "work", defaultTarget[0].Name)
-	assert.True(t, defaultTarget[0].IsDefault)
-	assert.Equal(t, "work", defaultTarget[0].SyncStateTarget())
-	assert.True(t, defaultTarget[0].MigrateLegacySyncState())
-
-	allTargets, err := storage.SelectTargets(
-		clickhouse.Backend{}, appCfg, "", true,
-	)
-	require.NoError(t, err)
-	require.Len(t, allTargets, 2)
-	assert.Equal(t, "work", allTargets[0].Name)
-	assert.Equal(t, "archive", allTargets[1].Name)
-}
-
-func TestResolveClickHouseTargetConfig_IgnoresBrokenUnselectedTarget(t *testing.T) {
-	restoreUnsetEnv(t, "BROKEN_WORK_TARGET")
-	appCfg := config.Config{
-		DefaultClickHouse: "work",
-		ClickHouseTargets: map[string]config.ClickHouseConfig{
-			"work": {
-				URL:         "${BROKEN_WORK_TARGET}",
-				MachineName: "workbox",
-			},
-			"archive": {
-				URL:         "clickhouse://archive",
-				MachineName: "archivebox",
-			},
-		},
-	}
-
-	target, err := clickhouse.Backend{}.ResolveTarget(
-		appCfg, storage.ReplicaTargetRef{Name: "archive"},
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "clickhouse://archive", target.Target.URL)
-}
-
 func restoreUnsetEnv(t *testing.T, name string) {
 	t.Helper()
 	oldValue, hadValue := os.LookupEnv(name)
@@ -650,45 +443,6 @@ func restoreUnsetEnv(t *testing.T, name string) {
 		t.Cleanup(func() { _ = os.Unsetenv(name) })
 	}
 	require.NoError(t, os.Unsetenv(name))
-}
-
-func TestResolveClickHouseTargetSelections_RejectsLegacyNamedLookup(t *testing.T) {
-	appCfg := config.Config{
-		ClickHouse: config.ClickHouseConfig{
-			URL:         "clickhouse://legacy",
-			MachineName: "legacybox",
-		},
-	}
-
-	_, err := storage.SelectTargets(
-		clickhouse.Backend{}, appCfg, "archive", false,
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "single legacy [clickhouse] block")
-}
-
-func TestResolveClickHouseTargetSelections_RejectsTargetWithAll(t *testing.T) {
-	appCfg := config.Config{
-		DefaultClickHouse: "work",
-		ClickHouseTargets: map[string]config.ClickHouseConfig{
-			"work": {URL: "clickhouse://work"},
-		},
-	}
-
-	_, err := storage.SelectTargets(
-		clickhouse.Backend{}, appCfg, "work", true,
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot be combined with --all")
-}
-
-func TestNewPGPushCommandRejectsAllWatch(t *testing.T) {
-	cmd := newReplicaPushCommand(clickhouse.Backend{})
-	cmd.SetArgs([]string{"--all", "--watch"})
-
-	err := cmd.Execute()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--all cannot be combined with --watch")
 }
 
 // TestPGPusherFullVectorRepairNarrowsToDeferredSessions pins how a --full

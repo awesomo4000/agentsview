@@ -220,7 +220,7 @@ var listDaemonRuntimeRecords = func(store daemon.RuntimeStore) ([]daemon.Runtime
 }
 
 // FindDaemonRuntime returns a live agentsview daemon whose kit runtime record
-// passes the ping probe. Writable daemons are preferred over read-only clickhouse serve
+// passes the ping probe. Writable daemons are preferred over read-only duckdb serve
 // daemons when both are discoverable. When authToken is non-empty, it is sent
 // as a bearer token so require_auth daemons remain discoverable.
 func FindDaemonRuntime(dataDir string, authToken ...string) *DaemonRuntime {

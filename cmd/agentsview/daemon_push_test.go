@@ -79,7 +79,7 @@ func TestParseDaemonPushSSE(t *testing.T) {
 func TestPostDaemonPushConsumesSSE(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/api/v1/push/clickhouse", r.URL.Path)
+			assert.Equal(t, "/api/v1/push/duckdb", r.URL.Path)
 			assert.Contains(t, r.Header.Get("Accept"), "text/event-stream")
 			w.Header().Set("Content-Type", "text/event-stream")
 			_, _ = w.Write([]byte(
@@ -90,7 +90,7 @@ func TestPostDaemonPushConsumesSSE(t *testing.T) {
 
 	var progress []storage.PushProgress
 	result, err := postDaemonPush[storage.PushResult](
-		t.Context(), transport{URL: ts.URL}, "", replicaPushOperations["pg"],
+		t.Context(), transport{URL: ts.URL}, "", mirrorPushOperation,
 		apiclient.DaemonPushRequest{},
 		func(p storage.PushProgress) { progress = append(progress, p) },
 	)
@@ -111,7 +111,7 @@ func TestPostDaemonPushJSONFallback(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	result, err := postDaemonPush[storage.PushResult, storage.PushProgress](
-		t.Context(), transport{URL: ts.URL}, "", replicaPushOperations["pg"],
+		t.Context(), transport{URL: ts.URL}, "", mirrorPushOperation,
 		apiclient.DaemonPushRequest{}, nil,
 	)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestDaemonPushWatchTransportRetriesWithoutScopeForOlderSchema(t *testing.T)
 		DeferredRoots:  []string{"/offline"},
 	}
 	result, err := postDaemonPush[storage.PushResult, storage.PushProgress](
-		t.Context(), transport{URL: ts.URL}, "", replicaPushOperations["pg"],
+		t.Context(), transport{URL: ts.URL}, "", mirrorPushOperation,
 		apiclient.DaemonPushRequest{WatchBatch: &batch, WatchRecovery: &recovery}, nil,
 	)
 	require.NoError(t, err)
@@ -178,7 +178,7 @@ func TestDaemonPushWatchTransportOmitsScopeForKnownOlderDaemon(t *testing.T) {
 			Runtime: &DaemonRuntime{
 				API: server.ScopedWatchPushAPIVersion - 1,
 			},
-		}, "", replicaPushOperations["pg"],
+		}, "", mirrorPushOperation,
 		apiclient.DaemonPushRequest{WatchBatch: &batch}, nil,
 	)
 	require.NoError(t, err)

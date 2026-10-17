@@ -416,7 +416,7 @@ func ensureFreshData(
 	}
 
 	// Skip on-demand sync only when a writable local daemon is
-	// already keeping the SQLite archive fresh. clickhouse serve daemons
+	// already keeping the SQLite archive fresh. duckdb serve daemons
 	// (read-only) do not sync the local DB, so we still want to
 	// run our own sync when only one of those is present.
 	if IsLocalDaemonActive(appCfg.DataDir, appCfg.AuthToken) {

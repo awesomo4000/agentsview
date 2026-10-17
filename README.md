@@ -21,7 +21,7 @@ baseline. It describes upstream, including features this fork is removing.
 
 The [removal checklist](REMOVALS.md) tracks completed work and upcoming cuts.
 Targets include telemetry, update services, online pricing, external UI assets,
-S3, PostgreSQL, web imports, and publishing. Analytics backends, vectors, MCP,
+S3, PostgreSQL, ClickHouse, web imports, and publishing. DuckDB, vectors, MCP,
 SSH/HTTP sync, and internal-model integration remain under review.
 Local log-to-SQLite ingestion stays.
 
@@ -32,6 +32,8 @@ S3 discovery and ingestion are also removed, including the MinIO client.
 PostgreSQL replication, serving, direct reads, and the pgx driver are removed.
 Automatic updates, self-update installers, and public pricing refreshes are
 also removed. Bundled rates and local custom pricing remain.
+ClickHouse replication, serving, service installation, and its client dependencies
+are removed. SQLite analytics and the optional DuckDB mirror remain.
 Other external integrations remain. This is a development fork, not yet an
 Internet-independent or privacy-approved release.
 

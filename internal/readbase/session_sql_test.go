@@ -52,7 +52,6 @@ func TestSidebarSQL(t *testing.T) {
 		count    string
 	}{
 		{"duckdb", db.DuckDBQueryDialect(), "position('<teammate-message' in COALESCE(first_message, ''))", "COUNT(*)"},
-		{"clickhouse", db.ClickHouseQueryDialect(), "position(COALESCE(first_message, ''), '<teammate-message')", "toInt64(COUNT(*))"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			filter := db.SessionFilter{Project: "project", IncludeChildren: true, IncludeOrphans: true}

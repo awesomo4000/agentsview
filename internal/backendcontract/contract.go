@@ -8,7 +8,6 @@
 package backendcontract
 
 import (
-	clickhousestore "go.kenn.io/agentsview/internal/clickhouse"
 	"go.kenn.io/agentsview/internal/db"
 	duckdbstore "go.kenn.io/agentsview/internal/duckdb"
 	"go.kenn.io/agentsview/internal/storage"
@@ -18,21 +17,11 @@ import (
 var (
 	_ db.Store = (*db.DB)(nil)
 	_ db.Store = (*duckdbstore.Store)(nil)
-	_ db.Store = (*clickhousestore.Store)(nil)
 )
 
 // Remote replicas: push target and read-only serve.
-var (
-	_ storage.Replica      = clickhousestore.Backend{}
-	_ storage.Pusher       = (*clickhousestore.Sync)(nil)
-	_ storage.ReplicaStore = (*clickhousestore.Store)(nil)
-)
 
 // Replicas that serve semantic search over pushed embeddings.
-var (
-	_ storage.VectorSearchProvider = clickhousestore.Backend{}
-	_ storage.VectorSearchStore    = (*clickhousestore.Store)(nil)
-)
 
 // Derived mirror: local rebuild and Quack serve.
 var _ storage.Mirror = duckdbstore.Mirror{}

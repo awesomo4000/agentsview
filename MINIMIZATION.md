@@ -236,3 +236,47 @@ external requests and remote services. Preserve the local discovery-to-SQLite-to
 
 Use the Git diff against `UPSTREAM` as the initial patch history. A repeatable
 upstream-update workflow and release vendoring remain pending.
+
+## ClickHouse removal
+
+Removed the ClickHouse implementation, client drivers, SQL dialect, push/serve
+command registration, generated API route, configuration, background service
+installer, integration-test container, and CI lane. Existing SQLite archives
+and remote databases are untouched. Legacy ClickHouse settings fail explicitly.
+Stop and uninstall any previously installed ClickHouse watch service using the
+older build before replacing it.
+
+SQLite analytics, the DuckDB mirror, local vectors, MCP, conversation exports,
+and the UI remain. Shared replica interfaces and orchestration remain beside
+DuckDB's shared push machinery, with no concrete remote SQL replica registered.
+
+Measurements on macOS ARM64:
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Development executable | 158,815,730 bytes / 151.46 MiB | 148,406,162 bytes / 141.53 MiB |
+| Stripped executable, `-trimpath -ldflags="-s -w"` | 122,186,482 bytes / 116.53 MiB | 115,088,210 bytes / 109.76 MiB |
+| Required Go modules | 131 | 89 |
+
+The development executable shrank by 9.93 MiB; the stripped build shrank by
+6.77 MiB. Removed modules include ClickHouse drivers and the test-only
+Testcontainers/Docker/Moby stack, plus its OpenTelemetry dependencies. Module
+count reductions do not all represent code previously linked into the executable.
+
+Validation:
+
+- `make build`, stripped Go build, root help, and DuckDB help passed.
+- `go fmt ./...`, `go vet -p 1 -tags fts5 ./...`, and ordinary Go test-package
+  compilation passed. Initial attempts ran out of disk space; after temporary
+  artifact cleanup, sequential retries passed.
+- Full config, DuckDB, shared readbase, and storage package tests passed.
+- Focused CLI/server tests covered DuckDB, archive-only protections, push-watch
+  ownership, streamed pushes, stop/restart help, and conversation exports.
+- SQL dialect/filter tests and the healthy-archive preservation regression passed.
+- API clients were regenerated; Svelte reported zero errors or warnings, and
+  Vite+ formatting, lint, and type checks passed.
+- Added diff lines were checked for local user paths, known personal identifiers,
+  token patterns, and private-key headers; no matches.
+
+No live archives, installed services, or remote databases were changed. Native
+packaging, a browser smoke test, and runtime network tracing were not performed.

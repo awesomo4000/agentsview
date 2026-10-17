@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"go.kenn.io/agentsview/internal/clickhouse"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,7 +21,6 @@ import (
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/rawcheckpoint"
-	"go.kenn.io/agentsview/internal/storage"
 	syncpkg "go.kenn.io/agentsview/internal/sync"
 	"go.kenn.io/agentsview/internal/testjsonl"
 )
@@ -265,9 +263,6 @@ func TestArchiveOnlyRefusesDaemonPushWatch(t *testing.T) {
 	}{
 		{name: "duckdb", run: func(ctx context.Context, b daemonArchiveWriteBackend) error {
 			return b.DuckDBPushWatch(ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil, time.Hour, time.Hour)
-		}},
-		{name: "replica", run: func(ctx context.Context, b daemonArchiveWriteBackend) error {
-			return b.ReplicaPushWatch(ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil, time.Hour, time.Hour)
 		}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

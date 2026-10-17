@@ -58,15 +58,8 @@ func newClassifierFixture(
 
 // withUnreachablePG configures a PG URL that cannot be reached so
 // tests can exercise the PG cleanup path without a live database.
-func withUnreachablePG(cfg *config.Config) {
-	cfg.ClickHouse.URL = unreachablePGURL
-	cfg.ClickHouse.AllowInsecure = true
-}
 
 // withoutPG clears any configured PG URL.
-func withoutPG(cfg *config.Config) {
-	cfg.ClickHouse.URL = ""
-}
 
 // writeAutomatedPrefixesConfig writes a config.toml under dir with
 // the given automated prefixes, quoting each via strconv.Quote so
@@ -214,20 +207,6 @@ func TestClassifierRebuildRefusesBackgroundLaunchLock(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "daemon launch is in progress")
 }
-
-// TestClassifierRebuildSkipsConfiguredPGByDefault confirms that
-// configured sync PG is not touched by the local recovery command
-// unless the caller explicitly opts in.
-
-// TestClassifierRebuildPGFlagHardFailsOnPGUnreachable confirms
-// that when PG cleanup is explicitly requested and the connection
-// fails, runClassifierRebuild returns an error instead of silently
-// skipping the PG delete.
-
-// TestClassifierRebuildSkipsPGWhenNotConfigured verifies the
-// silent-skip path: when pg.url is empty, the command does
-// NOT attempt PG cleanup and returns nil even if PG would
-// otherwise be unreachable.
 
 // TestClassifierCommandIsHidden pins the UX decision that the
 // classifier group does not appear in `agentsview --help`.

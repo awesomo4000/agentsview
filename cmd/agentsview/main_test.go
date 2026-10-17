@@ -9,7 +9,6 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"go.kenn.io/agentsview/internal/clickhouse"
 	"io"
 	"log"
 	"math"
@@ -35,7 +34,6 @@ import (
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/remotesync"
 	"go.kenn.io/agentsview/internal/server"
-	"go.kenn.io/agentsview/internal/storage"
 	agentsync "go.kenn.io/agentsview/internal/sync"
 	"go.kenn.io/agentsview/internal/testjsonl"
 )
@@ -586,45 +584,6 @@ func runPGRuntimeWarningHelper(t *testing.T) ([]byte, error) {
 		},
 		"could not write daemon runtime record",
 	)
-}
-
-func TestRunPGRuntimeWarningHelperProcess(t *testing.T) {
-	if os.Getenv("AGENTSVIEW_RUN_PG_RUNTIME_WARNING_HELPER") != "1" {
-		return
-	}
-	writeDaemonRuntimeWithAuth = func(
-		string, string, int, string, string, bool, bool, ...int,
-	) (string, error) {
-		return "", errors.New("forced runtime-record write failure")
-	}
-	database := dbtest.OpenTestDBAt(
-		t, filepath.Join(os.Getenv("AGENTSVIEW_DATA_DIR"), "pg.db"),
-	)
-	ctx, cancel := context.WithCancel(t.Context())
-	port, err := server.FindAvailablePort(ctx, "127.0.0.1", 0)
-	require.NoError(t, err)
-	appCfg := config.Config{
-		Host:    "127.0.0.1",
-		Port:    port,
-		DataDir: os.Getenv("AGENTSVIEW_DATA_DIR"),
-	}
-	prepareReplicaServe = func(storage.Replica, config.Config, string) (replicaServeStartup, error) {
-		return replicaServeStartup{
-			cfg: appCfg, ctx: ctx,
-			rtOpts: serveRuntimeOptions{
-				Mode: "pg-serve", RequestedPort: appCfg.Port,
-			},
-			srv: server.New(
-				appCfg, database, nil,
-				server.WithBaseContext(ctx),
-			),
-			cleanup: func() { cancel(); _ = database.Close() },
-		}, nil
-	}
-	// This is only an orphan guard if the parent dies; normal completion is
-	// driven by the parent observing the warning on stdout.
-	time.AfterFunc(2*time.Minute, func() { os.Exit(0) })
-	runReplicaServe(clickhouse.Backend{}, appCfg, "")
 }
 
 func TestMustLoadConfig(t *testing.T) {

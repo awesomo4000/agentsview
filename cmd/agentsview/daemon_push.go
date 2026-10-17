@@ -26,19 +26,7 @@ type daemonPushOperation func(
 // replicaPushOperations maps a replica's Name() to its generated daemon push
 // operation. Adding a replica means regenerating the API client and adding
 // its entry here.
-var replicaPushOperations = map[string]daemonPushOperation{
-	"clickhouse": func(
-		ctx context.Context, api *apiclient.Client, body *apiclient.DaemonPushRequest,
-	) (*http.Response, []byte, *runtime.Stream[[]byte], error) {
-		response, err := api.PostAPIV1PushClickhouseStreamWithResponse(
-			ctx, &apiclient.PostAPIV1PushClickhouseRequestOptions{Body: body},
-		)
-		if response == nil {
-			return nil, nil, nil, err
-		}
-		return response.HTTPResponse, response.Body, response.Stream200, nil
-	},
-}
+var replicaPushOperations = map[string]daemonPushOperation{}
 
 func replicaPushOperation(name string) (daemonPushOperation, error) {
 	operation, ok := replicaPushOperations[name]

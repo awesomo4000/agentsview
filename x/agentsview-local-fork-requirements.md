@@ -64,7 +64,7 @@ update checks, self-update, desktop auto-update, online pricing refresh,
 cloud/web imports, publishing, S3, and PostgreSQL. Updates and pricing will be
 maintained internally.
 
-The current cut removes S3 only. Keep ClickHouse and DuckDB pending review of
+S3 and ClickHouse are removed. Keep DuckDB pending review of
 analytics needs. Keep SQLite vector support and semantic search, MCP assistant
 access, SSH/HTTP sync for possible internal uploads, and model clients pending
 review of approved internal models. These are undecided features, not authorized
@@ -179,7 +179,7 @@ S3 configurations are rejected; existing SQLite conversations remain.
 PostgreSQL replication, serving, direct reads, and its driver are removed.
 The `pg` commands, `--pg` flags, and hosted-contributor memory mode are gone.
 Legacy PostgreSQL configuration is rejected. Local/HTTP MCP and memory reads,
-SQLite vectors, and ClickHouse/DuckDB remain.
+SQLite vectors, and DuckDB remain. ClickHouse is removed.
 Automatic updates and public pricing refreshes are now removed, including
 the Tauri updater and build-time snapshot downloads. Bundled rates, stored
 pricing, and local custom overrides remain until internal rates are supplied.

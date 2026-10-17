@@ -35,8 +35,10 @@ identity. Any later migration must preserve existing attribution.
 - [ ] Review remaining raw sync and remote connectors before further removal.
 - [x] Remove PostgreSQL, its driver, direct read flags, API routes, and CI service.
       Reject legacy PostgreSQL configuration; preserve the SQLite archive.
-- [ ] Evaluate whether ClickHouse serves retained analytics before deciding.
-- [ ] Evaluate the DuckDB mirror against retained analytics before deciding.
+- [x] Remove ClickHouse replication, serving, service installation, configuration,
+      client dependencies, and integration-test service. Preserve SQLite analytics.
+- [ ] Retain DuckDB for local analytics while evaluating an optional build or
+      separate analysis tool.
 - [x] Remove artifact-folder exchange, raw archive vault, and docbank services.
       Preserve the SQLite conversation-export interface.
 - [x] Remove hosted raw PostgreSQL provisioning, serving, and reparse entry points.

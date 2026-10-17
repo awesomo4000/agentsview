@@ -1,7 +1,5 @@
 package main
 
-// Tests for scoping degraded-coverage polling to one provider per pass.
-
 import (
 	"context"
 	"errors"

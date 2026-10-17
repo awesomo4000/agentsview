@@ -1916,10 +1916,6 @@ func TestInstallationIDSurvivesHostnameChanges(t *testing.T) {
 		require.Len(t, cfg.SessionSources, 2)
 		assert.Equal(t, id, cfg.SessionSources[0].Machine)
 		assert.Equal(t, "host-c.example", cfg.SessionSources[1].Machine)
-		cfg.ClickHouse.URL = "postgres://localhost/test"
-		pg, err := cfg.ResolveClickHouse()
-		require.NoError(t, err)
-		assert.Equal(t, id, pg.MachineName)
 		duck, err := cfg.ResolveDuckDB()
 		require.NoError(t, err)
 		assert.Equal(t, id, duck.MachineName)
@@ -2801,4 +2797,26 @@ func TestDeploymentRejectsPostgreSQL(t *testing.T) {
 	t.Setenv("PG_SERVE", "true")
 	_, _, err = DeploymentMode()
 	require.ErrorContains(t, err, "PostgreSQL is not supported")
+}
+
+func TestLoadRejectsClickHouse(t *testing.T) {
+	for _, text := range []string{`[clickhouse]
+url = "clickhouse://example.invalid/archive"`, `[clickhouse.team]
+url = "clickhouse://example.invalid/archive"`, `default_clickhouse = "team"`} {
+		t.Run(text, func(t *testing.T) {
+			f := newConfigFixture(t)
+			require.NoError(t, os.WriteFile(f.Path(configFileName), []byte(text), 0600))
+			_, err := LoadMinimal()
+			require.ErrorContains(t, err, "ClickHouse configuration is not supported")
+		})
+	}
+	for _, key := range []string{"AGENTSVIEW_CLICKHOUSE_URL", "AGENTSVIEW_CLICKHOUSE_DATABASE", "AGENTSVIEW_CLICKHOUSE_MACHINE"} {
+		t.Run(key, func(t *testing.T) {
+			newConfigFixture(t)
+			t.Setenv(key, "obsolete-setting")
+			_, err := LoadMinimal()
+			require.ErrorContains(t, err, "ClickHouse is not supported")
+			assert.NotContains(t, err.Error(), "obsolete-setting")
+		})
+	}
 }

@@ -127,14 +127,13 @@ only until its separately owned format-alignment work lands.
 ## Project Map
 
 agentsview syncs local AI agent sessions into SQLite, serves a Svelte 5 web UI,
-and can mirror data to DuckDB or ClickHouse.
+and can mirror data to DuckDB.
 
 - `cmd/agentsview/`: CLI and server entry points
 - `internal/db/`: SQLite archive and search
 - `internal/readbase/`: shared replica and mirror catalog, analytics, session
   and transcript reads, and read-only stubs
 - `internal/duckdb/`: disposable DuckDB mirror and Quack reads
-- `internal/clickhouse/`: ClickHouse remote mirror and read store
 - `internal/parser/`: agent session parsers
 - `internal/server/`: HTTP API and SSE
 - `internal/sync/`: discovery, file watching, and sync

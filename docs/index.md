@@ -36,7 +36,7 @@ release includes.
 | Score session health and outcomes                 | [Session Intelligence](/docs/session-intelligence/)                                                                                                                                                        |
 | Browse extracted, provenance-linked knowledge     | [Recall](/docs/recall/)                                                                                                                                                                                    |
 | Give agents and scripts access to the archive     | [MCP Server](/docs/mcp/) and [Session API](/docs/session-api/)                                                                                                                                             |
-| Share sessions across machines                    | [Local Session Archive](https://agentsview.io/docs/commands/#agentsview-archive), [Hosted Raw Sync](/docs/hosted-raw-sync/), [PostgreSQL Sync](/docs/pg-sync/), [ClickHouse Sync](/docs/clickhouse-sync/), [DuckDB Mirror](/docs/duckdb/), [Filesystem Session Sync](/docs/filesystem-sync/) |
+| Share sessions across machines                    | [Local Session Archive](https://agentsview.io/docs/commands/#agentsview-archive), [Hosted Raw Sync](/docs/hosted-raw-sync/), [PostgreSQL Sync](/docs/pg-sync/), [DuckDB Mirror](/docs/duckdb/), [Filesystem Session Sync](/docs/filesystem-sync/) |
 | Configure discovery, paths, and settings          | [Configuration](/docs/configuration/)                                                                                                                                                                      |
 | Look up a command or flag                         | [CLI Reference](/docs/commands/)                                                                                                                                                                           |
 
@@ -49,12 +49,9 @@ commands can read the archive directly. See
 [`agentsview daemon`](/docs/commands/#agentsview-daemon).
 
 **SQLite keeps your session history.** Parsed sessions live in `~/.agentsview/`
-with full-text indexes. Optional backends extend it:
-[PostgreSQL](/docs/pg-sync/) or [ClickHouse](/docs/clickhouse-sync/) for a
-remote read-only copy and [DuckDB](/docs/duckdb/) for analytical reads. All
-three can receive mirrors pushed from SQLite. Alternatively,
-[hosted raw sync](/docs/hosted-raw-sync/) can retain original provider files and
-parse them into PostgreSQL without a local SQLite archive or a separate push.
+with full-text indexes. The optional [DuckDB mirror](/docs/duckdb/) supports
+analytical reads. PostgreSQL and ClickHouse backends and hosted raw serving
+have been removed from this fork.
 
 <img src="/docs/assets/static/architecture.svg" alt="AgentsView architecture: agent sessions sync into SQLite with FTS5 search, served via REST API, SSE events, and embedded Svelte SPA" style="width: 100%; max-width: 960px; margin: 1.5rem auto; display: block;" />
 
@@ -66,11 +63,10 @@ archive size.
 
 Session data stays on your machine by default. The server binds to `127.0.0.1`
 unless you explicitly configure [remote access](/docs/remote-access/). Data
-leaves the machine only for features you choose, such as hosted raw sync, a
-PostgreSQL or ClickHouse target, remote DuckDB access, Generated Insights, or
-publishing a session to GitHub. Telemetry is an anonymous, content-free daemon
-liveness ping plus app-open and core-action events the web UI reports through
-the server, and `AGENTSVIEW_TELEMETRY_ENABLED=0` disables all of them.
+can leave the machine through retained integrations such as remote sync,
+remote DuckDB access, Generated Insights, or GitHub publishing. Application
+telemetry, automatic updates, and public pricing refreshes are removed.
+Other external requests remain under review; see the fork removal checklist.
 
 ## Human and machine-readable pages
 

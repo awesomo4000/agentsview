@@ -99,7 +99,6 @@ func TestDeploymentEnvIgnoredWithoutMode(t *testing.T) {
 				writeConfig(t, dir, map[string]any{
 					"host":       "127.0.0.1",
 					"auth_token": "file-token",
-					"clickhouse": map[string]any{"url": "clickhouse://db.example/agentsview"},
 				})
 				want, err := loader.load()
 				require.NoError(t, err)
@@ -118,11 +117,6 @@ func TestDeploymentEnvIgnoredWithoutMode(t *testing.T) {
 				got, err := loader.load()
 				require.NoError(t, err)
 				assert.Equal(t, want, got)
-				wantPG, err := want.ResolveClickHouse()
-				require.NoError(t, err)
-				gotPG, err := got.ResolveClickHouse()
-				require.NoError(t, err)
-				assert.Equal(t, wantPG, gotPG)
 			})
 		}
 	}
@@ -313,12 +307,9 @@ func TestDeploymentInlineSecretsUnchanged(t *testing.T) {
 			config: map[string]any{"auth_token": "file-token"},
 			env:    map[string]string{"AGENTSVIEW_AUTH_TOKEN": "env-token"},
 		},
-		{name: "pg url password", config: map[string]any{
-			"clickhouse": map[string]any{"url": "clickhouse://user:inline-pass@db.example/agentsview"},
-		}},
+		{name: "pg url password", config: map[string]any{}},
 		{name: "env pg url with expansion", env: map[string]string{
-			"AGENTSVIEW_CLICKHOUSE_URL": "clickhouse://user:${DEPLOY_TEST_PG_PASS}@db.example/agentsview",
-			"DEPLOY_TEST_PG_PASS":       "expanded-pass",
+			"DEPLOY_TEST_PG_PASS": "expanded-pass",
 		}},
 		{name: "embedding api_key_env", config: map[string]any{
 			"vector": map[string]any{
@@ -349,11 +340,6 @@ func TestDeploymentInlineSecretsUnchanged(t *testing.T) {
 
 			assert.Equal(t, want, got)
 			assert.Equal(t, want.AuthToken, got.AuthToken)
-			wantPG, err := want.ResolveClickHouse()
-			require.NoError(t, err)
-			gotPG, err := got.ResolveClickHouse()
-			require.NoError(t, err)
-			assert.Equal(t, wantPG.URL, gotPG.URL)
 			if server, ok := got.Vector.Embeddings.Servers["local"]; ok {
 				assert.Equal(t, "inline-embed-key", server.APIKey())
 			}

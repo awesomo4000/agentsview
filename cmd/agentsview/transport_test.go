@@ -337,12 +337,12 @@ func TestDetectTransport_LocalServeWritableRecordWins(t *testing.T) {
 }
 
 // TestDetectTransport_PGServeUnreachable_AllowsDirectWrite verifies
-// that an unprobeable clickhouse serve runtime record does not prove daemon
+// that an unprobeable duckdb serve runtime record does not prove daemon
 // ownership, so direct access remains available.
 func TestDetectTransport_PGServeUnreachable_AllowsDirectWrite(t *testing.T) {
 	t.Parallel()
 	dir := daemonRuntimeDir(t)
-	writeUnreachableDaemonRuntime(t, dir, true) // readOnly = clickhouse serve
+	writeUnreachableDaemonRuntime(t, dir, true) // readOnly = duckdb serve
 
 	tr, err := detectTransport(dir, "", 100*time.Millisecond)
 	require.NoError(t, err)
@@ -389,10 +389,6 @@ func TestDetectTransport_LocalDaemonUnreachableDoesNotSetDirectIncompatible(t *t
 	assert.Equal(t, errLocalDaemonUnreachable.Error(), tr.DirectReason)
 }
 
-// TestDetectTransport_DaemonStarting simulates a server that's
-// starting up (start lock held, no runtime record, no listener).
-// The held kit lock makes IsDaemonStarting return true.
-// The helper waits out the timeout then falls back to direct.
 func TestDetectTransport_DaemonStarting_FallsBackToDirect(t *testing.T) {
 	t.Parallel()
 	dir := daemonRuntimeDir(t)

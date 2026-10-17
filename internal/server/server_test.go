@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"go.kenn.io/agentsview/internal/clickhouse"
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/dbtest"
@@ -162,7 +161,7 @@ func setupWithServerOptsAndDBTemplate(
 
 	// Prepend so caller-provided srvOpts can still override.
 	srvOpts = append([]server.Option{server.WithBroadcaster(broadcaster)}, srvOpts...)
-	srvOpts = append(srvOpts, server.WithReplicas(clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{}))
+	srvOpts = append(srvOpts, server.WithMirror(duckdb.Mirror{}))
 	srv := server.New(cfg, database, engine, srvOpts...)
 
 	return &testEnv{
@@ -276,7 +275,7 @@ func setupNoSyncMode(t *testing.T) *testEnv {
 	srv := server.New(
 		cfg, database, nil,
 		server.WithBroadcaster(broadcaster),
-		server.WithReplicas(clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{}),
+		server.WithMirror(duckdb.Mirror{}),
 	)
 
 	return &testEnv{
@@ -2703,15 +2702,6 @@ func TestSyncEndpointLocalNoSyncDaemonUsesOnDemandEngine(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 }
 
-func TestPGPushLocalNoSyncDaemonReachesConfigValidation(t *testing.T) {
-	te := setupNoSyncMode(t)
-
-	w := te.post(t, "/api/v1/push/clickhouse", `{"full":false}`)
-
-	assertStatus(t, w, http.StatusBadRequest)
-	assert.Contains(t, w.Body.String(), "clickhouse push: url not configured")
-}
-
 func TestDuckDBPushLocalNoSyncDaemonWritesConfiguredPath(t *testing.T) {
 	if runtime.GOOS == "windows" && runtime.GOARCH == "arm64" {
 		t.Skip("duckdb-go-bindings does not ship a windows/arm64 library")
@@ -3319,7 +3309,7 @@ func TestPingReportsStalledSyncWithoutLosingDaemonIdentity(t *testing.T) {
 	})
 	t.Cleanup(engine.Close)
 	te := &testEnv{
-		srv: server.New(cfg, database, engine, server.WithReplicas(clickhouse.Backend{}), server.WithMirror(duckdb.Mirror{})), db: database, engine: engine,
+		srv: server.New(cfg, database, engine, server.WithMirror(duckdb.Mirror{})), db: database, engine: engine,
 		dataDir: dir,
 	}
 	te.handler = wrapTestHandler(cfg, te.srv.Handler())

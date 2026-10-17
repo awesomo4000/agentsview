@@ -306,7 +306,7 @@ for a one-off unauthenticated non-loopback bind; a persistent non-loopback
 These commands manage only the writable SQLite daemon for the current data
 directory, including a foreground `serve` process or a daemon auto-started by a
 CLI command. `daemon stop` stops the web UI and background sync together. They
-ignore read-only `agentsview clickhouse serve` and `agentsview duckdb serve` processes.
+ignore read-only `agentsview duckdb serve` processes.
 If only read-only servers are running, `daemon status` reports that no daemon is
 running, and `daemon stop` and `daemon restart` leave those servers alive.
 
@@ -511,7 +511,7 @@ starting a daemon or changing configuration.
 Commands that need fresh data or need to write auto-start the detached daemon
 when no compatible daemon is running. That includes local `sync`,
 `session sync`, `token-use`, normal `usage` refresh paths,
-`pg push`/`pg push --watch`, `duckdb push`, and `clickhouse push`. If a writable
+`duckdb push`. If a writable
 daemon is known to own the archive but is not reachable, these commands refuse
 instead of writing directly.
 
@@ -1197,29 +1197,6 @@ that same mirror by default unless `--path` overrides it. `duckdb serve` accepts
 the same serve flags as `serve`. The DuckDB backend is unavailable on Windows
 ARM64 (the upstream bindings ship no prebuilt library for that platform); all
 other commands work normally there.
-
-______________________________________________________________________
-
-### `agentsview clickhouse`
-
-Push the local SQLite archive into ClickHouse and serve the read-only web UI
-from it. See [ClickHouse Sync](/docs/clickhouse-sync/) for full documentation.
-
-```bash
-agentsview clickhouse push [target] [flags]
-agentsview clickhouse status [target] [flags]
-agentsview clickhouse serve [flags]
-agentsview clickhouse service install
-```
-
-`clickhouse push` accepts the same `--full` / `--projects` /
-`--exclude-projects` / `--all-projects` / `--all` / `--watch` / `--debounce` /
-`--interval` flags as `pg push`, except there is no `--no-vectors` flag.
-ClickHouse has no vector phase. `--all --watch` is rejected.
-
-`clickhouse serve` accepts the same serve flags as `serve`.
-`clickhouse service` installs `clickhouse push --watch` as a launchd or systemd
-user unit and writes `clickhouse-watch.log`.
 
 ______________________________________________________________________
 

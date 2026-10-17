@@ -106,7 +106,7 @@ Add to your MCP client config (e.g. Claude Desktop):
 					return fmt.Errorf("loading config: %w", err)
 				}
 				// Provision a token when auth is required but none exists
-				// yet, matching serve/clickhouse/duckdb so enabling require_auth is
+				// yet, matching serve/duckdb so enabling require_auth is
 				// sufficient for first-time authenticated startup.
 				if cfg.RequireAuth && cfg.AuthToken == "" {
 					if err := cfg.EnsureAuthToken(); err != nil {

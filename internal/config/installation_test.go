@@ -30,10 +30,6 @@ func TestInstallationIdentityIsIndependentOfTelemetryAndDisplayName(t *testing.T
 		assert.Equal(t, id, cfg.SessionSources[0].Machine)
 		assert.Equal(t, "remote-host", cfg.SessionSources[1].Machine)
 		assert.Equal(t, label, cfg.LocalMachineName)
-		cfg.ClickHouse.URL = "postgres://localhost/test"
-		pg, err := cfg.ResolveClickHouse()
-		require.NoError(t, err)
-		assert.Equal(t, id, pg.MachineName)
 		duck, err := cfg.ResolveDuckDB()
 		require.NoError(t, err)
 		assert.Equal(t, id, duck.MachineName)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.kenn.io/agentsview/internal/clickhouse"
 	"os"
 	"path/filepath"
 	stdsync "sync"
@@ -18,7 +17,6 @@ import (
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/dbtest"
-	"go.kenn.io/agentsview/internal/money"
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/storage"
 	syncpkg "go.kenn.io/agentsview/internal/sync"
@@ -97,62 +95,6 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
-}
-
-func TestLocalArchiveWriteBackendPGPushStopsAfterCanceledLocalSync(t *testing.T) {
-	testLocalArchivePushStopsAfterCanceledSync(t,
-		func(backend *localArchiveWriteBackend, ctx context.Context) error {
-			_, err := backend.ReplicaPush(
-				ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
-			)
-			return err
-		})
-}
-
-func TestLocalPGPushEnsuresPricingBeforeConnecting(t *testing.T) {
-	backend := testLocalArchiveWriteBackend(t)
-	backend.ensurePricing = func(_ context.Context, database *db.DB) error {
-		require.NoError(t, database.UpsertModelPricing([]db.ModelPricing{{
-			ModelPattern:  "new-model",
-			InputPerMTok:  money.MustParseDollars("2"),
-			OutputPerMTok: money.MustParseDollars("8"),
-		}}))
-		return nil
-	}
-
-	_, err := backend.ReplicaPush(
-		t.Context(), clickhouse.Backend{},
-		storage.ConfiguredReplica{Target: storage.ReplicaTarget{URL: unreachablePGURL}},
-		ReplicaPushConfig{}, nil, nil,
-	)
-
-	require.Error(t, err)
-	rate, err := backend.database.GetModelPricing("new-model")
-	require.NoError(t, err)
-	require.NotNil(t, rate)
-	assert.Equal(t, money.MustParseDollars("8"), rate.OutputPerMTok)
-}
-
-func TestLocalPGWatchPusherUsesBackendPricingEnsure(t *testing.T) {
-	backend := testLocalArchiveWriteBackend(t)
-	ensureCalls := 0
-	backend.ensurePricing = func(_ context.Context, database *db.DB) error {
-		require.Same(t, backend.database, database)
-		ensureCalls++
-		return nil
-	}
-	target := &fakeTarget{}
-	pusher := backend.newReplicaPusher(
-		clickhouse.Backend{},
-		func(context.Context) error { return nil },
-		func(context.Context) (storage.Pusher, error) { return target, nil },
-	)
-
-	require.NoError(t, pusher.push(
-		t.Context(), reasonChange, false,
-	))
-	assert.Equal(t, 1, ensureCalls)
-	assert.Equal(t, 1, target.pushes)
 }
 
 func TestLocalArchiveWriteBackendDuckDBPushStopsAfterCanceledLocalSync(t *testing.T) {
@@ -244,37 +186,6 @@ func TestLocalArchiveWriteBackendDuckDBPushRejectsIncompleteDiscovery(t *testing
 		"an incomplete local archive must stop before mirror push")
 }
 
-func TestLocalArchiveWriteBackendPGPushRejectsDeferredProcessing(t *testing.T) {
-	backend := testLocalArchiveWriteBackend(t)
-	original := coordinateLocalSyncRunner
-	coordinateLocalSyncRunner = func(
-		context.Context,
-		config.Config,
-		*db.DB,
-		bool,
-		syncpkg.ProgressFunc,
-		bool,
-		func() (syncpkg.RebuildOptions, syncpkg.RebuildCleanup, error),
-		func(bool, bool) error,
-	) (bool, syncpkg.SyncStats, error) {
-		return false, syncpkg.SyncStats{Deferred: 1}, nil
-	}
-	t.Cleanup(func() { coordinateLocalSyncRunner = original })
-
-	var err error
-	out := captureStdout(t, func() {
-		_, err = backend.ReplicaPush(
-			t.Context(), clickhouse.Backend{},
-			storage.ConfiguredReplica{Target: storage.ReplicaTarget{URL: unreachablePGURL}},
-			ReplicaPushConfig{}, nil, nil,
-		)
-	})
-
-	require.Error(t, err)
-	require.ErrorContains(t, err, "local sync processing incomplete")
-	assert.NotContains(t, out, "Connecting to PostgreSQL")
-}
-
 func TestRunPGWatchStartupSyncFallsBackAfterAbortedResync(t *testing.T) {
 	database := dbtest.OpenTestDB(t)
 	missingPath := filepath.Join(t.TempDir(), "missing.jsonl")
@@ -350,172 +261,9 @@ func TestRunPGWatchStartupSyncReportsIncompleteDiscovery(t *testing.T) {
 	assert.Contains(t, err.Error(), "discovery incomplete")
 }
 
-func TestLocalArchiveWriteBackendPGPushWatchCanceledStartupIsClean(t *testing.T) {
-	backend := testLocalArchiveWriteBackend(t)
-
-	err := backend.ReplicaPushWatch(
-		canceledContext(), clickhouse.Backend{},
-		storage.ConfiguredReplica{},
-		ReplicaPushConfig{},
-		nil,
-		nil,
-		time.Millisecond,
-		time.Millisecond,
-	)
-
-	require.NoError(t, err)
-}
-
 type pushWatchOwnerCase struct {
 	name string
 	run  func(context.Context, *archivePushWatchHooks) error
-}
-
-func pushWatchOwnerCases(t *testing.T) []pushWatchOwnerCase {
-	t.Helper()
-	// Keep SQLite setup outside the timed owner goroutines so channel deadlines
-	// measure watch coordination rather than fixture creation on slow runners.
-	localDuckDB := testLocalArchiveWriteBackend(t)
-	localPostgreSQL := testLocalArchiveWriteBackend(t)
-	return []pushWatchOwnerCase{
-		{
-			name: "daemon DuckDB",
-			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
-				return (daemonArchiveWriteBackend{watchHooks: hooks}).DuckDBPushWatch(
-					ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil,
-					time.Hour, time.Hour,
-				)
-			},
-		},
-		{
-			name: "daemon PostgreSQL",
-			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
-				return (daemonArchiveWriteBackend{watchHooks: hooks}).ReplicaPushWatch(
-					ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
-					time.Hour, time.Hour,
-				)
-			},
-		},
-		{
-			name: "local DuckDB",
-			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
-				localDuckDB.watchHooks = hooks
-				return localDuckDB.DuckDBPushWatch(
-					ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil,
-					time.Hour, time.Hour,
-				)
-			},
-		},
-		{
-			name: "local PostgreSQL",
-			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
-				localPostgreSQL.watchHooks = hooks
-				return localPostgreSQL.ReplicaPushWatch(
-					ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
-					time.Hour, time.Hour,
-				)
-			},
-		},
-	}
-}
-
-func TestDaemonPGPushWatchSendsClaimedBatchAndProbesRecovery(t *testing.T) {
-	root := t.TempDir()
-	h := newPushWatchOwnerHarness()
-	backend := daemonArchiveWriteBackend{
-		appCfg: config.Config{AgentDirs: map[parser.AgentType][]string{
-			parser.AgentClaude: {root},
-		}},
-		watchHooks: h.hooks(),
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-	done := make(chan error, 1)
-	go func() {
-		done <- backend.ReplicaPushWatch(
-			ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
-			time.Hour, time.Hour,
-		)
-	}()
-
-	startup := receiveArchiveTest(t, h.attempts)
-	assert.Nil(t, startup.batch)
-	assert.Nil(t, startup.recovery)
-	receiveArchiveTest(t, h.opened)
-	callback := h.watcherCallback()
-	require.NotNil(t, callback)
-
-	changed := syncpkg.WatchBatch{Paths: []string{filepath.Join(root, "changed.jsonl")}}
-	require.NoError(t, callback(ctx, changed))
-	h.fire <- time.Now()
-	ordinary := receiveArchiveTest(t, h.attempts)
-	assert.Equal(t, reasonChange, ordinary.reason)
-	require.NotNil(t, ordinary.batch)
-	assert.Equal(t, changed.Paths, ordinary.batch.Paths)
-	assert.Nil(t, ordinary.recovery)
-
-	fullDone := make(chan error, 1)
-	go func() {
-		fullDone <- callback(ctx, syncpkg.WatchBatch{FullSync: true})
-	}()
-	h.fire <- time.Now()
-	full := receiveArchiveTest(t, h.attempts)
-	require.NotNil(t, full.batch)
-	assert.True(t, full.batch.FullSync)
-	require.NotNil(t, full.recovery)
-	assert.Contains(t, full.recovery.AvailableRoots, root)
-	assert.Empty(t, full.recovery.DeferredRoots)
-	require.NoError(t, receiveArchiveTest(t, fullDone))
-
-	h.floor <- time.Now()
-	interval := receiveArchiveTest(t, h.attempts)
-	assert.Equal(t, reasonInterval, interval.reason)
-	assert.Nil(t, interval.batch)
-	assert.Nil(t, interval.recovery)
-
-	cancel()
-	require.NoError(t, receiveArchiveTest(t, done))
-}
-
-func TestDaemonPGPushWatchRenameProbesDeferredRecoveryAtExecution(t *testing.T) {
-	root := filepath.Join(t.TempDir(), "missing")
-	h := newPushWatchOwnerHarness()
-	backend := daemonArchiveWriteBackend{
-		appCfg: config.Config{AgentDirs: map[parser.AgentType][]string{
-			parser.AgentClaude: {root},
-		}},
-		watchHooks: h.hooks(),
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-	done := make(chan error, 1)
-	go func() {
-		done <- backend.ReplicaPushWatch(
-			ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
-			time.Hour, time.Hour,
-		)
-	}()
-	receiveArchiveTest(t, h.attempts)
-	receiveArchiveTest(t, h.opened)
-
-	callbackDone := make(chan error, 1)
-	go func() {
-		callbackDone <- h.watcherCallback()(ctx, syncpkg.WatchBatch{
-			Renames: []syncpkg.WatchRename{{
-				Path: root, Root: root, ItemType: syncpkg.ItemIsDir,
-			}},
-		})
-	}()
-	h.fire <- time.Now()
-	attempt := receiveArchiveTest(t, h.attempts)
-	require.NotNil(t, attempt.batch)
-	require.Len(t, attempt.batch.Renames, 1)
-	require.NotNil(t, attempt.recovery)
-	assert.Contains(t, attempt.recovery.DeferredRoots, root)
-	require.NoError(t, receiveArchiveTest(t, callbackDone))
-
-	cancel()
-	require.NoError(t, receiveArchiveTest(t, done))
 }
 
 type pushWatchAttempt struct {
@@ -1044,74 +792,6 @@ func TestDaemonPGPushWatchRetainsOpenCodeSHMWhenOverlappingUnsupportedProvider(t
 	t.Log("notification_retained=unsupported_overlap path=opencode.db-shm")
 }
 
-func TestDaemonPushWatchOwnersSuppressOpenCodeSHMOnlyBatches(t *testing.T) {
-	root := t.TempDir()
-	cfg := config.Config{
-		AgentDirs: map[parser.AgentType][]string{
-			parser.AgentOpenCode: {root},
-		},
-	}
-	owners := []pushWatchOwnerCase{
-		{
-			name: "daemon DuckDB",
-			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
-				backend := daemonArchiveWriteBackend{
-					appCfg: cfg, watchHooks: hooks,
-				}
-				return backend.DuckDBPushWatch(
-					ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil,
-					time.Hour, time.Hour,
-				)
-			},
-		},
-		{
-			name: "daemon PostgreSQL",
-			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
-				backend := daemonArchiveWriteBackend{
-					appCfg: cfg, watchHooks: hooks,
-				}
-				return backend.ReplicaPushWatch(
-					ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
-					time.Hour, time.Hour,
-				)
-			},
-		},
-	}
-	for _, owner := range owners {
-		t.Run(owner.name, func(t *testing.T) {
-			h := newPushWatchOwnerHarness()
-			ctx, cancel := context.WithCancel(t.Context())
-			t.Cleanup(cancel)
-			done := make(chan error, 1)
-			go func() { done <- owner.run(ctx, h.hooks()) }()
-
-			startup := receiveArchiveTest(t, h.attempts)
-			require.Equal(t, 1, startup.index)
-			receiveArchiveTest(t, h.opened)
-			callback := h.watcherCallback()
-			require.NotNil(t, callback)
-
-			batch := syncpkg.WatchBatch{
-				Paths: []string{filepath.Join(root, "opencode.db-shm")},
-			}
-			for range 3 {
-				require.NoError(t, callback(ctx, batch))
-			}
-			pending, waiters := h.pending()
-			assert.False(t, pending,
-				"repeated opencode.db-shm batches must not mark the push loop dirty")
-			assert.Zero(t, waiters,
-				"suppressed batches must not register an acknowledgement waiter")
-			events, _, _, _ := h.snapshot()
-			t.Logf("owner=%s path=opencode.db-shm push_pending=%t waiters=%d pushes=%d",
-				owner.name, pending, waiters, countEvents(events, "push"))
-
-			cancel()
-			require.NoError(t, receiveArchiveTest(t, done))
-		})
-	}
-}
-
 func TestDaemonPGPushWatchSuppressesNonDataOpenCodeWALBatches(t *testing.T) {
 	size := func(value int) *int { return &value }
 	tests := []struct {
@@ -1418,120 +1098,6 @@ func (noopPGTarget) Close() error { return nil }
 // registers a polling obligation, and the poller reconciles its scope
 // authoritatively on ticks — with no watcher event and no floor push
 // involved.
-func TestLocalPGPushWatchGivesDeferredScopesAPollingOwner(t *testing.T) {
-	dataDir := t.TempDir()
-	dbPath := filepath.Join(dataDir, "sessions.db")
-	database := dbtest.OpenTestDBAt(t, dbPath)
-	target := t.TempDir()
-	codexRoot := filepath.Join(t.TempDir(), "sessions")
-	require.NoError(t, os.Symlink(target, codexRoot))
-
-	backend := &localArchiveWriteBackend{
-		appCfg: config.Config{
-			DataDir:        dataDir,
-			DBPath:         dbPath,
-			InstallationID: "local",
-			AgentDirs: map[parser.AgentType][]string{
-				parser.AgentCodex: {codexRoot},
-			},
-		},
-		database: database,
-	}
-
-	ticks := make(chan time.Time, 1)
-	owned := make(chan []string, 8)
-	fire := make(chan time.Time)
-	floor := make(chan time.Time)
-	backend.watchHooks = &archivePushWatchHooks{
-		newLoop: func(
-			label string, _, _ time.Duration,
-			push func(context.Context, pushReason, *syncpkg.WatchBatch) error,
-		) (*pushLoop, func()) {
-			return &pushLoop{
-				debounce: time.Hour,
-				dirty:    make(chan struct{}, 1),
-				floor:    floor,
-				after:    func(time.Duration) <-chan time.Time { return fire },
-				push:     push,
-				label:    label,
-			}, func() {}
-		},
-		replicaStartupSync: func(context.Context, *syncpkg.Engine, bool) (bool, error) {
-			return false, nil
-		},
-		newReplicaPusher: func(*syncpkg.Engine) *replicaPusher {
-			return &replicaPusher{
-				localSync: func(context.Context) error { return nil },
-				connect:   func(context.Context) (storage.Pusher, error) { return noopPGTarget{}, nil },
-			}
-		},
-		newUnwatchedPoller: func(
-			ctx context.Context, engine unwatchedPollSyncer,
-		) unwatchedRootPoller {
-			return newUnwatchedPollCoordinatorWithTicks(
-				ctx, engine, ticks, func() {}, func(work func()) { work() },
-				func(roots []string) {
-					owned <- append([]string(nil), roots...)
-				}, time.Now, time.After,
-			)
-		},
-	}
-
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-	done := make(chan error, 1)
-	go func() {
-		done <- backend.ReplicaPushWatch(
-			ctx, clickhouse.Backend{}, storage.ConfiguredReplica{}, ReplicaPushConfig{}, nil, nil,
-			time.Hour, time.Hour,
-		)
-	}()
-
-	select {
-	case roots := <-owned:
-		assert.Contains(t, roots, codexRoot,
-			"the unwatchable root's polling obligation must reach the pg watch poller")
-	case err := <-done:
-		require.FailNowf(t, "pg watch exited before registering obligations", "%v", err)
-	case <-time.After(10 * time.Second):
-		require.FailNow(t, "no polling obligation was registered for the unwatchable root")
-	}
-
-	// A session lands under the unwatched scope; only the poller's
-	// authoritative tick can bring it into the archive.
-	uuid := "d4e5f6a7-4444-4555-8666-777788889999"
-	day := filepath.Join(codexRoot, "2026", "05", "04")
-	require.NoError(t, os.MkdirAll(day, 0o755))
-	content := testjsonl.NewSessionBuilder().
-		AddCodexMeta(
-			"2026-05-04T14:00:00Z", uuid, "/home/user/code/api",
-			"codex_cli_rs",
-		).
-		AddCodexMessage("2026-05-04T14:00:01Z", "user", "hello").
-		String()
-	require.NoError(t, os.WriteFile(
-		filepath.Join(day, "rollout-2026-05-04T14-31-58-"+uuid+".jsonl"),
-		[]byte(content), 0o644,
-	))
-
-	require.Eventually(t, func() bool {
-		select {
-		case ticks <- time.Now():
-		default:
-		}
-		session, err := database.GetSession(t.Context(), "codex:"+uuid)
-		return err == nil && session != nil
-	}, 10*time.Second, 20*time.Millisecond,
-		"the returned root must be reconciled by the poller without watcher events or floor pushes")
-
-	cancel()
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(30 * time.Second):
-		require.FailNow(t, "pg watch did not shut down")
-	}
-}
 
 func TestLocalDuckDBPushWatchGivesDeferredScopesAPollingOwner(t *testing.T) {
 	dataDir := t.TempDir()
@@ -1661,5 +1227,89 @@ func testLocalArchiveWriteBackend(t *testing.T) *localArchiveWriteBackend {
 			DBPath:  dbPath,
 		},
 		database: database,
+	}
+}
+
+func pushWatchOwnerCases(t *testing.T) []pushWatchOwnerCase {
+	t.Helper()
+	// Keep SQLite setup outside the timed owner goroutines so channel deadlines
+	// measure watch coordination rather than fixture creation on slow runners.
+	localDuckDB := testLocalArchiveWriteBackend(t)
+	return []pushWatchOwnerCase{
+		{
+			name: "daemon DuckDB",
+			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
+				return (daemonArchiveWriteBackend{watchHooks: hooks}).DuckDBPushWatch(
+					ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil,
+					time.Hour, time.Hour,
+				)
+			},
+		},
+		{
+			name: "local DuckDB",
+			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
+				localDuckDB.watchHooks = hooks
+				return localDuckDB.DuckDBPushWatch(
+					ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil,
+					time.Hour, time.Hour,
+				)
+			},
+		},
+	}
+}
+
+func TestDaemonPushWatchOwnersSuppressOpenCodeSHMOnlyBatches(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Config{
+		AgentDirs: map[parser.AgentType][]string{
+			parser.AgentOpenCode: {root},
+		},
+	}
+	owners := []pushWatchOwnerCase{
+		{
+			name: "daemon DuckDB",
+			run: func(ctx context.Context, hooks *archivePushWatchHooks) error {
+				backend := daemonArchiveWriteBackend{
+					appCfg: cfg, watchHooks: hooks,
+				}
+				return backend.DuckDBPushWatch(
+					ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil,
+					time.Hour, time.Hour,
+				)
+			},
+		},
+	}
+	for _, owner := range owners {
+		t.Run(owner.name, func(t *testing.T) {
+			h := newPushWatchOwnerHarness()
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			done := make(chan error, 1)
+			go func() { done <- owner.run(ctx, h.hooks()) }()
+
+			startup := receiveArchiveTest(t, h.attempts)
+			require.Equal(t, 1, startup.index)
+			receiveArchiveTest(t, h.opened)
+			callback := h.watcherCallback()
+			require.NotNil(t, callback)
+
+			batch := syncpkg.WatchBatch{
+				Paths: []string{filepath.Join(root, "opencode.db-shm")},
+			}
+			for range 3 {
+				require.NoError(t, callback(ctx, batch))
+			}
+			pending, waiters := h.pending()
+			assert.False(t, pending,
+				"repeated opencode.db-shm batches must not mark the push loop dirty")
+			assert.Zero(t, waiters,
+				"suppressed batches must not register an acknowledgement waiter")
+			events, _, _, _ := h.snapshot()
+			t.Logf("owner=%s path=opencode.db-shm push_pending=%t waiters=%d pushes=%d",
+				owner.name, pending, waiters, countEvents(events, "push"))
+
+			cancel()
+			require.NoError(t, receiveArchiveTest(t, done))
+		})
 	}
 }

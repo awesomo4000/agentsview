@@ -2028,7 +2028,7 @@ func TestSessionSync_ServerFlagTreatsPathShapedArgAsRemotePath(t *testing.T) {
 }
 
 // TestSessionSync_AgainstReadOnlyDaemon_Refuses verifies the CLI
-// refuses to sync when a clickhouse serve (ReadOnly=true) daemon owns
+// refuses to sync when a duckdb serve (ReadOnly=true) daemon owns
 // the runtime record. Discovery uses the shared daemon ping
 // endpoint, so the fixture must answer /api/ping.
 func TestSessionSync_AgainstReadOnlyDaemon_Refuses(t *testing.T) {
@@ -2042,7 +2042,7 @@ func TestSessionSync_AgainstReadOnlyDaemon_Refuses(t *testing.T) {
 		"session", "sync", "some-id")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "read-only",
-		"should refuse against clickhouse serve daemon")
+		"should refuse against duckdb serve daemon")
 }
 
 // TestSessionSync_WhenDaemonRuntimeUnprobeable_Refuses verifies that

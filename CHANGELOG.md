@@ -2,6 +2,9 @@
 
 ## 10/17/2026
 
+- Remove ClickHouse replication, serving, and background service installation.
+  Reject obsolete ClickHouse settings; retain SQLite analytics, DuckDB, and the UI.
+
 - Remove automatic update checks, the self-update command, web update prompts,
   and the Tauri updater. Install future fork builds through internal distribution.
 - Remove public pricing downloads and scheduled refreshes. Bundle the existing

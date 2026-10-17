@@ -264,95 +264,6 @@ func PostgresQueryDialect() QueryDialect {
 	}
 }
 
-// ClickHouseQueryDialect returns the ClickHouse SQL fragments used by the
-// read-only ClickHouse mirror store. It does not couple to
-// internal/clickhouse. ClickHouse differences from the row stores: recursive
-// CTEs accept only UNION ALL, correlated subqueries are not relied on (the
-// starred and orphan predicates use IN subqueries and the date-end expression
-// reads the push-time last_message_at column), LIKE escapes with a backslash
-// and has no ESCAPE clause, and regex matching goes through match() with an
-// inline case-insensitive flag.
-func ClickHouseQueryDialect() QueryDialect {
-	return QueryDialect{
-		name:             "clickhouse",
-		position:         func(haystack, needle string) string { return "position(" + haystack + ", " + needle + ")" },
-		placeholderStyle: placeholderQuestion,
-		trueLiteral:      "true",
-		falseLiteral:     "false",
-		messageMembership: func(sessionID, pred string) string {
-			return sessionID + " IN (SELECT m.session_id FROM messages m WHERE " + pred + ")"
-		},
-		signedWindowCounts:  true,
-		recentEditTimestamp: recentEditsRFC3339Expr,
-		dateStartExpr: func(q func(string) string) string {
-			return "COALESCE(" + q("started_at") + ", " + q("created_at") + ")"
-		},
-		dateEndExpr: func(q func(string) string) string {
-			return "COALESCE(" + q("ended_at") + ", " + q("last_message_at") +
-				", " + q("started_at") + ", " + q("created_at") + ")"
-		},
-		dateParam:           clickhouseTimestampParam,
-		activityParam:       clickhouseTimestampParam,
-		cursorActivityExpr:  "COALESCE(ended_at, started_at, created_at)",
-		cursorParam:         clickhouseTimestampParam,
-		castCursor:          clickhouseCastCursor,
-		terminationExpr:     "COALESCE(ended_at, started_at, created_at)",
-		terminationKind:     timestampCast,
-		caseInsensitiveLike: "ILIKE",
-		regexPredicate: func(col, ph string) string {
-			return "match(" + col + ", concat('(?i)', " + ph + "))"
-		},
-		sidebarChildRelationships:   []string{"subagent", "fork"},
-		canonicalChildRelationships: []string{"subagent", "fork", "continuation"},
-		nullsLast:                   true,
-		recursiveUnion:              "UNION ALL",
-		starredPredicate: func(idExpr string) string {
-			return idExpr + " IN (SELECT session_id FROM starred_sessions)"
-		},
-		labelPredicate: func(q func(string) string, ph string) string {
-			return "has(" + q("labels") + ", " + ph + ")"
-		},
-		prLinkPredicate: func(col, repoPh, numPh, hostPh string) string {
-			cond := "true"
-			if repoPh != "" {
-				cond += " AND lower(JSONExtractString(pl, 'repository')) = " + repoPh
-			}
-			if numPh != "" {
-				cond += " AND JSONExtractInt(pl, 'number') = " + numPh
-			}
-			if hostPh != "" {
-				cond += " AND lower(JSONExtractString(pl, 'host')) = " + hostPh
-			}
-			return "arrayExists(pl -> " + cond +
-				", JSONExtractArrayRaw(" + col + "))"
-		},
-		orphanPredicate: func(sessionAlias, _ string) string {
-			// NULL NOT IN (...) is unknown in SQL, so a child whose parent
-			// id is NULL would drop out of the sidebar. NOT EXISTS treats
-			// that row as an orphan; the IS NULL arm matches that.
-			return "(" + sessionAlias + ".parent_session_id IS NULL OR " +
-				sessionAlias + ".parent_session_id NOT IN (SELECT id FROM sessions))"
-		},
-	}
-}
-
-func clickhouseTimestampParam(ph string) string {
-	return "parseDateTime64BestEffort(" + ph + ", 6, 'UTC')"
-}
-
-func clickhouseCastCursor(ph string, kind valueKind) string {
-	switch kind {
-	case kindTimestamp:
-		return clickhouseTimestampParam(ph)
-	case kindInt:
-		return "toInt64(" + ph + ")"
-	case kindReal:
-		return "toFloat64(" + ph + ")"
-	default:
-		return ph
-	}
-}
-
 // DuckDBQueryDialect returns DuckDB-oriented SQL fragments for renderer tests
 // and future backend use. It does not couple to internal/duckdb.
 func DuckDBQueryDialect() QueryDialect {
@@ -1304,8 +1215,6 @@ func sessionIDsPredicate(f SessionFilter, b *QueryBuilder, col string) string {
 			switch b.dialect.name {
 			case "sqlite":
 				parts = append(parts, "substr("+col+", -"+n+") = "+ph)
-			case "clickhouse":
-				parts = append(parts, "endsWith("+col+", "+ph+")")
 			default:
 				parts = append(parts, "right("+col+", "+n+") = "+ph)
 			}

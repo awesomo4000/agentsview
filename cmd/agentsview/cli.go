@@ -13,7 +13,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.kenn.io/agentsview/internal/activity"
-	"go.kenn.io/agentsview/internal/clickhouse"
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/server"
@@ -123,7 +122,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newActivityCommand())
 	root.AddCommand(newRawSyncCommand())
 	root.AddCommand(newDuckDBCommand())
-	root.AddCommand(newClickHouseCommand())
 	root.AddCommand(newEmbeddingsCommand())
 	root.AddCommand(newSessionCommand())
 	root.AddCommand(newCaptureCommand())
@@ -295,7 +293,7 @@ func newServeStopCommand() *cobra.Command {
 		Short: "Stop the server, including sync and file watchers",
 		Long: "Stop the server and its background work, including a server started\n" +
 			"by `agentsview daemon start` or automatically by a CLI command.\n\n" +
-			"This also stops read-only ClickHouse and DuckDB servers for the data\n" +
+			"This also stops read-only DuckDB servers for the data\n" +
 			"directory. Use `agentsview daemon stop` to stop only the writable server.",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
@@ -312,7 +310,7 @@ func newServeRestartCommand(deps daemonCommandDeps) *cobra.Command {
 		Long: "Restart only the writable SQLite background daemon using settings " +
 			"from config.toml.\n\n" +
 			"Unlike `agentsview serve stop`, this command intentionally leaves " +
-			"read-only ClickHouse and DuckDB servers running.",
+			"read-only DuckDB servers running.",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -653,10 +651,6 @@ func newActivityReportCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&cfg.NoSync, "no-sync", false, "Skip on-demand sync before querying")
 	cmd.Flags().BoolVar(&cfg.Offline, "offline", false, "Use fallback pricing only")
 	return cmd
-}
-
-func newClickHouseCommand() *cobra.Command {
-	return newReplicaCommand(clickhouse.Backend{}, newClickHouseServiceCommand())
 }
 
 func newDuckDBCommand() *cobra.Command {
