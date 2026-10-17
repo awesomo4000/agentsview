@@ -419,7 +419,7 @@ func runDuckDBServe(appCfg config.Config, basePath string) {
 		opts = append(opts, server.WithBasePath(rtOpts.BasePath))
 	}
 	srv := server.New(appCfg, store, nil, opts...)
-	rt, err := startServerWithOptionalCaddy(ctx, appCfg, srv, rtOpts)
+	rt, err := startLocalServer(ctx, appCfg, srv, rtOpts)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return
@@ -429,7 +429,7 @@ func runDuckDBServe(appCfg config.Config, basePath string) {
 	if _, sfErr := writeDaemonRuntimeWithAuth(
 		rt.Cfg.DataDir, rt.Cfg.Host, rt.Cfg.Port, version, rt.PublicURL, true,
 		rt.Cfg.RequireAuth,
-		rt.Caddy.Pid(),
+		0,
 	); sfErr != nil {
 		reportRuntimeRecordWrite(
 			os.Stdout, sfErr,

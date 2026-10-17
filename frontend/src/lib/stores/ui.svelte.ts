@@ -19,16 +19,11 @@ import {
 type Theme = "light" | "dark";
 export type MessageLayout = "default" | "compact" | "stream" | "skim";
 export type TranscriptMode = "normal" | "focused";
-export type PublishTarget =
-  | { kind: "session"; id: string }
-  | { kind: "insight"; id: number }
-  | null;
 type ModalType =
   | "about"
   | "commandPalette"
   | "goToSession"
   | "shortcuts"
-  | "publish"
   | "resync"
   | "confirmDelete"
   | null;
@@ -298,9 +293,6 @@ class UIStore {
   sidebarWidth: number = $state(readStoredSidebarWidth());
   vitalsWidth: number = $state(readStoredVitalsWidth());
   activeModal: ModalType = $state(null);
-  /** Whether the next gist publish should be secret instead of public. */
-  publishSecret: boolean = $state(false);
-  publishTarget: PublishTarget = $state(null);
   selectedOrdinal: number | null = $state(null);
   pendingScrollOrdinal: number | null = $state(null);
   pendingScrollSession: string | null = $state(null);
@@ -443,12 +435,6 @@ class UIStore {
         }
       });
 
-      $effect(() => {
-        if (this.activeModal !== "publish") {
-          this.publishTarget = null;
-        }
-      });
-
       // Initialize sidebar based on viewport width. MEDIA.medium is the same
       // 760px query the component CSS uses, so the store and stylesheets
       // agree on where mobile layout starts.
@@ -560,14 +546,6 @@ class UIStore {
 
   setVitalsWidth(width: number) {
     this.vitalsWidth = clampStoredVitalsWidth(width);
-  }
-
-  setPublishTarget(target: Exclude<PublishTarget, null>) {
-    this.publishTarget = target;
-  }
-
-  clearPublishTarget() {
-    this.publishTarget = null;
   }
 
   selectOrdinal(ordinal: number) {

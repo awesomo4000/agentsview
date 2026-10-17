@@ -1400,7 +1400,7 @@ func TestServicePreservesIPv6BrowserURL(t *testing.T) {
 		fmt.Fprint(w, `{"id":"codex:session:42"}`)
 	}))
 	defer server.Close()
-	browser := browserURLWithPlatform(config.Config{Host: "::1", Port: 8080}, nil, nil)
+	browser := browserURL(config.Config{Host: "::1", Port: 8080})
 	svc, cleanup, err := newService(t.Context(), config.Config{}, transport{
 		Mode: transportHTTP, URL: server.URL, BrowserURL: browser,
 	})

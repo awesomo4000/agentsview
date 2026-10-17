@@ -280,3 +280,57 @@ Validation:
 
 No live archives, installed services, or remote databases were changed. Native
 packaging, a browser smoke test, and runtime network tracing were not performed.
+
+## Live services and browser integration removal (10/17/2026)
+
+Removed live Claude.ai sync, Chrome native host/extension and relay, desktop
+web-account authentication, Cursor Admin API polling, GitHub Gist publishing,
+managed Caddy startup/public hosting, and unused remote SQL replica and vector
+push adapters. The UI listener now rejects non-loopback hosts, and obsolete
+Cursor Admin/public-hosting settings produce explicit errors without exposing
+configured secret values. Generated API clients reflect the removed endpoints.
+
+Preserved local Claude.ai/ChatGPT/Gemini archive imports, local exports,
+GitHub metadata token support, pagination signing keys, local harness ingestion,
+SQLite, DuckDB push/watch, local vector build/search, MCP, and SSH/HTTP sync.
+Legacy Caddy runtime metadata and identity-checked orphan cleanup remain so
+older processes can still be stopped; this build cannot launch Caddy.
+
+Inter and JetBrains Mono are bundled with SIL Open Font Licenses. Neither build
+nor runtime needs to fetch fonts. External font origins were removed from both
+server and Tauri CSPs. This is not a claim that every remaining model or remote
+integration is offline or approved for private data.
+
+Measurements on macOS ARM64:
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Development executable | 148,406,162 bytes / 141.53 MiB | 139,867,026 bytes / 133.39 MiB |
+| Stripped executable | 115,088,210 bytes / 109.76 MiB | 106,732,514 bytes / 101.79 MiB |
+| Required Go modules | 89 | 89 |
+
+The stripped build saves about 7.97 MiB including the new bundled fonts. The
+remaining dependency set is largely shared with retained features. Tauri drops
+its direct UUID dependency, although UUID remains transitively required.
+
+Validation:
+
+- Embedded frontend and Go builds, including the stripped build, passed.
+- Go formatting, vet, and test-package compilation passed across the repository.
+- Complete server, configuration, and file importer suites passed. Focused CLI
+  tests passed for serving, DuckDB, archive-only behavior, push progress, and vectors.
+- 320 focused frontend tests passed, including local file import success/error,
+  app state, keyboard navigation, API client behavior, and generated insights.
+- Svelte reported zero errors/warnings; Vite+ format, lint, and type checks passed.
+- All 103 desktop Rust tests passed after removal of browser-auth capabilities.
+- Chromium loaded the UI and both bundled font families with external requests
+  blocked, using a synthetic archive and isolated data directory.
+- The full CLI suite remains blocked by daemon discovery in this environment.
+  `TestActivityReport_UsesDiscoveredDaemon` fails identically on the committed
+  pre-change baseline in a separate temporary source copy. The focused suites
+  above pass; this is not a claim that the full CLI suite passed.
+
+No live archives, installed services, or remote databases were changed. Native
+installer packaging and complete runtime traffic tracing were not performed.
+The inherited default port remains 8080; the planned fixed high-port policy is
+still pending.

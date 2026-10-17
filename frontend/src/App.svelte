@@ -53,7 +53,6 @@
   import AboutModal from "./lib/components/modals/AboutModal.svelte";
   import GoToSessionModal from "./lib/components/modals/GoToSessionModal.svelte";
   import ShortcutsModal from "./lib/components/modals/ShortcutsModal.svelte";
-  import PublishModal from "./lib/components/modals/PublishModal.svelte";
   import ResyncModal from "./lib/components/modals/ResyncModal.svelte";
   import ConfirmDeleteModal from "./lib/components/modals/ConfirmDeleteModal.svelte";
   import PerfDebugPanel from "./lib/components/debug/PerfDebugPanel.svelte";
@@ -914,9 +913,7 @@
   <ShortcutsModal />
 {/if}
 
-{#if ui.activeModal === "publish"}
-  <PublishModal />
-{/if}
+
 
 {#if ui.activeModal === "resync"}
   <ResyncModal />

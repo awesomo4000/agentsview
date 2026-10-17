@@ -103,7 +103,6 @@ type Server struct {
 	restrictedListener    *RestrictedListener
 	startupProbeKey       []byte
 	version               VersionInfo
-	chrome                chromeHost
 	dataDir               string
 
 	httpRemoteCleanupRegistry *remotesync.CleanupRegistry
@@ -168,15 +167,7 @@ type Server struct {
 	// that leave include_automated unset.
 	embeddingsIncludeAutomatedDefault bool
 
-	// vectorPushSource, when set, supplies the local vectors.db active
-	// generation to the daemon's pg push handler. Nil leaves the vector
-	// push phase skipped, e.g. when [vector] is disabled.
-	vectorPushSource storage.VectorPushSource
-
-	// replicas and mirror are the push backends registered by the
-	// composition root; each gets a daemon push route.
-	replicas []storage.Replica
-	mirror   storage.Mirror
+	mirror storage.Mirror
 
 	// localSyncRunner, when set, backs the foreground local-sync HTTP handler
 	// with the worker-backed pass instead of running SyncThenRun in process.
@@ -936,14 +927,12 @@ func archiveWriteRequest(r *http.Request) bool {
 	case "/api/v1/settings", "/api/v1/recall/query", "/api/v1/settings/worktree-mappings/preview", "/api/v1/data/strip-images/preview", "/api/v1/memory/refresh", "/api/v1/raw-sync/tokens":
 		return false
 	}
-	for _, prefix := range []string{"/api/v1/config/", "/api/v1/remote-sync/", "/api/v1/embeddings/", "/api/v1/raw-sync/uploads", "/api/v1/import/claude-ai/sync/results/"} {
+	for _, prefix := range []string{"/api/v1/config/", "/api/v1/remote-sync/", "/api/v1/embeddings/", "/api/v1/raw-sync/uploads"} {
 		if strings.HasPrefix(path, prefix) {
 			return false
 		}
 	}
-	if strings.HasSuffix(path, "/publish") && (strings.HasPrefix(path, "/api/v1/sessions/") || strings.HasPrefix(path, "/api/v1/insights/")) {
-		return false
-	}
+
 	return !strings.HasPrefix(path, "/api/v1/sessions/") || (!strings.HasSuffix(path, "/resume") && !strings.HasSuffix(path, "/open"))
 }
 
@@ -1012,8 +1001,8 @@ func buildCSPPolicy(
 			"script-src %[1]s; "+
 			"connect-src 'self' http: https: ws: wss:; "+
 			"img-src %[1]s data: blob:; "+
-			"style-src %[1]s 'unsafe-inline' https://fonts.googleapis.com; "+
-			"font-src %[1]s data: https://fonts.gstatic.com; "+
+			"style-src %[1]s 'unsafe-inline'; "+
+			"font-src %[1]s data:; "+
 			"object-src 'none'; "+
 			"base-uri %[2]s; "+
 			"frame-ancestors 'none'",

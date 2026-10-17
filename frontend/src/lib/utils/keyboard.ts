@@ -224,14 +224,6 @@ export function registerShortcuts(opts: ShortcutOptions): () => void {
           window.open(getExportUrl(sessions.activeSessionId), "_blank");
         }
       },
-      p: () => {
-        const id = sessions.activeSessionId;
-        if (id) {
-          ui.publishSecret = false;
-          ui.setPublishTarget({ kind: "session", id });
-          ui.activeModal = "publish";
-        }
-      },
       s: () => {
         if (sessions.activeSessionId) {
           starred.toggle(sessions.activeSessionId);

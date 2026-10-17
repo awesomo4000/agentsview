@@ -34,6 +34,9 @@ Automatic updates, self-update installers, and public pricing refreshes are
 also removed. Bundled rates and local custom pricing remain.
 ClickHouse replication, serving, service installation, and its client dependencies
 are removed. SQLite analytics and the optional DuckDB mirror remain.
+Live Claude.ai account sync, browser relay/authentication, Cursor Admin API,
+GitHub Gist publishing, and managed Caddy/public hosting are removed. Local
+chat-archive file imports and exports remain. Fonts are bundled locally.
 Other external integrations remain. This is a development fork, not yet an
 Internet-independent or privacy-approved release.
 

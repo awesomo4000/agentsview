@@ -15,7 +15,6 @@ import {
   type ImporterImportStats as ImportStats,
 } from "./generated/index.js";
 import { ApiError, getAuthToken, getGeneratedBase, isRemoteConnection } from "./runtime.js";
-import type { BrowserHost } from "./browserHost.js";
 
 export interface SyncHandle {
   abort: () => void;
@@ -344,19 +343,11 @@ export interface ImportCallbacks {
   onIndexing?: () => void;
 }
 
-async function readImportResponse(
-  response: Response,
-  cb?: ImportCallbacks,
-  onFetch?: (id: string, path: string) => void,
-): Promise<ImportStats> {
+async function readImportResponse(response: Response, cb?: ImportCallbacks): Promise<ImportStats> {
   if (!response.headers.get("content-type")?.includes("text/event-stream")) return response.json();
   return consumeEvents<ImportStats>(
     response,
     ({ event, data }) => {
-      if (event === "fetch") {
-        const request = JSON.parse(data);
-        onFetch?.(request.id, request.path);
-      }
       if (event === "progress") cb?.onProgress?.(JSON.parse(data));
       if (event === "indexing") cb?.onIndexing?.();
       if (event === "done") return JSON.parse(data);
@@ -367,70 +358,6 @@ async function readImportResponse(
     },
     "Import stream ended without result",
   );
-}
-
-// The browser window is shared, so Sign in and a new Sync wait for the previous run's close.
-let claudeAIClosing: Promise<void> = Promise.resolve();
-
-export async function connectClaudeAI(host: BrowserHost): Promise<void> {
-  await claudeAIClosing;
-  await host.connect();
-}
-
-export async function syncClaudeAI(
-  host: BrowserHost | undefined,
-  cb?: ImportCallbacks,
-  signal?: AbortSignal,
-): Promise<ImportStats> {
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  signal?.addEventListener("abort", abort, { once: true });
-  if (signal?.aborted) abort();
-  try {
-    await claudeAIClosing;
-    const response = await ImportService.postApiV1ImportClaudeAiSync(
-      host ? undefined : { browser: "chrome" },
-      { signal: controller.signal },
-    );
-    let fail: (error: unknown) => void = () => {};
-    const failed = new Promise<never>((_, reject) => {
-      fail = reject;
-    });
-    const result = readImportResponse(
-      response,
-      cb,
-      host
-        ? (id, path) => {
-            void (async () => {
-              let fetched;
-              try {
-                fetched = await host.fetch(path);
-              } catch (error) {
-                fetched = { status: 0, body: "", error: String(error) };
-              }
-              await ImportService.postApiV1ImportClaudeAiSyncResultsById(
-                { id },
-                {
-                  status: fetched.status,
-                  body: fetched.body,
-                  retry_after: fetched.retryAfter,
-                  error: fetched.error,
-                },
-                { signal: controller.signal },
-              );
-            })().catch((error) => {
-              fail(error);
-              abort();
-            });
-          }
-        : undefined,
-    );
-    return await Promise.race([result, failed]);
-  } finally {
-    signal?.removeEventListener("abort", abort);
-    abort();
-    if (host) claudeAIClosing = host.close().catch(() => {}); // Cleanup failure must preserve the sync outcome.
-  }
 }
 
 export async function importClaudeAI(file: File, cb?: ImportCallbacks): Promise<ImportStats> {

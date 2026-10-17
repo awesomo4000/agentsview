@@ -30,7 +30,6 @@ func TestUsageOnlyClearsExistingVectorContent(t *testing.T) {
 	// Usage-only gating also applies when vectors are explicitly enabled.
 	cfg.Vector.Enabled = true
 	require.ErrorIs(t, requireVectorEnabled(cfg), db.ErrArchiveContentExcluded)
-	assert.Nil(t, newVectorPushSource(cfg))
 	assert.Nil(t, installDirectVectorSearcher(cfg, database))
 	serving, err := setupVectorServing(t.Context(), cfg, database, nil)
 	require.NoError(t, err)

@@ -177,8 +177,8 @@ describe("registerShortcuts", () => {
       expect(ui.activeModal).toBeNull();
     });
 
-    it("should close publish modal on Escape", () => {
-      ui.activeModal = "publish";
+    it("should close about modal on Escape", () => {
+      ui.activeModal = "about";
       fireKey("Escape");
       expect(ui.activeModal).toBeNull();
     });
@@ -197,21 +197,6 @@ describe("registerShortcuts", () => {
 
       expect(ui.activeModal).toBeNull();
       expect(sessions.activeSessionId).toBe("s1");
-    });
-  });
-
-  describe("Publish shortcut", () => {
-    it("opens publish modal with the active session target", () => {
-      sessions.activeSessionId = "sess-123";
-
-      fireKey("p");
-
-      expect(ui.activeModal).toBe("publish");
-      expect(ui.publishSecret).toBe(false);
-      expect(ui.publishTarget).toEqual({
-        kind: "session",
-        id: "sess-123",
-      });
     });
   });
 

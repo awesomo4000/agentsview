@@ -2,6 +2,13 @@
 
 ## 10/17/2026
 
+- Remove live Claude.ai sync, Chrome relay/extension, and desktop web-account auth.
+  Keep local chat-archive imports, harness discovery, and log ingestion.
+- Remove Cursor Admin API, GitHub Gist publishing, managed Caddy/public hosting,
+  and unused remote SQL replica/vector-push plumbing. Keep local exports, DuckDB,
+  SQLite vectors, MCP, and SSH/HTTP sync. Require loopback for the UI listener.
+- Bundle Inter and JetBrains Mono with their licenses for local UI rendering.
+
 - Remove ClickHouse replication, serving, and background service installation.
   Reject obsolete ClickHouse settings; retain SQLite analytics, DuckDB, and the UI.
 

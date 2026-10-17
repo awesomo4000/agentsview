@@ -25,7 +25,6 @@ func (s *Server) registerInsightsRoutes() {
 	s.get(group, "/insights/{id}", "Get insight", s.humaGetInsight)
 	s.raw(group, http.MethodGet, "/insights/{id}/export", "Export insight as HTML", "text/html", s.humaExportInsight)
 	s.raw(group, http.MethodGet, "/insights/{id}/md", "Export insight as Markdown", "text/markdown", s.humaMarkdownInsight)
-	s.post(group, "/insights/{id}/publish", "Publish insight", s.humaPublishInsight)
 	s.deleteRoute(group, "/insights/{id}", "Delete insight", s.humaDeleteInsight)
 	s.stream(group, http.MethodPost, "/insights/generate", "Generate insight", s.humaGenerateInsight)
 }
@@ -45,11 +44,6 @@ type insightsResponse struct {
 
 type generateInsightInput struct {
 	Body generateInsightRequest
-}
-
-type publishInsightInput struct {
-	ID     int64 `path:"id" required:"true" doc:"Insight ID"`
-	Secret bool  `query:"secret" doc:"Create a secret gist instead of a public one"`
 }
 
 type insightGenerationCapableStore interface {
@@ -146,32 +140,6 @@ func (s *Server) humaMarkdownInsight(
 		ContentDisposition: fmt.Sprintf(`inline; filename="%s"`, insightExportMarkdownFilename(insight)),
 		Body:               []byte(insight.Content),
 	}, nil
-}
-
-func (s *Server) humaPublishInsight(
-	ctx context.Context,
-	in *publishInsightInput,
-) (*jsonOutput[publishResponse], error) {
-	token := s.githubToken(ctx)
-	if token == "" {
-		return nil, apiError(http.StatusUnauthorized, "GitHub token not configured")
-	}
-	insight, err := s.insightByID(ctx, in.ID)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := publishExportHTML(
-		ctx,
-		token,
-		insightExportHTMLFilename(insight),
-		insightPublishDescription(insight),
-		generateInsightExportHTML(insight),
-		!in.Secret,
-	)
-	if err != nil {
-		return nil, apiError(http.StatusBadGateway, err.Error())
-	}
-	return &jsonOutput[publishResponse]{Body: *resp}, nil
 }
 
 func (s *Server) humaDeleteInsight(

@@ -354,3 +354,8 @@ func completePushWaiters(waiters []chan error, err error) {
 		close(waiter)
 	}
 }
+
+const (
+	defaultWatchDebounce = 30 * time.Second
+	defaultWatchInterval = 15 * time.Minute
+)

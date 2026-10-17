@@ -54,7 +54,6 @@ func (s *Server) registerSessionRoutes() {
 	s.stream(group, http.MethodGet, "/events", "Watch server events", s.humaEvents)
 	s.raw(group, http.MethodGet, "/sessions/{id}/export", "Export session as HTML", "text/html", s.humaExportSession)
 	s.raw(group, http.MethodGet, "/sessions/{id}/md", "Export session as Markdown", "text/markdown", s.humaMarkdownSession)
-	s.post(group, "/sessions/{id}/publish", "Publish session", s.humaPublishSession)
 	s.post(group, "/sessions/{id}/resume", "Resume session", s.humaResumeSession)
 	s.get(group, "/sessions/{id}/directory", "Get session directory", s.humaGetSessionDir)
 	s.get(group, "/sessions/{id}/search", "Search within a session", s.humaSearchSession)
@@ -855,18 +854,6 @@ type openSessionResponse struct {
 	Path     string `json:"path"`
 }
 
-type publishSessionInput struct {
-	ID     string `path:"id" required:"true" doc:"Session ID"`
-	Secret bool   `query:"secret" doc:"Create a secret gist instead of a public one"`
-}
-
-type publishResponse struct {
-	GistID  string `json:"gist_id"`
-	GistURL string `json:"gist_url"`
-	ViewURL string `json:"view_url"`
-	RawURL  string `json:"raw_url"`
-}
-
 type renameSessionInput struct {
 	ID   string `path:"id" required:"true" doc:"Session ID"`
 	Body renameRequest
@@ -941,47 +928,6 @@ func (s *Server) humaOpenSession(
 			Launched: true,
 			Opener:   opener.Name,
 			Path:     projectDir,
-		},
-	}, nil
-}
-
-func (s *Server) humaPublishSession(
-	ctx context.Context,
-	in *publishSessionInput,
-) (*jsonOutput[publishResponse], error) {
-	token := s.githubToken(ctx)
-	if token == "" {
-		return nil, apiError(http.StatusUnauthorized, "GitHub token not configured")
-	}
-	session, msgs, err := s.sessionWithMessages(ctx, in.ID)
-	if err != nil {
-		return nil, err
-	}
-	htmlContent := generateExportHTML(session, msgs)
-	filename := session.Project + "-" + formatDateShort(session.StartedAt) + ".html"
-	first := ""
-	if session.FirstMessage != nil {
-		first = stringutil.TruncateRunes(*session.FirstMessage, 100, "...")
-	}
-	description := fmt.Sprintf("Agent session: %s - %s", session.Project, first)
-	gist, err := createGist(ctx, token, filename, description, htmlContent, !in.Secret)
-	if err != nil {
-		return nil, apiError(http.StatusBadGateway, err.Error())
-	}
-	if gist.ID == "" || gist.HTMLURL == "" {
-		return nil, apiError(http.StatusBadGateway, "GitHub API returned incomplete gist data")
-	}
-	encoded := urlPathEscape(filename)
-	rawURL := fmt.Sprintf(
-		"https://gist.githubusercontent.com/%s/%s/raw/%s",
-		gist.Owner.Login, gist.ID, encoded,
-	)
-	return &jsonOutput[publishResponse]{
-		Body: publishResponse{
-			GistID:  gist.ID,
-			GistURL: gist.HTMLURL,
-			ViewURL: "https://htmlpreview.github.io/?" + rawURL,
-			RawURL:  rawURL,
 		},
 	}, nil
 }

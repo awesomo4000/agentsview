@@ -468,7 +468,6 @@ func duckDBPushDaemonServerAt(
 		assert.Equal(t, new(want.token), req.Duckdb.Token)
 		assert.Equal(t, want.machineName, req.Duckdb.MachineName)
 		assert.Equal(t, want.allowInsecure, req.Duckdb.AllowInsecure)
-		assert.Nil(t, req.SyncStateTarget)
 		writeTestJSON(t, w, result)
 	})
 }

@@ -10,9 +10,6 @@ import type {
   GetApiV1InsightsByIdPathParameters,
   GetApiV1InsightsParams,
   InsightsResponse,
-  PostApiV1InsightsByIdPublishParams,
-  PostApiV1InsightsByIdPublishPathParameters,
-  PublishResponse,
 } from "../models";
 
 import { orvalFetch } from "../../runtime.ts";
@@ -152,38 +149,5 @@ export const getApiV1InsightsByIdMd = async (
   return orvalRequest<Response>(getGetApiV1InsightsByIdMdUrl({ id }), {
     ...options,
     method: "GET",
-  });
-};
-
-export const getPostApiV1InsightsByIdPublishUrl = (
-  { id }: PostApiV1InsightsByIdPublishPathParameters,
-  params?: PostApiV1InsightsByIdPublishParams,
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : String(value));
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/insights/${encodeURIComponent(String(id))}/publish?${stringifiedParams}`
-    : `/api/v1/insights/${encodeURIComponent(String(id))}/publish`;
-};
-
-/**
- * @summary Publish insight
- */
-export const postApiV1InsightsByIdPublish = async (
-  { id }: PostApiV1InsightsByIdPublishPathParameters,
-  params?: PostApiV1InsightsByIdPublishParams,
-  options?: Parameters<typeof orvalFetch>[1],
-): Promise<PublishResponse> => {
-  return orvalFetch<PublishResponse>(getPostApiV1InsightsByIdPublishUrl({ id }, params), {
-    ...options,
-    method: "POST",
   });
 };

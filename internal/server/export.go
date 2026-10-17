@@ -21,13 +21,6 @@ import (
 
 // gistResponse represents the relevant fields from GitHub's
 // Create Gist API response.
-type gistResponse struct {
-	ID      string `json:"id"`
-	HTMLURL string `json:"html_url"`
-	Owner   struct {
-		Login string `json:"login"`
-	} `json:"owner"`
-}
 
 var ghAuthTokenOutput = func(ctx context.Context) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "gh", "auth", "token")
@@ -44,68 +37,6 @@ func githubHTTPClient(timeout time.Duration) *http.Client {
 		Timeout:   timeout,
 		Transport: transport,
 	}
-}
-
-func createGist(
-	ctx context.Context,
-	token, filename, description, content string,
-	public bool,
-) (*gistResponse, error) {
-	return createGistWithURL(
-		ctx,
-		"https://api.github.com/gists",
-		token, filename, description, content, public,
-	)
-}
-
-func createGistWithURL(
-	ctx context.Context,
-	apiURL, token, filename, description, content string,
-	public bool,
-) (*gistResponse, error) {
-	payload, err := json.Marshal(map[string]any{
-		"description": description,
-		"public":      public,
-		"files": map[string]any{
-			filename: map[string]string{"content": content},
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("marshaling gist payload: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		apiURL,
-		strings.NewReader(string(payload)))
-	if err != nil {
-		return nil, fmt.Errorf("creating gist request: %w", err)
-	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "agentsview")
-
-	client := githubHTTPClient(30 * time.Second)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("github request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 512))
-		if err != nil {
-			return nil, fmt.Errorf("github API error: %d: reading body: %w", resp.StatusCode, err)
-		}
-		return nil, fmt.Errorf("github API error: %d: %s",
-			resp.StatusCode, string(body))
-	}
-
-	var result gistResponse
-	if err := json.UnmarshalRead(resp.Body, &result); err != nil {
-		return nil, fmt.Errorf("parsing github response: %w", err)
-	}
-	return &result, nil
 }
 
 func resolveGitHubToken(ctx context.Context, configured string) string {
@@ -881,15 +812,6 @@ func insightExportTitle(insight *db.Insight) string {
 	return insightTypeLabel(insight.Type) + " Insight"
 }
 
-func insightPublishDescription(insight *db.Insight) string {
-	return fmt.Sprintf(
-		"Insight: %s - %s - %s",
-		insightTypeLabel(insight.Type),
-		insightProjectLabel(insight.Project),
-		insightDateRangeLabel(insight.DateFrom, insight.DateTo),
-	)
-}
-
 func insightTypeLabel(insightType string) string {
 	switch insightType {
 	case "daily_activity":
@@ -916,31 +838,6 @@ func insightDateRangeLabel(dateFrom, dateTo string) string {
 		return dateFrom
 	}
 	return dateFrom + " to " + dateTo
-}
-
-func publishExportHTML(
-	ctx context.Context,
-	token, filename, description, htmlContent string,
-	public bool,
-) (*publishResponse, error) {
-	gist, err := createGist(ctx, token, filename, description, htmlContent, public)
-	if err != nil {
-		return nil, err
-	}
-	if gist.ID == "" || gist.HTMLURL == "" {
-		return nil, errors.New("GitHub API returned incomplete gist data")
-	}
-	encoded := urlPathEscape(filename)
-	rawURL := fmt.Sprintf(
-		"https://gist.githubusercontent.com/%s/%s/raw/%s",
-		gist.Owner.Login, gist.ID, encoded,
-	)
-	return &publishResponse{
-		GistID:  gist.ID,
-		GistURL: gist.HTMLURL,
-		ViewURL: "https://htmlpreview.github.io/?" + rawURL,
-		RawURL:  rawURL,
-	}, nil
 }
 
 func derefString(value *string) string {

@@ -23,7 +23,6 @@ dependencies = [
  "tauri-plugin-single-instance",
  "tempfile",
  "tokio",
- "uuid",
 ]
 
 [[package]]

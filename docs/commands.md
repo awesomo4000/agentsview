@@ -4,6 +4,12 @@ title: CLI Reference
 description: All AgentsView commands, flags, and environment variables
 ---
 
+> Fork status: this inherited reference still includes features removed from
+> the minimization fork. See [the removal checklist](../REMOVALS.md) for current
+> scope. Live account sync, Cursor Admin API, Gist publishing, Caddy/public
+> hosting, S3, PostgreSQL, ClickHouse, telemetry, and automatic updates are gone.
+
+
 ## Commands
 
 ### `agentsview archive`
@@ -358,7 +364,6 @@ Running plain `agentsview` shows help instead of starting the web UI.
 | `--background`      | `false`            | Start `agentsview serve` as a managed background process |
 | `--replace`         | `false`            | Replace a running local daemon before starting           |
 | `--base-path`       |                    | URL prefix for a reverse-proxy subpath                   |
-| `--public-url`      |                    | Browser URL, also added to trusted origins               |
 | `--public-origin`   |                    | Trusted browser origin (repeatable/comma-separated)      |
 | `--proxy`           |                    | Managed proxy mode (`caddy`)                             |
 | `--caddy-bin`       | `caddy`            | Caddy binary path                                        |
@@ -392,8 +397,6 @@ agentsview serve --port 9090                    # custom port
 agentsview serve --no-browser                   # disable browser auto-open
 agentsview serve --background                   # start managed background server
 agentsview serve --replace                      # replace an existing daemon
-agentsview serve --public-url https://agents.example.com
-agentsview serve --base-path /agentsview --public-url https://example.com
 ```
 
 On startup, the server:
@@ -1035,37 +1038,6 @@ integration examples (Starship, tmux).
 
 ______________________________________________________________________
 
-### `agentsview usage cursor`
-
-Fetch Cursor Admin API usage events and store them in the local archive so they
-contribute to the Usage dashboard and daily reports.
-
-```bash
-agentsview usage cursor [flags]
-```
-
-| Flag          | Default       | Description                          |
-| ------------- | ------------- | ------------------------------------ |
-| `--since`     | `30 days ago` | Start date (`YYYY-MM-DD`), inclusive |
-| `--until`     | today         | End date (`YYYY-MM-DD`), inclusive   |
-| `--all`       | `false`       | Include all history                  |
-| `--page-size` | `100`         | Events requested per Cursor API page |
-| `--email`     | config        | Filter by Cursor team member email   |
-| `--user-id`   | config        | Filter by Cursor team member user ID |
-
-**Examples:**
-
-```bash
-agentsview usage cursor
-agentsview usage cursor --since 2026-05-01 --until 2026-05-31
-agentsview usage cursor --all --email you@example.com
-```
-
-See [Cursor Admin Usage Events](/docs/token-usage/#cursor-admin-usage-events)
-for setup and reporting behavior.
-
-______________________________________________________________________
-
 ### `agentsview activity report`
 
 Report active time, concurrency, cost, token, breakdown, and session rows for a
@@ -1365,23 +1337,6 @@ through the normalization path and restores strict `parse-diff` scrutiny.
 
 ______________________________________________________________________
 
-### `agentsview chrome setup`
-
-Install the native host and unpacked extension for Claude.ai Sync through Google
-Chrome. The command prints the extension folder. Open `chrome://extensions`,
-enable **Developer mode**, choose **Load unpacked**, and select that folder.
-Keep Chrome open during Sync. Registration is per OS user; the last setup wins.
-The first connected Chrome profile is used. Rerun setup and reload the extension
-when the executable path or data directory changes. After an upgrade mismatch,
-restart AgentsView if you upgraded it, rerun setup, reload the extension at
-`chrome://extensions`, then Sync again.
-
-See
-[Sync Claude.ai chats](https://agentsview.io/docs/chat-import/#sync-claudeai-chats)
-for connection and removal instructions.
-
-______________________________________________________________________
-
 ### `agentsview import`
 
 Import Claude.ai, ChatGPT, or Gemini Apps conversations into the local database.
@@ -1395,11 +1350,7 @@ agentsview import --type <type> <path>
 | ----------- | ------- | ----------------------------------------------------------------------------------------------------- |
 | `--type`    |         | Import type: `claude-ai`, `chatgpt`, or `gemini-apps` (required)                                      |
 | `--replace` |         | Session ID to replace when the default import refuses it; repeatable (claude-ai, chatgpt)             |
-| `--sync`    | `false` | Sync Claude.ai through Chrome; requires a running server and Chrome host, with no path or `--replace` |
 
-Set up the
-[Chrome host](https://agentsview.io/docs/commands/#agentsview-chrome-setup) once
-and keep Chrome open for `agentsview import --type claude-ai --sync`.
 
 The path can be a `.zip` file, a `conversations.json` file (Claude.ai only), a
 Gemini Apps `MyActivity.html` file, or a directory containing the extracted
@@ -1998,7 +1949,7 @@ agentsview help
 | `AGENTSVIEW_CLICKHOUSE_URL`           |                                                      | ClickHouse connection URL for the default target                                                    |
 | `AGENTSVIEW_CLICKHOUSE_DATABASE`      | `agentsview`                                         | ClickHouse database name for the default target                                                     |
 | `AGENTSVIEW_CLICKHOUSE_MACHINE`       |                                                      | Machine name for ClickHouse push                                                                    |
-| `AGENTSVIEW_GITHUB_TOKEN`             |                                                      | GitHub token used for local Gist publishing fallback and `agentsview stats` PR aggregation          |
+| `AGENTSVIEW_GITHUB_TOKEN`             |                                                      | GitHub token used for `agentsview stats` PR aggregation          |
 | `AGENTSVIEW_ARCHIVE_CONTENT`          | `full`                                               | Archive storage policy when `config.toml` sets none: `full`, `transcripts`, or `usage`              |
 | `AGENTSVIEW_NO_DAEMON`                |                                                      | Set to `1`, `true`, `yes`, or `on` to disable CLI daemon auto-start                                 |
 | `AGENTSVIEW_DAEMON_IDLE_TIMEOUT`      | `20m`                                                | Override idle self-shutdown duration for detached background daemons                                |

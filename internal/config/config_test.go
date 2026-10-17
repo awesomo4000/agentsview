@@ -599,41 +599,6 @@ func TestLoadEnv_OverridesDataDir(t *testing.T) {
 	assert.Equal(t, custom, cfg.DataDir)
 }
 
-func TestLoadEnv_UsesPrefixedCursorAdminVarsWithLegacyFallback(t *testing.T) {
-	setupTestEnv(t)
-	t.Setenv("AGENTSVIEW_CURSOR_ADMIN_API_KEY", "prefixed-key")
-	t.Setenv("CURSOR_ADMIN_API_KEY", "legacy-key")
-	t.Setenv("CURSOR_ADMIN_EMAIL", "legacy@example.com")
-	t.Setenv("AGENTSVIEW_CURSOR_ADMIN_USER_ID", "prefixed-user")
-
-	cfg, err := Default()
-	require.NoError(t, err)
-	cfg.loadEnv()
-
-	assert.Equal(t, "prefixed-key", cfg.CursorAdminAPIKey)
-	assert.Equal(t, "legacy@example.com", cfg.CursorAdminEmail)
-	assert.Equal(t, "prefixed-user", cfg.CursorAdminUserID)
-}
-
-func TestLoadMinimal_PreservesCursorAdminEnvOverFile(t *testing.T) {
-	dir := setupTestEnv(t)
-	writeConfig(t, dir, map[string]any{
-		"cursor_admin_api_key": "file-key",
-		"cursor_admin_email":   "file@example.com",
-		"cursor_admin_user_id": "file-user",
-	})
-	t.Setenv("AGENTSVIEW_CURSOR_ADMIN_API_KEY", "env-key")
-	t.Setenv("AGENTSVIEW_CURSOR_ADMIN_EMAIL", "env@example.com")
-	t.Setenv("AGENTSVIEW_CURSOR_ADMIN_USER_ID", "env-user")
-
-	cfg, err := LoadMinimal()
-	require.NoError(t, err)
-
-	assert.Equal(t, "env-key", cfg.CursorAdminAPIKey)
-	assert.Equal(t, "env@example.com", cfg.CursorAdminEmail)
-	assert.Equal(t, "env-user", cfg.CursorAdminUserID)
-}
-
 func TestLoadMinimal_PreservesAuthTokenEnvOverFile(t *testing.T) {
 	dir := setupTestEnv(t)
 	writeConfig(t, dir, map[string]any{
@@ -747,23 +712,6 @@ func TestLoad_NilFlagSet(t *testing.T) {
 	assert.Equal(t, "127.0.0.1", cfg.Host)
 }
 
-func TestLoad_PublicOriginFlagOverridesConfigFile(t *testing.T) {
-	tmp := setupTestEnv(t)
-	writeConfig(t, tmp, map[string]any{
-		"public_origins": []string{"https://old.example.test"},
-	})
-
-	cfg, err := loadConfigFromFlags(
-		t,
-		"-public-origin", "https://viewer.example.test/",
-		"-public-origin", "http://viewer.example.test:8004",
-	)
-	require.NoError(t, err)
-
-	got := strings.Join(cfg.PublicOrigins, ",")
-	assert.Equal(t, "https://viewer.example.test,http://viewer.example.test:8004", got)
-}
-
 func TestLoad_HostFromConfigFile(t *testing.T) {
 	cfg := loadMinimalWithConfig(t, map[string]any{
 		"host": "0.0.0.0",
@@ -805,155 +753,6 @@ func TestLoad_PortFlagOverridesConfigFile(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 9090, cfg.Port)
-}
-
-func TestLoad_PublicOriginsFromConfigFile(t *testing.T) {
-	cfg := loadMinimalWithConfig(t, map[string]any{
-		"public_origins": []string{
-			"https://Viewer.Example.Test:443/",
-			"http://viewer.example.test:8004",
-		},
-	})
-
-	got := strings.Join(cfg.PublicOrigins, ",")
-	assert.Equal(t, "https://viewer.example.test,http://viewer.example.test:8004", got)
-}
-
-func TestLoad_PublicOriginsRejectInvalid(t *testing.T) {
-	err := loadMinimalErrWithConfig(t, map[string]any{
-		"public_origins": []string{"ftp://viewer.example.test"},
-	})
-
-	requireErrorContains(t, err, "invalid public origins")
-}
-
-func TestLoad_PublicURLMergedIntoOrigins(t *testing.T) {
-	cfg := loadMinimalWithConfig(t, map[string]any{
-		"public_url": "https://viewer.example.test/",
-	})
-
-	assert.Equal(t, "https://viewer.example.test", cfg.PublicURL)
-	assert.Equal(t, "https://viewer.example.test", strings.Join(cfg.PublicOrigins, ","))
-}
-
-func TestLoad_PublicURLRejectsWildcardBindAddress(t *testing.T) {
-	for _, mode := range []string{"", "caddy"} {
-		for _, publicURL := range []string{
-			"https://0.0.0.0:9999", "http://[::]:9999",
-		} {
-			t.Run(mode+"/"+publicURL, func(t *testing.T) {
-				setupTestEnv(t)
-				_, err := loadConfigFromPFlags(t,
-					"--public-url", publicURL, "--proxy", mode,
-				)
-				require.ErrorContains(t, err, "bind address")
-				assert.ErrorContains(t, err, "browser")
-			})
-		}
-	}
-}
-
-func TestLoad_ProxyConfigFromFile(t *testing.T) {
-	cfg := loadMinimalWithConfig(t, map[string]any{
-		"public_url": "https://viewer.example.test",
-		"proxy": map[string]any{
-			"mode":            "caddy",
-			"bind_host":       "10.0.60.2",
-			"public_port":     9443,
-			"tls_cert":        "/tmp/viewer.crt",
-			"tls_key":         "/tmp/viewer.key",
-			"allowed_subnets": []string{"10.1.2.3/16", "192.168.1.0/24"},
-		},
-	})
-
-	assert.Equal(t, "caddy", cfg.Proxy.Mode)
-	assert.Equal(t, "caddy", cfg.Proxy.Bin)
-	assert.Equal(t, "10.0.60.2", cfg.Proxy.BindHost)
-	assert.Equal(t, 9443, cfg.Proxy.PublicPort)
-	assert.Equal(t, "https://viewer.example.test:9443", cfg.PublicURL)
-	assert.Equal(t, "10.1.0.0/16,192.168.1.0/24", strings.Join(cfg.Proxy.AllowedSubnets, ","))
-}
-
-func TestLoad_ProxyFlags(t *testing.T) {
-	cfg, err := loadConfigFromFlags(
-		t,
-		"-public-url", "https://viewer.example.test",
-		"-proxy", "caddy",
-		"-proxy-bind-host", "0.0.0.0",
-		"-public-port", "9443",
-		"-tls-cert", "/tmp/viewer.crt",
-		"-tls-key", "/tmp/viewer.key",
-		"-allowed-subnet", "10.0/16",
-		"-allowed-subnet", "192.168.0.0/24",
-	)
-	require.NoError(t, err)
-
-	assert.Equal(t, "https://viewer.example.test:9443", cfg.PublicURL)
-	assert.Equal(t, "caddy", cfg.Proxy.Mode)
-	assert.Equal(t, "0.0.0.0", cfg.Proxy.BindHost)
-	assert.Equal(t, 9443, cfg.Proxy.PublicPort)
-	assert.Equal(t, "10.0.0.0/16,192.168.0.0/24", strings.Join(cfg.Proxy.AllowedSubnets, ","))
-}
-
-func TestLoad_ManagedCaddyDefaultsPublicPortAndBindHost(t *testing.T) {
-	cfg, err := loadConfigFromFlags(
-		t,
-		"-public-url", "https://viewer.example.test",
-		"-proxy", "caddy",
-	)
-	require.NoError(t, err)
-
-	assert.Equal(t, "https://viewer.example.test:8443", cfg.PublicURL)
-	assert.Equal(t, "127.0.0.1", cfg.Proxy.BindHost)
-	assert.Equal(t, 0, cfg.Proxy.PublicPort)
-}
-
-func TestLoad_ManagedCaddyRejectsConflictingPublicPort(t *testing.T) {
-	_, err := loadConfigFromFlags(
-		t,
-		"-public-url", "https://viewer.example.test:9443",
-		"-proxy", "caddy",
-		"-public-port", "8443",
-	)
-	requireErrorContains(t, err, "conflicts with configured public port")
-}
-
-func TestLoad_ManagedCaddyRejectsPublicURLPath(t *testing.T) {
-	_, err := loadConfigFromFlags(
-		t,
-		"-public-url", "https://viewer.example.test/path",
-		"-proxy", "caddy",
-	)
-	requireErrorContains(t, err, "must not include a path")
-}
-
-func TestLoad_ManagedCaddyNormalizesExplicitDefaultPorts(t *testing.T) {
-	cfg, err := loadConfigFromFlags(
-		t,
-		"-public-url", "https://viewer.example.test:443",
-		"-proxy", "caddy",
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "https://viewer.example.test", cfg.PublicURL)
-
-	cfg, err = loadConfigFromFlags(
-		t,
-		"-public-url", "http://viewer.example.test:80",
-		"-proxy", "caddy",
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "http://viewer.example.test", cfg.PublicURL)
-}
-
-func TestLoad_AllowedSubnetsRejectInvalid(t *testing.T) {
-	err := loadMinimalErrWithConfig(t, map[string]any{
-		"proxy": map[string]any{
-			"mode":            "caddy",
-			"allowed_subnets": []string{"10.0.0.0/not-a-mask"},
-		},
-	})
-
-	requireErrorContains(t, err, "invalid allowed subnets")
 }
 
 func TestSaveGithubToken_RejectsCorruptConfig(t *testing.T) {
@@ -2117,15 +1916,6 @@ func TestAutomatedConfigRoundTrip(t *testing.T) {
 	assert.Equal(t, wantExactMatches, cfg.Automated.ExactMatches)
 }
 
-func TestAutomatedConfigAbsentIsNil(t *testing.T) {
-	cfg := loadPFlagsWithConfig(t, map[string]any{
-		"public_url": "http://example.com",
-	})
-	assert.Nil(t, cfg.Automated.Prefixes)
-	assert.Nil(t, cfg.Automated.Substrings)
-	assert.Nil(t, cfg.Automated.ExactMatches)
-}
-
 func TestLoadFile_CustomModelPricing(t *testing.T) {
 	tests := []struct {
 		name string
@@ -2324,13 +2114,6 @@ transport = "http"
 	require.Len(t, cfg.RemoteHosts, 1)
 	assert.Equal(t, RemoteTransportHTTP, cfg.RemoteHosts[0].Transport)
 	assert.Equal(t, "devbox1", cfg.RemoteHosts[0].Host)
-}
-
-func TestLoadFile_RemoteHostsAbsentIsNil(t *testing.T) {
-	cfg := loadMinimalWithConfig(t,
-		map[string]any{"public_url": "http://example.com"})
-
-	assert.Nil(t, cfg.RemoteHosts)
 }
 
 func TestValidateRemoteHosts(t *testing.T) {
@@ -2817,6 +2600,34 @@ url = "clickhouse://example.invalid/archive"`, `default_clickhouse = "team"`} {
 			_, err := LoadMinimal()
 			require.ErrorContains(t, err, "ClickHouse is not supported")
 			assert.NotContains(t, err.Error(), "obsolete-setting")
+		})
+	}
+}
+
+func TestLoadRejectsRemovedWebIntegrations(t *testing.T) {
+	for _, key := range []string{"cursor_admin_api_key", "cursor_admin_email", "cursor_admin_user_id", "public_url", "public_origins", "proxy"} {
+		t.Run(key, func(t *testing.T) {
+			f := newConfigFixture(t)
+			value := key + ` = "private-obsolete-setting"`
+			if key == "proxy" {
+				value = "[proxy]"
+			}
+			if key == "public_origins" {
+				value = `public_origins = ["https://example.invalid"]`
+			}
+			require.NoError(t, os.WriteFile(f.Path(configFileName), []byte(value), 0600))
+			_, err := LoadMinimal()
+			require.ErrorContains(t, err, "not supported in this fork")
+			assert.NotContains(t, err.Error(), "private-obsolete-setting")
+		})
+	}
+	for _, key := range []string{"AGENTSVIEW_CURSOR_ADMIN_API_KEY", "AGENTSVIEW_CURSOR_ADMIN_EMAIL", "AGENTSVIEW_CURSOR_ADMIN_USER_ID", "CURSOR_ADMIN_API_KEY", "CURSOR_ADMIN_EMAIL", "CURSOR_ADMIN_USER_ID"} {
+		t.Run(key, func(t *testing.T) {
+			newConfigFixture(t)
+			t.Setenv(key, "private-obsolete-setting")
+			_, err := LoadMinimal()
+			require.ErrorContains(t, err, "Cursor Admin API is not supported")
+			assert.NotContains(t, err.Error(), "private-obsolete-setting")
 		})
 	}
 }

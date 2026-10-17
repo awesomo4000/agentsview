@@ -547,9 +547,7 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 	}
 	srvOpts = append(srvOpts, pushBackendOptions()...)
 	srvOpts = append(srvOpts, vectorServe.ServerOpts...)
-	if src := newVectorPushSource(cfg); src != nil {
-		srvOpts = append(srvOpts, server.WithVectorPushSource(src))
-	}
+
 	if extractSched != nil {
 		// Trash, restore, and permanent-delete routes change extraction
 		// eligibility; the retraction pass must hear about them even when
@@ -608,7 +606,7 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 		return
 	}
 	startupProgress.SetPhase("starting HTTP server")
-	rt, err := startServerWithOptionalCaddy(ctx, cfg, srv, rtOpts)
+	rt, err := startLocalServer(ctx, cfg, srv, rtOpts)
 	if err != nil {
 		stopAudit()
 		if errors.Is(err, context.Canceled) {
@@ -629,7 +627,7 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 	if _, sfErr := writeDaemonRuntimeWithAuthAndNoSync(
 		rt.Cfg.DataDir, rt.Cfg.Host, rt.Cfg.Port, version, rt.PublicURL, false,
 		rt.Cfg.RequireAuth, rt.Cfg.NoSync, explicitPort,
-		rt.Caddy.Pid(),
+		0,
 	); sfErr != nil {
 		reportRuntimeRecordWrite(
 			os.Stdout, sfErr, "keeping start lock as fallback",

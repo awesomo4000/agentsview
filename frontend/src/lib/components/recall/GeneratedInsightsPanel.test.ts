@@ -193,19 +193,16 @@ describe("GeneratedInsightsPanel", () => {
     expect(router.params).toEqual({ tab: "generated", insight: "42" });
   });
 
-  it("keeps export, publish, and delete actions available for saved reports", async () => {
-    const setPublishTarget = vi.spyOn(ui, "setPublishTarget");
+  it("keeps export and delete actions available for saved reports", async () => {
     component = mount(GeneratedInsightsPanel, { target: document.body });
     await tick();
 
     const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
     buttons.find((button) => button.textContent?.trim() === "Export")!.click();
-    buttons.find((button) => button.textContent?.trim() === "Publish")!.click();
     buttons.find((button) => button.ariaLabel === "Delete generated insight")!.click();
     await tick();
 
     expect(mocks.downloadInsightExport).toHaveBeenCalledWith(42);
-    expect(setPublishTarget).toHaveBeenCalledWith({ kind: "insight", id: 42 });
     expect(mocks.deleteItem).toHaveBeenCalledWith(42);
     expect(router.params).toEqual({ tab: "generated" });
   });

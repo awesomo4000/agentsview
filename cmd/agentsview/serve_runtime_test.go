@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -42,10 +41,7 @@ func TestPrepareServeRuntimeConfigExplicitPortCollision(t *testing.T) {
 	require.NoError(t, cmd.Flags().Parse([]string{
 		"--host", "127.0.0.1", "--port", strconv.Itoa(port),
 	}))
-	publicURL := fmt.Sprintf("https://viewer.example.test:%d/archive/", port)
 	cfg := mustLoadConfig(cmd)
-	cfg.PublicURL = publicURL
-	cfg.PublicOrigins = []string{publicURL}
 
 	var got config.Config
 	var err error
@@ -60,8 +56,6 @@ func TestPrepareServeRuntimeConfigExplicitPortCollision(t *testing.T) {
 	assert.Contains(t, err.Error(), "127.0.0.1")
 	assert.Equal(t, cfg, got)
 	assert.NotContains(t, output, "in use, using")
-	assert.Equal(t, publicURL, got.PublicURL)
-	assert.Equal(t, []string{publicURL}, got.PublicOrigins)
 }
 
 func TestPrepareServeRuntimeConfigPortPolicy(t *testing.T) {
@@ -71,18 +65,13 @@ func TestPrepareServeRuntimeConfigPortPolicy(t *testing.T) {
 		check func(*testing.T, config.Config, config.Config, string)
 	}{
 		{
-			name: "implicit collision keeps fallback and rewrites public URL",
+			name: "implicit collision selects another local port",
 			fn: func(t *testing.T) (config.Config, serveRuntimeOptions, func()) {
 				t.Helper()
 				listener, port := heldLoopbackPort(t)
-				publicURL := fmt.Sprintf(
-					"https://viewer.example.test:%d", port,
-				)
 				cfg := config.Config{
-					Host:          "127.0.0.1",
-					Port:          port,
-					PublicURL:     publicURL,
-					PublicOrigins: []string{publicURL},
+					Host: "127.0.0.1",
+					Port: port,
 				}
 				return cfg, serveRuntimeOptions{RequestedPort: port}, func() {
 					_ = listener.Close()
@@ -92,10 +81,6 @@ func TestPrepareServeRuntimeConfigPortPolicy(t *testing.T) {
 				t.Helper()
 
 				assert.NotEqual(t, before.Port, after.Port)
-				assert.Equal(t, fmt.Sprintf(
-					"https://viewer.example.test:%d", after.Port,
-				), after.PublicURL)
-				assert.Equal(t, []string{after.PublicURL}, after.PublicOrigins)
 				assert.Contains(t, output, "in use, using")
 			},
 		},
@@ -156,27 +141,20 @@ func TestPrepareServeRuntimeConfigPortPolicy(t *testing.T) {
 	}
 }
 
-func TestPrepareRunServeRuntimeConfigRestartPreservesConfiguredURLRewrite(t *testing.T) {
+func TestPrepareRunServeRuntimeConfigRestartUsesLocalURL(t *testing.T) {
 	listener, runtimePort := heldLoopbackPort(t)
 	defer listener.Close()
 	configuredPort := runtimePort - 1
-	publicURL := fmt.Sprintf("https://viewer.example.test:%d", configuredPort)
 
 	got, rtOpts, err := prepareRunServeRuntimeConfig(t.Context(), config.Config{
-		Host:          "127.0.0.1",
-		Port:          configuredPort,
-		PublicURL:     publicURL,
-		PublicOrigins: []string{publicURL},
+		Host: "127.0.0.1",
+		Port: configuredPort,
 	}, runtimePort, nil)
 	require.NoError(t, err)
 	assert.NotEqual(t, runtimePort, got.Port)
 	assert.False(t, got.PortExplicit)
 	assert.Equal(t, configuredPort, rtOpts.RequestedPort)
-	assert.Equal(t, fmt.Sprintf(
-		"https://viewer.example.test:%d", got.Port,
-	), got.PublicURL)
-	assert.Equal(t, []string{got.PublicURL}, got.PublicOrigins)
-	assert.Equal(t, got.PublicURL, strings.TrimRight(browserURL(got), "/"))
+	assert.Equal(t, fmt.Sprintf("http://127.0.0.1:%d", got.Port), browserURL(got))
 }
 
 func TestWaitForBackendReadyRejectsUnrelatedHTTPListener(t *testing.T) {
@@ -264,7 +242,7 @@ func TestWaitForBackendReadyAcceptsAuthenticatedServerStartupProof(t *testing.T)
 		"the temporary startup proof endpoint must be disabled after readiness")
 }
 
-func TestStartServerWithOptionalCaddyWaitsForBasePathBackend(t *testing.T) {
+func TestStartLocalServerWaitsForBasePathBackend(t *testing.T) {
 	port, err := server.FindAvailablePort(t.Context(), "127.0.0.1", 0)
 	require.NoError(t, err)
 	cfg := config.Config{
@@ -275,7 +253,7 @@ func TestStartServerWithOptionalCaddyWaitsForBasePathBackend(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
-	runtime, err := startServerWithOptionalCaddy(
+	runtime, err := startLocalServer(
 		ctx, cfg, srv, serveRuntimeOptions{Mode: "test", BasePath: "/viewer/"},
 	)
 	require.NoError(t, err,

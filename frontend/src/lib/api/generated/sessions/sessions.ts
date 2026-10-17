@@ -38,13 +38,10 @@ import type {
   PatchApiV1SessionsByIdLabelsPathParameters,
   PatchApiV1SessionsByIdRenamePathParameters,
   PostApiV1SessionsByIdOpenPathParameters,
-  PostApiV1SessionsByIdPublishParams,
-  PostApiV1SessionsByIdPublishPathParameters,
   PostApiV1SessionsByIdRestorePathParameters,
   PostApiV1SessionsByIdResumePathParameters,
   PostApiV1SessionsUploadBody,
   PostApiV1SessionsUploadParams,
-  PublishResponse,
   PutApiV1SessionsByIdParentPathParameters,
   RenameRequest,
   ResolveSessionIDsResponse,
@@ -576,39 +573,6 @@ export const deleteApiV1SessionsByIdPermanent = async (
   return orvalFetch<void>(getDeleteApiV1SessionsByIdPermanentUrl({ id }), {
     ...options,
     method: "DELETE",
-  });
-};
-
-export const getPostApiV1SessionsByIdPublishUrl = (
-  { id }: PostApiV1SessionsByIdPublishPathParameters,
-  params?: PostApiV1SessionsByIdPublishParams,
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? "null" : String(value));
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/v1/sessions/${encodeURIComponent(String(id))}/publish?${stringifiedParams}`
-    : `/api/v1/sessions/${encodeURIComponent(String(id))}/publish`;
-};
-
-/**
- * @summary Publish session
- */
-export const postApiV1SessionsByIdPublish = async (
-  { id }: PostApiV1SessionsByIdPublishPathParameters,
-  params?: PostApiV1SessionsByIdPublishParams,
-  options?: Parameters<typeof orvalFetch>[1],
-): Promise<PublishResponse> => {
-  return orvalFetch<PublishResponse>(getPostApiV1SessionsByIdPublishUrl({ id }, params), {
-    ...options,
-    method: "POST",
   });
 };
 

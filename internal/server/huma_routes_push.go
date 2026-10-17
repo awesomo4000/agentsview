@@ -44,30 +44,6 @@ func newPushProgressStreamSender[P any](send func(P)) func(P) {
 // replica push progress at most once per pushProgressLogInterval, phase-aware
 // so the vector phase is distinguishable from the session phase. name is the
 // backend's CLI verb, e.g. "pg".
-func newReplicaPushProgressLogger(name string) func(storage.PushProgress) {
-	var last time.Time
-	return func(p storage.PushProgress) {
-		if time.Since(last) < pushProgressLogInterval {
-			return
-		}
-		last = time.Now()
-		switch p.Phase {
-		case "preparing":
-			if p.SessionsTotal == 0 {
-				log.Printf("%s push: preparing (sync state, metadata, fingerprints)", name)
-				return
-			}
-			log.Printf("%s push: preparing %d/%d session(s)",
-				name, p.SessionsDone, p.SessionsTotal)
-		case "vectors":
-			log.Printf("%s push: vectors %d/%d session(s) scanned, %d chunks",
-				name, p.VectorSessionsDone, p.VectorSessionsTotal, p.VectorChunksPushed)
-		default:
-			log.Printf("%s push: %d/%d session(s), %d messages",
-				name, p.SessionsDone, p.SessionsTotal, p.MessagesDone)
-		}
-	}
-}
 
 // newMirrorPushProgressLogger is newReplicaPushProgressLogger's mirror analog.
 func newMirrorPushProgressLogger(name string) func(storage.MirrorPushProgress) {
@@ -90,12 +66,6 @@ func (s *Server) registerPushRoutes() {
 	group := huma.NewGroup(s.api, "/api/v1/push")
 	configureRouteGroup(group, "Push")
 
-	for _, replica := range s.replicas {
-		s.stream(group, http.MethodPost, "/"+replica.Name(),
-			"Push to "+replica.DisplayName(),
-			s.replicaPushHandler(replica), streamJSONResponse(),
-		)
-	}
 	if s.mirror != nil {
 		s.stream(group, http.MethodPost, "/"+s.mirror.Name(),
 			"Push to "+s.mirror.DisplayName(),
@@ -160,28 +130,10 @@ type daemonPushInput struct {
 }
 
 type daemonPushRequest struct {
-	Full            bool     `json:"full"`
-	Projects        []string `json:"projects,omitempty"`
-	ExcludeProjects []string `json:"exclude_projects,omitempty"`
-	// Replica is the remote target a replica push writes to. Omitted, the
-	// daemon pushes to its own default configured target for that backend.
-	Replica *daemonReplicaTarget `json:"replica,omitempty"`
-	DuckDB  *config.DuckDBConfig `json:"duckdb,omitempty"`
-	// SyncStateTarget and MigrateLegacySyncState scope the archive-side push
-	// watermarks; see storage.ReplicaTargetRef.
-	SyncStateTarget        string `json:"sync_state_target,omitempty"`
-	MigrateLegacySyncState bool   `json:"migrate_legacy_sync_state,omitzero"`
-	// NoVectors carries the CLI --no-vectors flag, which has no daemon-side
-	// flag of its own, into the push handler's vector-source gate.
-	NoVectors bool `json:"no_vectors,omitzero"`
-	// ScopeVectorsToChangedSessions is set by change-triggered watch
-	// pushes so the vector phase reads state only for the changed
-	// relational sessions (see storage.PushOptions).
-	ScopeVectorsToChangedSessions bool `json:"scope_vectors_to_changed_sessions,omitzero"`
-	// LastReconciledVectorGeneration travels with a scoped push so this
-	// request's fresh pusher can promote to generation-wide when the active
-	// generation id has changed (see storage.PushOptions).
-	LastReconciledVectorGeneration int64 `json:"last_reconciled_vector_generation,omitzero"`
+	Full            bool                 `json:"full"`
+	Projects        []string             `json:"projects,omitempty"`
+	ExcludeProjects []string             `json:"exclude_projects,omitempty"`
+	DuckDB          *config.DuckDBConfig `json:"duckdb,omitempty"`
 	// Automatic is set by the CLI's watch-mode mirror pushes: a mirror
 	// held by a live serve process defers instead of rebuilding the whole
 	// archive on every changed batch, and archive-scale diagnostics are
@@ -195,40 +147,13 @@ type daemonPushRequest struct {
 // daemonReplicaTarget is the wire shape of a delegated push's remote target.
 // push_vectors is optional: omitted means the target accepts the vector
 // phase, matching the config default, and an explicit false opts out.
-type daemonReplicaTarget struct {
-	URL           string `json:"url"`
-	Schema        string `json:"schema,omitempty"`
-	MachineName   string `json:"machine_name"`
-	AllowInsecure bool   `json:"allow_insecure,omitzero"`
-	PushVectors   *bool  `json:"push_vectors,omitempty"`
-	// PushBatchSize is the ClickHouse sessions-per-batch setting; zero or
-	// omitted selects the push default.
-	PushBatchSize int `json:"push_batch_size,omitzero"`
-}
-
-func (t daemonReplicaTarget) target() storage.ReplicaTarget {
-	return storage.ReplicaTarget{
-		URL:           t.URL,
-		Schema:        t.Schema,
-		MachineName:   t.MachineName,
-		AllowInsecure: t.AllowInsecure,
-		PushVectors:   t.PushVectors == nil || *t.PushVectors,
-		PushBatchSize: t.PushBatchSize,
-	}
-}
 
 // WithVectorPushSource wires the local vectors.db push source used by the
 // daemon's replica push handlers. Nil (the default) leaves the vector push
 // phase disabled, e.g. when [vector] is not configured.
-func WithVectorPushSource(src storage.VectorPushSource) Option {
-	return func(s *Server) { s.vectorPushSource = src }
-}
 
 // WithReplicas registers the remote replica backends the daemon can push to.
 // Each gets a /api/v1/push/<name> route.
-func WithReplicas(replicas ...storage.Replica) Option {
-	return func(s *Server) { s.replicas = append(s.replicas, replicas...) }
-}
 
 // WithMirror registers the derived mirror backend the daemon can push to.
 func WithMirror(mirror storage.Mirror) Option {
@@ -253,29 +178,9 @@ func (s *Server) localPushTarget(ctx context.Context) (*db.DB, error) {
 // push, or nil when the phase is gated off: no source is wired ([vector]
 // disabled), the target opts out via push_vectors=false, or the caller passed
 // --no-vectors. A nil source leaves the pusher's vector phase skipped.
-func (s *Server) replicaPushVectorSource(
-	target storage.ReplicaTarget, noVectors bool,
-) storage.VectorPushSource {
-	if s.vectorPushSource == nil || !target.PushVectors || noVectors {
-		return nil
-	}
-	return s.vectorPushSource
-}
 
 // replicaPushTarget resolves the target a replica push writes to: the one in
 // the request, else the daemon's own default configured target.
-func (s *Server) replicaPushTarget(
-	replica storage.Replica, req daemonPushRequest,
-) (storage.ReplicaTarget, error) {
-	if req.Replica != nil {
-		return req.Replica.target(), nil
-	}
-	target, err := storage.DefaultTarget(replica, s.cfg)
-	if err != nil {
-		return storage.ReplicaTarget{}, err
-	}
-	return target.Target, nil
-}
 
 // duckDBPushConfig resolves the DuckDB config a daemon push writes to. The
 // mirror PATH is always the server's own resolved configuration: the request
@@ -535,112 +440,6 @@ func (s *Server) syncThenRunForPush(
 // replica backend. The handler validates the request before the stream body
 // flushes a 200, brings the archive current, then runs the backend's pusher
 // against the daemon's archive under the sync lock.
-func (s *Server) replicaPushHandler(
-	replica storage.Replica,
-) func(context.Context, *daemonPushInput) (*huma.StreamResponse, error) {
-	return func(
-		ctx context.Context, in *daemonPushInput,
-	) (*huma.StreamResponse, error) {
-		return s.humaReplicaPush(ctx, replica, in)
-	}
-}
-
-func (s *Server) humaReplicaPush(
-	ctx context.Context,
-	replica storage.Replica,
-	in *daemonPushInput,
-) (*huma.StreamResponse, error) {
-	name := replica.Name()
-	if err := storage.ValidateProjectFilters(
-		in.Body.Projects,
-		in.Body.ExcludeProjects,
-	); err != nil {
-		return nil, apiError(http.StatusBadRequest, err.Error())
-	}
-	local, err := s.localPushTarget(ctx)
-	if err != nil {
-		return nil, err
-	}
-	// Reject before the stream body flushes a 200: SSE clients (the daemon
-	// CLI always negotiates SSE) must see the 503 + Retry-After, not a
-	// generic error event.
-	if local.WriterClosed() {
-		return nil, writerClosedError(s.archiveStale())
-	}
-	target, err := s.replicaPushTarget(replica, in.Body)
-	if err != nil {
-		return nil, apiError(http.StatusBadRequest, err.Error())
-	}
-	if target.URL == "" {
-		return nil, apiError(http.StatusBadRequest, name+" push: url not configured")
-	}
-	// Reject a target the backend would refuse before the stream flushes a
-	// 200 and before the local sync pass runs.
-	if err := replica.ValidateTarget(target); err != nil {
-		return nil, apiError(http.StatusBadRequest, name+" push: "+err.Error())
-	}
-	if err := validatePushWatchScope(ctx, in.Body, s.ingestionConfig()); err != nil {
-		return nil, apiError(http.StatusBadRequest, err.Error())
-	}
-
-	engine := s.syncEngineForLocal(ctx, local)
-	vectorSource := s.replicaPushVectorSource(target, in.Body.NoVectors)
-	body := in.Body
-	return &huma.StreamResponse{Body: func(hctx huma.Context) {
-		runPushStream(hctx, func(
-			streamProgress func(storage.PushProgress),
-		) (any, error) {
-			onProgress := composePushProgress(
-				newReplicaPushProgressLogger(name), streamProgress,
-			)
-			var result storage.PushResult
-			err := s.syncThenRunForPush(
-				ctx, engine, local, body.Full, body.WatchBatch, body.WatchRecovery,
-				func(forceFull bool) error {
-					if storage.StoresFriction(replica) {
-						if err := engine.DrainStaleFrictionLocked(ctx); err != nil {
-							return err
-						}
-					}
-					if refreshErr := s.ensurePricing(ctx, local); refreshErr != nil {
-						if ctxErr := ctx.Err(); ctxErr != nil {
-							return ctxErr
-						}
-						log.Printf("pricing refresh: %v", refreshErr)
-					}
-					if ctxErr := ctx.Err(); ctxErr != nil {
-						return ctxErr
-					}
-					pusher, err := replica.NewPusher(
-						ctx, target, local, storage.PusherOptions{
-							Projects:               body.Projects,
-							ExcludeProjects:        body.ExcludeProjects,
-							SyncStateTarget:        body.SyncStateTarget,
-							MigrateLegacySyncState: body.MigrateLegacySyncState,
-							VectorSource:           vectorSource,
-						},
-					)
-					if err != nil {
-						return err
-					}
-					defer pusher.Close()
-					if err := pusher.EnsureSchema(ctx); err != nil {
-						return err
-					}
-					result, err = pusher.PushWithOptions(ctx, storage.PushOptions{
-						Full: forceFull,
-						ScopeVectorsToChangedSessions: body.
-							ScopeVectorsToChangedSessions,
-						LastReconciledVectorGeneration: body.
-							LastReconciledVectorGeneration,
-					}, onProgress)
-					return err
-				},
-			)
-			return result, err
-		})
-	}}, nil
-}
 
 func (s *Server) humaMirrorPush(
 	ctx context.Context,

@@ -1,13 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"github.com/danielgtaylor/huma/v2"
-	"github.com/danielgtaylor/huma/v2/adapters/humago"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,76 +58,6 @@ func (stubVectorPushSource) BeginExport(
 // TestPGPushProgressLoggerThrottlesAndReportsPhases pins the daemon-side
 // push heartbeat: reports inside the throttle window log nothing, and the
 // vector phase logs its own counters instead of the session line.
-func TestPGPushProgressLoggerThrottlesAndReportsPhases(t *testing.T) {
-	origInterval := pushProgressLogInterval
-	pushProgressLogInterval = time.Hour
-	t.Cleanup(func() { pushProgressLogInterval = origInterval })
-
-	var buf bytes.Buffer
-	origOut := log.Writer()
-	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(origOut) })
-
-	logProgress := newReplicaPushProgressLogger("clickhouse")
-	logProgress(storage.PushProgress{SessionsDone: 1, SessionsTotal: 10, MessagesDone: 5})
-	logProgress(storage.PushProgress{SessionsDone: 2, SessionsTotal: 10, MessagesDone: 9})
-	assert.Contains(t, buf.String(), "clickhouse push: 1/10 session(s), 5 messages")
-	assert.NotContains(t, buf.String(), "2/10",
-		"second report inside the throttle window must not log")
-
-	pushProgressLogInterval = 0
-	logProgress(storage.PushProgress{
-		Phase:               "vectors",
-		VectorSessionsDone:  3,
-		VectorSessionsTotal: 7,
-		VectorChunksPushed:  42,
-	})
-	assert.Contains(t, buf.String(),
-		"clickhouse push: vectors 3/7 session(s) scanned, 42 chunks")
-
-	logProgress(storage.PushProgress{
-		Phase:         "preparing",
-		SessionsDone:  500,
-		SessionsTotal: 46000,
-	})
-	assert.Contains(t, buf.String(), "clickhouse push: preparing 500/46000 session(s)")
-
-	logProgress(storage.PushProgress{Phase: "preparing"})
-	assert.Contains(t, buf.String(),
-		"clickhouse push: preparing (sync state, metadata, fingerprints)",
-		"zero-total preparing report renders the setup-stage line")
-}
-
-func TestPGPushVectorSourceGating(t *testing.T) {
-	tests := []struct {
-		name      string
-		wired     bool
-		optOut    bool
-		noVectors bool
-		wantSrc   bool
-	}{
-		{name: "wired and enabled", wired: true, wantSrc: true},
-		{name: "no source wired", wired: false, wantSrc: false},
-		{name: "target opts out", wired: true, optOut: true, wantSrc: false},
-		{name: "caller passed --no-vectors", wired: true, noVectors: true, wantSrc: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := &Server{}
-			if tt.wired {
-				s.vectorPushSource = stubVectorPushSource{}
-			}
-			got := s.replicaPushVectorSource(
-				storage.ReplicaTarget{PushVectors: !tt.optOut}, tt.noVectors,
-			)
-			if tt.wantSrc {
-				assert.NotNil(t, got)
-			} else {
-				assert.Nil(t, got)
-			}
-		})
-	}
-}
 
 type openAPISpec struct {
 	Paths map[string]map[string]openAPIOperation `json:"paths"`
@@ -335,15 +264,6 @@ func TestDuckDBPushSyncOptionsPassesThroughProjectFilters(t *testing.T) {
 
 	assert.Equal(t, []string{"alpha"}, got.Projects)
 	assert.Equal(t, []string{"beta"}, got.ExcludeProjects)
-}
-
-func TestSyncClaudeAIRouteIsSSEOnly(t *testing.T) {
-	s := testServer(t, 30)
-	spec := readOpenAPISpec(t, s.Handler())
-	op := requireOpenAPIOperation(t, spec, "post", "/api/v1/import/claude-ai/sync")
-	require.Contains(t, op.Responses, "200")
-	assert.Len(t, op.Responses["200"].Content, 1)
-	assert.Contains(t, op.Responses["200"].Content, "text/event-stream")
 }
 
 func TestSyncRemotesRouteIsStreaming(t *testing.T) {

@@ -26,19 +26,6 @@ type daemonPushOperation func(
 // replicaPushOperations maps a replica's Name() to its generated daemon push
 // operation. Adding a replica means regenerating the API client and adding
 // its entry here.
-var replicaPushOperations = map[string]daemonPushOperation{}
-
-func replicaPushOperation(name string) (daemonPushOperation, error) {
-	operation, ok := replicaPushOperations[name]
-	if !ok {
-		return nil, fmt.Errorf(
-			"replica backend %q has no daemon push operation; "+
-				"regenerate the API client and register it in replicaPushOperations",
-			name,
-		)
-	}
-	return operation, nil
-}
 
 func mirrorPushOperation(
 	ctx context.Context, api *apiclient.Client, body *apiclient.DaemonPushRequest,

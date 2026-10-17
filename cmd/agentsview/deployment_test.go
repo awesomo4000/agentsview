@@ -126,7 +126,7 @@ func TestDeploymentArgsIgnoredWithoutMode(t *testing.T) {
 	}
 }
 
-func TestValidateServeConfigDeploymentHostRequiresAuth(t *testing.T) {
+func TestValidateServeConfigRejectsDeploymentHost(t *testing.T) {
 	t.Run("env host without auth", func(t *testing.T) {
 		isolateDeploymentEnv(t)
 		t.Setenv("AGENTSVIEW_MODE", "serve")
@@ -135,7 +135,7 @@ func TestValidateServeConfigDeploymentHostRequiresAuth(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, cfg.HostExplicit)
 		err = validateServeConfig(cfg)
-		require.ErrorContains(t, err, "AGENTSVIEW_REQUIRE_AUTH=true")
+		require.ErrorContains(t, err, "loopback")
 		assert.Contains(t, err.Error(), "192.0.2.10")
 	})
 
@@ -146,7 +146,7 @@ func TestValidateServeConfigDeploymentHostRequiresAuth(t *testing.T) {
 		t.Setenv("AGENTSVIEW_REQUIRE_AUTH", "true")
 		cfg, err := config.LoadPFlags(parseCommand(t, []string{"serve"}).Flags())
 		require.NoError(t, err)
-		require.NoError(t, validateServeConfig(cfg))
+		require.ErrorContains(t, validateServeConfig(cfg), "loopback")
 	})
 
 	t.Run("explicit host flag", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestValidateServeConfigDeploymentHostRequiresAuth(t *testing.T) {
 			parseCommand(t, []string{"serve", "--host", "192.0.2.10"}).Flags())
 		require.NoError(t, err)
 		assert.True(t, cfg.HostExplicit)
-		require.NoError(t, validateServeConfig(cfg))
+		require.ErrorContains(t, validateServeConfig(cfg), "loopback")
 	})
 }
 

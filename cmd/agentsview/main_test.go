@@ -392,12 +392,6 @@ func TestServeStaleArchiveHelperProcess(t *testing.T) {
 	runServe(t.Context(), cfg, serveOptions{SkipInitialSync: true}, 0)
 }
 
-func TestPGServeRuntimeRecordWriteFailureWarnsVisible(t *testing.T) {
-	out, err := runPGRuntimeWarningHelper(t)
-	require.NoError(t, err, string(out))
-	assert.Contains(t, string(out), "could not write daemon runtime record")
-}
-
 func runServeRuntimeWarningHelper(
 	t *testing.T, failWrite bool,
 ) ([]byte, error) {
@@ -573,19 +567,6 @@ func TestRunServeRuntimeWarningHelperProcess(t *testing.T) {
 	runServe(t.Context(), cfg, serveOptions{}, 0)
 }
 
-func runPGRuntimeWarningHelper(t *testing.T) ([]byte, error) {
-	t.Helper()
-	dataDir := t.TempDir()
-	return runRuntimeWarningHelperProcess(
-		t, "PostgreSQL", "TestRunPGRuntimeWarningHelperProcess",
-		[]string{
-			"AGENTSVIEW_RUN_PG_RUNTIME_WARNING_HELPER=1",
-			"AGENTSVIEW_DATA_DIR=" + dataDir,
-		},
-		"could not write daemon runtime record",
-	)
-}
-
 func TestMustLoadConfig(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -638,41 +619,6 @@ func TestMustLoadConfig(t *testing.T) {
 			assert.Equal(t, wantDBPath, cfg.DBPath)
 		})
 	}
-}
-
-func TestPrepareServeRuntimeConfigPortZeroUsesAssignedPort(t *testing.T) {
-	cfg := config.Config{
-		DataDir:   t.TempDir(),
-		Host:      "127.0.0.1",
-		Port:      0,
-		PublicURL: "http://viewer.example:0",
-	}
-
-	var err error
-	out := captureStdout(t, func() {
-		cfg, err = prepareServeRuntimeConfig(t.Context(),
-			cfg,
-			serveRuntimeOptions{
-				Mode:          "serve",
-				RequestedPort: 0,
-			},
-		)
-	})
-	require.NoError(t, err, "prepareServeRuntimeConfig")
-	assert.NotZero(t, cfg.Port, "Port remained literal 0")
-	assert.NotContains(t, out, "Port 0 in use",
-		"unexpected literal port 0 fallback message")
-	assert.Contains(t, out, "Using available port",
-		"missing ephemeral port message")
-	wantURL := fmt.Sprintf("http://viewer.example:%d", cfg.Port)
-	assert.Equal(t, wantURL, cfg.PublicURL)
-	require.True(t, writeReplicaServeRuntimeRecord("pg", &serveRuntime{
-		Cfg: cfg, PublicURL: browserURL(cfg),
-	}))
-	recordPath, err := runtimeStore(cfg.DataDir).Path(os.Getpid())
-	require.NoError(t, err)
-	rt := daemonRuntimeFromRecord(readRuntimeRecord(t, recordPath))
-	assert.Equal(t, wantURL, rt.BrowserURL)
 }
 
 func TestSetupLogFile(t *testing.T) {

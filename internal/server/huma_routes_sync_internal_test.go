@@ -2484,7 +2484,6 @@ func TestStartupRebuildWriteGate(t *testing.T) {
 		{http.MethodPost, "/api/v1/recall/import?dry_run=true", `{"candidate_id":"dry-run","type":"debugging_method","scope":"repository","title":"Check transcript","body":"Read the retained transcript.","project":"project","agent":"claude","session_id":"retained","label":"correct","transferable":true,"provenance_ok":true,"evidence":{"ordinal_start":0,"ordinal_end":1}}`, false, false, http.StatusOK, ""},
 		{http.MethodPatch, "/api/v1/sessions/retained/rename", `{"display_name":"renamed"}`, true, false, http.StatusServiceUnavailable, ""},
 		{http.MethodPost, "/api/v1/config/github", `{"token":" "}`, false, false, http.StatusBadRequest, "token required"},
-		{http.MethodPost, "/api/v1/sessions/retained/publish", `{}`, false, false, http.StatusUnauthorized, "GitHub token not configured"},
 		{http.MethodPost, "/api/v1/sessions/retained/resume", `{"command_only":true}`, false, false, http.StatusOK, "command"},
 		{http.MethodPost, "/api/v1/sessions/retained/open", `{}`, false, false, http.StatusBadRequest, "opener"},
 		{http.MethodPost, "/api/v1/settings/worktree-mappings/preview", `{"machine":"local","path_prefix":"/work","project":"new-project","enabled":true}`, false, false, http.StatusOK, ""},

@@ -3,6 +3,12 @@ title: Configuration
 description: Config file, default paths, and runtime settings
 ---
 
+> Fork status: this inherited reference still includes features removed from
+> the minimization fork. See [the removal checklist](../REMOVALS.md) for current
+> scope. Live account sync, Cursor Admin API, Gist publishing, Caddy/public
+> hosting, S3, PostgreSQL, ClickHouse, telemetry, and automatic updates are gone.
+
+
 ## Data Directory
 
 AgentsView stores all persistent data under a single directory, defaulting to
@@ -211,7 +217,7 @@ zoom_level = 120
 | `cursor_admin_api_key`              | Cursor Admin API key used by `agentsview usage cursor`                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `cursor_admin_email`                | Optional default Cursor Admin usage filter by member email                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `cursor_admin_user_id`              | Optional default Cursor Admin usage filter by member user ID                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `github_token`                      | Optional saved GitHub token for Gist publishing                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `github_token`                      | Optional saved GitHub token for project/PR metadata                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `result_content_blocked_categories` | Tool categories whose result content is not stored (default: `["Read", "Glob"]`). Changes apply to new ingestion and full rebuilds; see [storage maintenance](/docs/data/#storage-maintenance) for existing source-backed sessions.                                                                                                                                                                                                                                              |
 | `tool_result_images`                | Retain supported inline tool-result image blocks with `"keep"` (default), or store readable `agentsview_image` placeholders with `"drop"`, or move supported images to the local asset store with `"offload"`. The setting affects future ingestion and full resyncs; use `db migrate --images` to move existing images or `db strip --images` to remove them from stored results; also configurable under **Settings > Archive content**, and changes require a daemon restart. |
 | `archive_content`                   | How much of each session the archive stores: `"full"` (default), `"transcripts"`, or `"usage"`; changes require a daemon restart — see [Archive content](#archive-content)                                                                                                                                                                                                                                                                                                       |
@@ -238,15 +244,8 @@ zoom_level = 120
 | `[automated]`                       | Custom automated-session patterns — see [Automated Session Detection](#automated-session-detection)                                                                                                                                                                                                                                                                                                                                                                              |
 | `[custom_model_pricing]`            | Per-model price overrides for usage reports — see [Custom Model Pricing](/docs/token-usage/#custom-model-pricing)                                                                                                                                                                                                                                                                                                                                                                |
 
-The `cursor_secret` is generated automatically on first run. For Gist
-publishing, AgentsView first uses a saved `github_token`. For local browser
-requests, if no token is saved, it then tries `AGENTSVIEW_GITHUB_TOKEN` and then
-`gh auth token` from the GitHub CLI. Local users usually only need to run
-`gh auth login`. For remote or proxied access, save a `github_token` via the web
-UI Settings page or the API endpoint `POST /api/v1/config/github` when you want
-AgentsView to publish gists. Remote access fields can be configured via the
-Settings page or CLI flags — see [Remote Access](/docs/remote-access/) for
-details.
+The `cursor_secret` signs pagination cursors and is generated on first run.
+GitHub tokens remain available for project/PR metadata lookups.
 
 `agentsview daemon start` and `agentsview daemon restart` load the normal
 effective configuration from this file and supported environment variables; they
@@ -438,33 +437,6 @@ daemon_idle_timeout = "0s"
 Supervised daemons run under systemd, launchd, Docker, or a foreground shell do
 not create the detached-daemon idle tracker, so they do not idle-exit regardless
 of this setting.
-
-## Cursor Admin Usage API
-
-`agentsview usage cursor` imports Cursor Admin API usage events into the local
-archive so Cursor's billed usage can appear in the Usage dashboard and
-`agentsview usage daily` reports. Set the API key in
-`~/.agentsview/config.toml`:
-
-```toml
-cursor_admin_api_key = "key_xxxxx"
-cursor_admin_email = "you@example.com" # optional
-cursor_admin_user_id = "152683922"     # optional
-```
-
-Environment variables take precedence over the config file:
-
-```bash
-export AGENTSVIEW_CURSOR_ADMIN_API_KEY=key_xxxxx
-export AGENTSVIEW_CURSOR_ADMIN_EMAIL=you@example.com
-export AGENTSVIEW_CURSOR_ADMIN_USER_ID=152683922
-```
-
-The legacy unprefixed names `CURSOR_ADMIN_API_KEY`, `CURSOR_ADMIN_EMAIL`, and
-`CURSOR_ADMIN_USER_ID` are also accepted when the matching `AGENTSVIEW_`
-variable is unset. The email and user ID values are default filters; pass
-`--email` or `--user-id` to `agentsview usage cursor` to override them for one
-import.
 
 ## Session Discovery
 

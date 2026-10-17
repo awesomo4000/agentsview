@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json/v2"
 	"errors"
 	"html/template"
 	"net/http"
@@ -1242,126 +1241,6 @@ func TestExportTemplateAccentColors(t *testing.T) {
 }
 
 // --- GitHub API mock tests ---
-
-func TestCreateGist(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		respStatus int
-		respBody   string
-		cancelCtx  bool
-		wantErr    string
-		wantID     string
-		wantURL    string
-		wantLogin  string
-	}{
-		{
-			name:       "Success",
-			respStatus: http.StatusCreated,
-			respBody:   `{"id":"abc123","html_url":"https://gist.github.com/abc123","owner":{"login":"testuser"}}`,
-			wantID:     "abc123",
-			wantURL:    "https://gist.github.com/abc123",
-			wantLogin:  "testuser",
-		},
-		{
-			name:       "APIError",
-			respStatus: http.StatusUnprocessableEntity,
-			respBody:   `{"message":"Validation Failed"}`,
-			wantErr:    "422",
-		},
-		{
-			name:       "MalformedJSON",
-			respStatus: http.StatusOK,
-			respBody:   "not json",
-			wantErr:    "parsing",
-		},
-		{
-			name:       "MissingFields",
-			respStatus: http.StatusCreated,
-			respBody:   `{}`,
-		},
-		{
-			name:       "ContextCancelled",
-			respStatus: http.StatusOK,
-			respBody:   "",
-			cancelCtx:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ts := stubServer(t, http.MethodPost, "tok", tt.respStatus, tt.respBody)
-			defer ts.Close()
-
-			ctx := t.Context()
-			if tt.cancelCtx {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithCancel(ctx)
-				cancel()
-			}
-
-			got, err := createGistWithURL(
-				ctx, ts.URL, "tok", "f.html", "desc", "content", true,
-			)
-
-			if tt.cancelCtx {
-				assertContextCancelled(t, err)
-				return
-			}
-
-			if tt.wantErr != "" {
-				assertErrorContains(t, err, tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
-
-			assert.Equal(t, tt.wantID, got.ID)
-			assert.Equal(t, tt.wantURL, got.HTMLURL)
-			assert.Equal(t, tt.wantLogin, got.Owner.Login)
-		})
-	}
-}
-
-func TestCreateGistVisibility(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		public bool
-	}{
-		{name: "Public", public: true},
-		{name: "Secret", public: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var payload struct {
-				Public bool `json:"public"`
-			}
-			ts := httptest.NewServer(http.HandlerFunc(
-				func(w http.ResponseWriter, r *http.Request) {
-					assert.NoError(t,
-						json.UnmarshalRead(r.Body, &payload))
-					w.WriteHeader(http.StatusCreated)
-					w.Write([]byte(`{"id":"abc123",` +
-						`"html_url":"https://gist.github.com/abc123",` +
-						`"owner":{"login":"testuser"}}`))
-				},
-			))
-			defer ts.Close()
-
-			_, err := createGistWithURL(
-				t.Context(), ts.URL,
-				"tok", "f.html", "desc", "content", tt.public,
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tt.public, payload.Public)
-		})
-	}
-}
 
 func TestResolveGitHubToken(t *testing.T) {
 	originalGhAuthTokenOutput := ghAuthTokenOutput

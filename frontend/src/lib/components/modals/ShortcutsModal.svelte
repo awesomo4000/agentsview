@@ -25,7 +25,6 @@
     { key: "r", action: m.shortcuts_trigger_sync() },
     { key: "s", action: m.shortcuts_star_session() },
     { key: "e", action: m.shortcuts_export_session() },
-    { key: "p", action: m.shortcuts_publish_gist() },
     { key: "c", action: m.shortcuts_copy_resume() },
     { key: deleteKey, action: m.shortcuts_delete_session() },
     { key: "?", action: m.shortcuts_show_modal() },

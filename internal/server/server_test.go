@@ -3546,16 +3546,6 @@ func TestMarkdownSessionExport_DepthAllRecurses(t *testing.T) {
 	assertBodyContains(t, w, `<subagent_session id="child-b" parent_session_id="child-a" relationship="subagent"`)
 }
 
-func TestPublishSession_NoToken(t *testing.T) {
-	t.Setenv("AGENTSVIEW_GITHUB_TOKEN", "")
-	t.Setenv("PATH", t.TempDir())
-	te := setup(t)
-	te.seedSession(t, "s1", "my-app", 3)
-
-	w := te.post(t, "/api/v1/sessions/s1/publish", "{}")
-	assertStatus(t, w, http.StatusUnauthorized)
-}
-
 func TestGetGithubConfig_UsesGitHubCLIAuthTokenFallback(t *testing.T) {
 	useGitHubCLIAuthTokenStub(t)
 	te := setup(t)
@@ -4071,22 +4061,6 @@ func TestSettingsRemainWritableInLocalNoSyncMode(t *testing.T) {
 	assert.False(t, resp.ReadOnly)
 }
 
-func TestPublishSession_DoesNotUseGitHubCLIAuthTokenFallbackForForwardedRequest(t *testing.T) {
-	useGitHubCLIAuthTokenStub(t)
-	te := setup(t)
-	te.seedSession(t, "s1", "my-app", 3)
-
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/sessions/s1/publish",
-		strings.NewReader("{}"))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Origin", "http://127.0.0.1:0")
-	req.Header.Set("X-Forwarded-For", "203.0.113.10")
-	w := httptest.NewRecorder()
-	te.handler.ServeHTTP(w, req)
-
-	assertStatus(t, w, http.StatusUnauthorized)
-}
-
 func useGitHubCLIAuthTokenStub(t *testing.T) {
 	t.Helper()
 	t.Setenv("AGENTSVIEW_GITHUB_TOKEN", "")
@@ -4131,15 +4105,6 @@ func TestSetGithubConfig_InvalidInput(t *testing.T) {
 			assertStatus(t, w, http.StatusBadRequest)
 		})
 	}
-}
-
-func TestPublishSession_NotFound(t *testing.T) {
-	te := setup(t)
-	te.srv.SetGithubToken("fake-token")
-
-	w := te.post(t,
-		"/api/v1/sessions/nonexistent/publish", "{}")
-	assertStatus(t, w, http.StatusNotFound)
 }
 
 func TestExportSession_HTMLContent(t *testing.T) {

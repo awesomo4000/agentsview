@@ -24,7 +24,7 @@ identity. Any later migration must preserve existing attribution.
 - [x] Remove scheduled pricing refresh and online catalog fetchers.
 - [ ] Replace the embedded third-party pricing catalog with supplied local rates.
 - [x] Remove the build's pricing-snapshot download dependency.
-- [ ] Bundle fonts locally and remove Google Fonts requests.
+- [x] Bundle fonts locally and remove Google Fonts requests.
 - [ ] Audit other UI resources and webview navigation for external requests.
 
 ## Remote services and transports
@@ -43,7 +43,7 @@ identity. Any later migration must preserve existing attribution.
       Preserve the SQLite conversation-export interface.
 - [x] Remove hosted raw PostgreSQL provisioning, serving, and reparse entry points.
       Raw protocol/client packages remain pending the remote-sync removal.
-- [ ] Remove reverse-proxy/Caddy management and public-listener configuration.
+- [x] Remove reverse-proxy/Caddy management and public-listener configuration.
 
 Local discovery, file watching, incremental import, reconciliation, and SQLite
 writes are retained. Upstream calls much of this "sync"; do not delete it along
@@ -51,9 +51,12 @@ with remote sync.
 
 ## Imports, publishing, and model clients
 
-- [ ] Remove Claude.ai and Cursor web imports and browser relay plumbing.
-- [ ] Remove Cursor Admin API integration.
-- [ ] Remove GitHub Gist publishing and related UI actions.
+- [x] Remove live Claude.ai account sync and browser relay/authentication plumbing.
+      Retain local Claude.ai, ChatGPT, and Gemini archive file imports.
+- [x] Remove unused remote SQL replica orchestration and vector-push adapters.
+      Keep DuckDB push/watch and local vector build/search.
+- [x] Remove Cursor Admin API integration.
+- [x] Remove GitHub Gist publishing and related UI actions.
 - [ ] Review model clients for compatibility with approved internal models;
       retain pending that decision.
 - [ ] Evaluate internal embedding support; retain SQLite vectors and semantic
@@ -76,6 +79,10 @@ exports. Do not invoke a summarizer or choose a service as part of these cuts.
       CSRF protection according to the requirements.
 - [ ] Remove parser mount-command execution and unrelated subprocess launchers.
 - [ ] Audit and confine scratch files and persistent state to app-owned paths.
+
+The UI listener now rejects non-loopback hosts. Remote connection settings
+remain for the deferred SSH/HTTP review. Legacy Caddy process metadata and
+identity-checked stop cleanup remain for compatibility; Caddy cannot be launched.
 
 Keep the localhost listener and the desktop backend launch. A blanket ban on
 networking packages or subprocess symbols does not fit the retained UI.

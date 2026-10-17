@@ -822,9 +822,6 @@ type Config struct {
 	WatchExcludePatterns []string               `json:"watch_exclude_patterns,omitempty" toml:"watch_exclude_patterns"`
 	DisabledAgents       []parser.AgentType     `json:"disabled_agents,omitempty" toml:"disabled_agents"`
 	CursorSecret         string                 `json:"cursor_secret" toml:"cursor_secret"`
-	CursorAdminAPIKey    string                 `json:"cursor_admin_api_key,omitempty" toml:"cursor_admin_api_key"`
-	CursorAdminEmail     string                 `json:"cursor_admin_email,omitempty" toml:"cursor_admin_email"`
-	CursorAdminUserID    string                 `json:"cursor_admin_user_id,omitempty" toml:"cursor_admin_user_id"`
 	GithubToken          string                 `json:"github_token,omitempty" toml:"github_token"`
 	Terminal             TerminalConfig         `json:"terminal,omitempty" toml:"terminal"`
 	AuthToken            string                 `json:"auth_token,omitempty" toml:"auth_token"`
@@ -1476,6 +1473,11 @@ func (c *Config) loadFileReadOnly() error {
 }
 
 func (c *Config) loadFileWithMigration(migrate bool) error {
+	for _, key := range []string{"AGENTSVIEW_CURSOR_ADMIN_API_KEY", "AGENTSVIEW_CURSOR_ADMIN_EMAIL", "AGENTSVIEW_CURSOR_ADMIN_USER_ID", "CURSOR_ADMIN_API_KEY", "CURSOR_ADMIN_EMAIL", "CURSOR_ADMIN_USER_ID"} {
+		if os.Getenv(key) != "" {
+			return fmt.Errorf("%s: Cursor Admin API is not supported in this fork", key)
+		}
+	}
 	for _, name := range []string{"AGENTSVIEW_CLICKHOUSE_URL", "AGENTSVIEW_CLICKHOUSE_DATABASE", "AGENTSVIEW_CLICKHOUSE_MACHINE"} {
 		if os.Getenv(name) != "" {
 			return fmt.Errorf("%s: ClickHouse is not supported in this fork", name)
@@ -1602,9 +1604,6 @@ func (c *Config) applyConfigTOML(data string) error {
 		LocalMachineName               *string                `toml:"local_machine_name"`
 		GithubToken                    string                 `toml:"github_token"`
 		CursorSecret                   string                 `toml:"cursor_secret"`
-		CursorAdminAPIKey              string                 `toml:"cursor_admin_api_key"`
-		CursorAdminEmail               string                 `toml:"cursor_admin_email"`
-		CursorAdminUserID              string                 `toml:"cursor_admin_user_id"`
 		Host                           string                 `toml:"host"`
 		Port                           int                    `toml:"port"`
 		ChartPalette                   ChartPalette           `toml:"chart_palette"`
@@ -1671,15 +1670,7 @@ func (c *Config) applyConfigTOML(data string) error {
 		}
 		c.LocalMachineName = name
 	}
-	if file.CursorAdminAPIKey != "" && c.CursorAdminAPIKey == "" {
-		c.CursorAdminAPIKey = file.CursorAdminAPIKey
-	}
-	if file.CursorAdminEmail != "" && c.CursorAdminEmail == "" {
-		c.CursorAdminEmail = file.CursorAdminEmail
-	}
-	if file.CursorAdminUserID != "" && c.CursorAdminUserID == "" {
-		c.CursorAdminUserID = file.CursorAdminUserID
-	}
+
 	if file.Host != "" {
 		c.Host = file.Host
 	}
@@ -1750,6 +1741,16 @@ func (c *Config) applyConfigTOML(data string) error {
 	}
 	if meta.IsDefined("default_pg") || meta.IsDefined("pg") {
 		return errors.New("PostgreSQL configuration is not supported in this fork")
+	}
+	for _, key := range []string{"cursor_admin_api_key", "cursor_admin_email", "cursor_admin_user_id"} {
+		if meta.IsDefined(key) {
+			return fmt.Errorf("%s: Cursor Admin API is not supported in this fork", key)
+		}
+	}
+	for _, key := range []string{"proxy", "public_url", "public_origins"} {
+		if meta.IsDefined(key) {
+			return fmt.Errorf("%s: public hosting configuration is not supported in this fork", key)
+		}
 	}
 	if meta.IsDefined("clickhouse") || meta.IsDefined("default_clickhouse") {
 		return errors.New("ClickHouse configuration is not supported in this fork")
@@ -2069,24 +2070,6 @@ func (c *Config) loadEnv() {
 		c.AuthToken = v
 	}
 
-	if v := firstEnv(
-		"AGENTSVIEW_CURSOR_ADMIN_API_KEY",
-		"CURSOR_ADMIN_API_KEY",
-	); v != "" {
-		c.CursorAdminAPIKey = v
-	}
-	if v := firstEnv(
-		"AGENTSVIEW_CURSOR_ADMIN_EMAIL",
-		"CURSOR_ADMIN_EMAIL",
-	); v != "" {
-		c.CursorAdminEmail = v
-	}
-	if v := firstEnv(
-		"AGENTSVIEW_CURSOR_ADMIN_USER_ID",
-		"CURSOR_ADMIN_USER_ID",
-	); v != "" {
-		c.CursorAdminUserID = v
-	}
 	if v := os.Getenv("AGENTSVIEW_DUCKDB_PATH"); v != "" {
 		c.DuckDB.Path = v
 	}
@@ -2156,44 +2139,6 @@ func (f *stringListFlag) Type() string {
 func RegisterServeFlags(fs *flag.FlagSet) {
 	fs.String("host", "127.0.0.1", "Interface/IP for the backend HTTP server to bind")
 	fs.Int("port", 8080, "Backend HTTP port; an explicit nonzero port must be available (0 selects an available port)")
-	fs.String(
-		"public-url", "",
-		"Browser URL, also added to trusted origins; does not bind a listener",
-	)
-	fs.Var(
-		&stringListFlag{},
-		"public-origin",
-		"Trusted origin for Host/Origin checks; does not change the browser URL (repeatable or comma-separated)",
-	)
-	fs.String(
-		"proxy", "",
-		"Managed reverse proxy mode (currently: caddy)",
-	)
-	fs.String(
-		"caddy-bin", "",
-		"Caddy binary to use when -proxy=caddy (default: caddy)",
-	)
-	fs.String(
-		"proxy-bind-host", "",
-		"Local interface/IP for managed Caddy to bind (default: 127.0.0.1)",
-	)
-	fs.Int(
-		"public-port", 0,
-		"Managed Caddy HTTP/HTTPS listener port; also sets the public URL port (default: URL port or 8443)",
-	)
-	fs.String(
-		"tls-cert", "",
-		"TLS certificate path for managed Caddy HTTPS mode",
-	)
-	fs.String(
-		"tls-key", "",
-		"TLS key path for managed Caddy HTTPS mode",
-	)
-	fs.Var(
-		&stringListFlag{},
-		"allowed-subnet",
-		"Client CIDR allowed to connect to the managed proxy (repeatable or comma-separated)",
-	)
 	fs.Bool(
 		"no-browser", false,
 		"Don't open browser on startup",
@@ -2220,44 +2165,6 @@ func RegisterServeFlags(fs *flag.FlagSet) {
 func RegisterServePFlags(fs *pflag.FlagSet) {
 	fs.String("host", "127.0.0.1", "Interface/IP for the backend HTTP server to bind")
 	fs.Int("port", 8080, "Backend HTTP port; an explicit nonzero port must be available (0 selects an available port)")
-	fs.String(
-		"public-url", "",
-		"Browser URL, also added to trusted origins; does not bind a listener",
-	)
-	fs.Var(
-		&stringListFlag{},
-		"public-origin",
-		"Trusted origin for Host/Origin checks; does not change the browser URL (repeatable or comma-separated)",
-	)
-	fs.String(
-		"proxy", "",
-		"Managed reverse proxy mode (currently: caddy)",
-	)
-	fs.String(
-		"caddy-bin", "",
-		"Caddy binary to use when -proxy=caddy (default: caddy)",
-	)
-	fs.String(
-		"proxy-bind-host", "",
-		"Local interface/IP for managed Caddy to bind (default: 127.0.0.1)",
-	)
-	fs.Int(
-		"public-port", 0,
-		"Managed Caddy HTTP/HTTPS listener port; also sets the public URL port (default: URL port or 8443)",
-	)
-	fs.String(
-		"tls-cert", "",
-		"TLS certificate path for managed Caddy HTTPS mode",
-	)
-	fs.String(
-		"tls-key", "",
-		"TLS key path for managed Caddy HTTPS mode",
-	)
-	fs.Var(
-		&stringListFlag{},
-		"allowed-subnet",
-		"Client CIDR allowed to connect to the managed proxy (repeatable or comma-separated)",
-	)
 	fs.Bool(
 		"no-browser", false,
 		"Don't open browser on startup",
@@ -2359,7 +2266,6 @@ func splitFlagList(value string) []string {
 }
 
 func finalize(cfg *Config) error {
-	var err error
 	if err := expandLocalPaths(cfg); err != nil {
 		return err
 	}
@@ -2369,24 +2275,8 @@ func finalize(cfg *Config) error {
 	if err := cfg.resolveSessionSources(); err != nil {
 		return err
 	}
-	if err := normalizeProxyConfig(&cfg.Proxy); err != nil {
-		return err
-	}
-	cfg.PublicURL, err = resolvePublicURL(cfg.PublicURL, cfg.Proxy)
-	if err != nil {
-		return fmt.Errorf("invalid public url: %w", err)
-	}
-	cfg.PublicOrigins, err = normalizePublicOrigins(cfg.PublicOrigins)
-	if err != nil {
-		return fmt.Errorf("invalid public origins: %w", err)
-	}
-	if cfg.PublicURL != "" {
-		cfg.PublicOrigins, err = normalizePublicOrigins(
-			append(cfg.PublicOrigins, cfg.PublicURL),
-		)
-		if err != nil {
-			return fmt.Errorf("invalid public url: %w", err)
-		}
+	if cfg.PublicURL != "" || len(cfg.PublicOrigins) > 0 || !reflect.DeepEqual(cfg.Proxy, ProxyConfig{}) {
+		return errors.New("public hosting configuration is not supported in this fork")
 	}
 	if cfg.DaemonIdleTimeout < 0 {
 		return fmt.Errorf("invalid daemon_idle_timeout: %s", cfg.DaemonIdleTimeout)
@@ -2654,68 +2544,6 @@ func normalizeSessionSourceDir(raw string) (string, error) {
 	return expanded, nil
 }
 
-func resolvePublicURL(value string, proxyCfg ProxyConfig) (string, error) {
-	if strings.TrimSpace(value) == "" {
-		return "", nil
-	}
-	u, err := url.Parse(strings.TrimSpace(value))
-	if err != nil {
-		return "", err
-	}
-	if u == nil || u.Host == "" {
-		return "", fmt.Errorf("%q must include a host", value)
-	}
-	if ip := net.ParseIP(u.Hostname()); ip != nil && ip.IsUnspecified() {
-		return "", fmt.Errorf(
-			"%q uses a wildcard bind address; use a hostname or IP reachable by the browser for public_url, and set --host or --proxy-bind-host to choose the listening interface",
-			value,
-		)
-	}
-	if u.User != nil {
-		return "", fmt.Errorf("%q must not include user info", value)
-	}
-	if u.RawQuery != "" || u.Fragment != "" {
-		return "", fmt.Errorf("%q must not include query or fragment", value)
-	}
-	if u.Path != "" && u.Path != "/" {
-		return "", fmt.Errorf("%q must not include a path", value)
-	}
-	if proxyCfg.Mode != "caddy" {
-		return normalizePublicOrigin(value)
-	}
-
-	scheme := strings.ToLower(u.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return "", fmt.Errorf("%q must use http or https", value)
-	}
-	resolvedPort := proxyCfg.PublicPort
-	if resolvedPort == 0 {
-		resolvedPort = 8443
-	}
-	if rawPort := u.Port(); rawPort != "" {
-		explicitPort, err := strconv.Atoi(rawPort)
-		if err != nil || explicitPort < 1 || explicitPort > 65535 {
-			return "", fmt.Errorf("%q has an invalid port", value)
-		}
-		if proxyCfg.PublicPort != 0 && explicitPort != proxyCfg.PublicPort {
-			return "", fmt.Errorf(
-				"%q conflicts with configured public port %d",
-				value, proxyCfg.PublicPort,
-			)
-		}
-		resolvedPort = explicitPort
-	}
-
-	host := strings.ToLower(u.Hostname())
-	if host == "" {
-		return "", fmt.Errorf("%q must include a host", value)
-	}
-	if resolvedPort == defaultPortForScheme(scheme) {
-		return scheme + "://" + hostLiteral(host), nil
-	}
-	return scheme + "://" + net.JoinHostPort(host, strconv.Itoa(resolvedPort)), nil
-}
-
 func normalizePublicOrigins(origins []string) ([]string, error) {
 	if len(origins) == 0 {
 		return nil, nil
@@ -2785,36 +2613,6 @@ func normalizePublicOrigin(origin string) (string, error) {
 		return scheme + "://" + hostLiteral(host), nil
 	}
 	return scheme + "://" + net.JoinHostPort(host, port), nil
-}
-
-func normalizeProxyConfig(cfg *ProxyConfig) error {
-	if cfg == nil {
-		return nil
-	}
-	cfg.Mode = strings.ToLower(strings.TrimSpace(cfg.Mode))
-	switch cfg.Mode {
-	case "", "caddy":
-	default:
-		return fmt.Errorf("invalid proxy mode %q", cfg.Mode)
-	}
-	if cfg.Mode == "caddy" && strings.TrimSpace(cfg.Bin) == "" {
-		cfg.Bin = "caddy"
-	}
-	if cfg.Mode == "caddy" {
-		cfg.BindHost = strings.TrimSpace(cfg.BindHost)
-		if cfg.BindHost == "" {
-			cfg.BindHost = "127.0.0.1"
-		}
-		if cfg.PublicPort < 0 || cfg.PublicPort > 65535 {
-			return fmt.Errorf("invalid public port %d", cfg.PublicPort)
-		}
-	}
-	var err error
-	cfg.AllowedSubnets, err = normalizeAllowedSubnets(cfg.AllowedSubnets)
-	if err != nil {
-		return fmt.Errorf("invalid allowed subnets: %w", err)
-	}
-	return nil
 }
 
 func normalizeAllowedSubnets(subnets []string) ([]string, error) {

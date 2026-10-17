@@ -1,7 +1,7 @@
 # Local AgentsView fork requirements
 
-Status: approved direction, implementation pending.
-Updated: 10/16/2026.
+Status: approved direction, implementation in progress.
+Updated: 10/17/2026.
 Working name: `avlocal`.
 Upstream: `kenn-io/agentsview`, commit
 `a22d9d1e33006b157746043e84ca5da0b75bcb48`.
@@ -194,3 +194,15 @@ vault removal; docbank and PostHog are no longer in the manifests.
 
 Validation results and the next removal targets are tracked in
 [MINIMIZATION.md](../MINIMIZATION.md).
+
+## Current minimization checkpoint
+
+Live Claude.ai account sync, browser authentication/relay, Cursor Admin API,
+Gist publishing, managed Caddy/public hosting, and unused remote SQL replica
+adapters are removed. File-based chat archive import, local exports, harness
+parsers, SQLite storage, the UI, DuckDB, local vectors, MCP, and SSH/HTTP sync
+remain. Fonts are bundled locally. The UI listener requires loopback.
+
+The fixed port and stricter collision policy remain pending; this checkpoint
+still uses the inherited default port. See REMOVALS.md and MINIMIZATION.md in
+the repository root for the implementation checklist and measured results.

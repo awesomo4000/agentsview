@@ -169,15 +169,7 @@
     }
   }
 
-  function openInsightPublish(secret: boolean) {
-    if (!insights.selectedItem) return;
-    ui.publishSecret = secret;
-    ui.setPublishTarget({
-      kind: "insight",
-      id: insights.selectedItem.id,
-    });
-    ui.activeModal = "publish";
-  }
+
 
   function deleteSelectedInsight() {
     if (!insights.selectedItem) return;
@@ -480,17 +472,8 @@
                   label={m.recall_generated_export()}
                   onclick={handleInsightExport}
                 />
-                <Button
-                  size="sm"
-                  label={m.recall_generated_publish()}
-                  onclick={() => openInsightPublish(false)}
-                />
-                <Button
-                  size="sm"
-                  surface="outline"
-                  label={m.recall_generated_publish_secret()}
-                  onclick={() => openInsightPublish(true)}
-                />
+
+
                 <CopyButton
                   copied={copiedInsightLinkId === insights.selectedItem.id}
                   ariaLabel={m.insights_page_copy_link()}

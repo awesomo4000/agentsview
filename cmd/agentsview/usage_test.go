@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -22,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/thlib/go-timezone-local/tzlocal"
 	"go.kenn.io/agentsview/internal/config"
-	"go.kenn.io/agentsview/internal/cursorusage"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/dbtest"
 	"go.kenn.io/agentsview/internal/export"
@@ -30,7 +28,6 @@ import (
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/parsertest"
 	"go.kenn.io/agentsview/internal/pricingrefresh"
-	"go.kenn.io/agentsview/internal/timeutil"
 )
 
 var goldenFixtureNow = time.Date(2026, 7, 3, 12, 0, 0, 0, time.UTC)
@@ -699,22 +696,6 @@ func TestRunUsageStatuslineDefaultsToMappedLocalTimezone(t *testing.T) {
 		runUsageStatusline(UsageStatuslineConfig{JSON: true})
 	})
 	assert.Equal(t, "America/New_York", gotTimezone)
-}
-
-func TestCursorUsageWindowUsesMappedLocalTimezone(t *testing.T) {
-	t.Setenv("TZ", "America/New_York")
-	oldLocal := time.Local                                         //nolint:forbidigo // Exercise report formatting and date buckets in the local calendar timezone.
-	time.Local = time.FixedZone("Eastern Standard Time", -5*60*60) //nolint:forbidigo // Exercise report formatting and date buckets in the local calendar timezone.
-	t.Cleanup(func() { time.Local = oldLocal })                    //nolint:forbidigo // Exercise report formatting and date buckets in the local calendar timezone.
-
-	loc := timeutil.LocalLocation()
-	assert.Equal(t, "America/New_York", loc.String())
-	start, end, err := resolveCursorUsageWindow(UsageCursorConfig{
-		Since: "2026-03-08", Until: "2026-03-08",
-	}, loc)
-	require.NoError(t, err)
-	assert.Equal(t, time.Date(2026, 3, 8, 5, 0, 0, 0, time.UTC), start)
-	assert.Equal(t, time.Date(2026, 3, 9, 3, 59, 59, 999000000, time.UTC), end)
 }
 
 func TestFetchHTTPDailyUsageMissingProjectsDefaultsEmptyMap(t *testing.T) {
@@ -1481,282 +1462,6 @@ func TestFormatDailyUsageJSON(t *testing.T) {
 	for _, f := range totalFields {
 		assert.Contains(t, totals, f,
 			"missing field %q in totals", f)
-	}
-}
-
-func TestNewUsageCursorCommandUsesConfigFallbacksAndSharedPagination(t *testing.T) {
-	dataDir := t.TempDir()
-	t.Setenv("AGENTSVIEW_DATA_DIR", dataDir)
-	require.NoError(t, os.WriteFile(
-		filepath.Join(dataDir, "config.toml"),
-		[]byte(
-			"cursor_admin_api_key = 'config-key'\n"+
-				"cursor_admin_email = 'config@example.com'\n"+
-				"cursor_admin_user_id = '152683922'\n",
-		),
-		0o600,
-	), "write config")
-
-	var requests []map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !assert.Equal(t, "/teams/filtered-usage-events", r.URL.Path) {
-			return
-		}
-		if !assert.Equal(t, http.MethodPost, r.Method) {
-			return
-		}
-		user, pass, ok := r.BasicAuth()
-		if !assert.True(t, ok, "basic auth") {
-			return
-		}
-		assert.Equal(t, "config-key", user)
-		assert.Empty(t, pass)
-
-		var req map[string]any
-		if !assert.NoError(t, json.UnmarshalRead(r.Body, &req), "decode request") {
-			return
-		}
-		requests = append(requests, req)
-
-		page, _ := req["page"].(float64)
-		switch int(page) {
-		case 1:
-			_, _ = w.Write([]byte(`{
-				"totalUsageEventsCount": 2,
-				"usageEvents": [{
-					"timestamp": "1778753100000",
-					"model": "claude-4.6-opus-high-thinking",
-					"kind": "USAGE_EVENT_KIND_USAGE_BASED",
-					"tokenUsage": {
-						"inputTokens": 1234,
-						"outputTokens": 567,
-						"cacheWriteTokens": 12,
-						"cacheReadTokens": 34
-					},
-					"chargedCents": 15.66,
-					"cursorTokenFee": 3.32,
-					"userId": "152683922",
-					"userEmail": "config@example.com",
-					"isHeadless": false
-				}]
-			}`))
-		case 2:
-			_, _ = w.Write([]byte(`{
-				"totalUsageEventsCount": 2,
-				"usageEvents": [{
-					"timestamp": "2026-05-14T11:05:00Z",
-					"model": "gpt-5.4",
-					"kind": "USAGE_EVENT_KIND_USAGE_BASED",
-					"tokenUsage": {
-						"inputTokens": 1,
-						"outputTokens": 2,
-						"cacheWriteTokens": 3,
-						"cacheReadTokens": 4
-					},
-					"chargedCents": 1.5,
-					"cursorTokenFee": 0.5,
-					"userId": "152683922",
-					"userEmail": "config@example.com",
-					"isHeadless": true
-				}]
-			}`))
-		default:
-			http.Error(w, fmt.Sprintf("unexpected page request: %#v", req), http.StatusInternalServerError)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	origNewCursorUsageClient := newCursorUsageClient
-	newCursorUsageClient = func(apiKey string) *cursorusage.Client {
-		return cursorusage.NewClientWithBaseURL(server.URL, apiKey)
-	}
-	t.Cleanup(func() {
-		newCursorUsageClient = origNewCursorUsageClient
-	})
-
-	cmd := newUsageCursorCommand()
-	cmd.SetArgs([]string{
-		"--since", "2026-05-14",
-		"--until", "2026-05-14",
-		"--page-size", "1",
-	})
-	out := captureStdout(t, func() {
-		require.NoError(t, cmd.Execute(), "Execute")
-	})
-	assert.Contains(t, out, "Fetched 2 Cursor usage events into the archive")
-
-	require.Len(t, requests, 2, "request count")
-	for _, req := range requests {
-		assert.Equal(t, "config@example.com", req["email"])
-		assert.InDelta(t, float64(152683922), req["userId"], 0)
-		assert.InDelta(t, float64(1), req["pageSize"], 0)
-		assert.IsType(t, float64(0), req["startDate"])
-		assert.IsType(t, float64(0), req["endDate"])
-	}
-	assert.InDelta(t, float64(1), requests[0]["page"], 0)
-	assert.InDelta(t, float64(2), requests[1]["page"], 0)
-
-	database := dbtest.OpenTestDBAt(t, filepath.Join(dataDir, "sessions.db"))
-
-	var count int
-	require.NoError(t, database.Reader().QueryRow(cmd.Context(),
-		"SELECT count(*) FROM cursor_usage_events",
-	).Scan(&count))
-	assert.Equal(t, 2, count)
-
-	rows, err := database.Reader().Query(cmd.Context(),
-		`SELECT occurred_at, model, input_tokens, output_tokens,
-			cache_write_tokens, cache_read_tokens, user_email, is_headless
-		FROM cursor_usage_events
-		ORDER BY occurred_at ASC`,
-	)
-	require.NoError(t, err, "query cursor events")
-	defer rows.Close()
-
-	type storedEvent struct {
-		occurredAt       string
-		model            string
-		inputTokens      int
-		outputTokens     int
-		cacheWriteTokens int
-		cacheReadTokens  int
-		userEmail        string
-		isHeadless       int
-	}
-	var got []storedEvent
-	for rows.Next() {
-		var ev storedEvent
-		require.NoError(t, rows.Scan(
-			&ev.occurredAt,
-			&ev.model,
-			&ev.inputTokens,
-			&ev.outputTokens,
-			&ev.cacheWriteTokens,
-			&ev.cacheReadTokens,
-			&ev.userEmail,
-			&ev.isHeadless,
-		))
-		got = append(got, ev)
-	}
-	require.NoError(t, rows.Err(), "iterate cursor events")
-	require.Len(t, got, 2)
-	assert.Equal(t, "2026-05-14T10:05:00Z", got[0].occurredAt)
-	assert.Equal(t, "claude-4.6-opus-high-thinking", got[0].model)
-	assert.Equal(t, 1234, got[0].inputTokens)
-	assert.Equal(t, 567, got[0].outputTokens)
-	assert.Equal(t, 12, got[0].cacheWriteTokens)
-	assert.Equal(t, 34, got[0].cacheReadTokens)
-	assert.Equal(t, "config@example.com", got[0].userEmail)
-	assert.Equal(t, 0, got[0].isHeadless)
-	assert.Equal(t, "2026-05-14T11:05:00Z", got[1].occurredAt)
-	assert.Equal(t, 1, got[1].inputTokens)
-	assert.Equal(t, 2, got[1].outputTokens)
-	assert.Equal(t, 3, got[1].cacheWriteTokens)
-	assert.Equal(t, 4, got[1].cacheReadTokens)
-	assert.Equal(t, 1, got[1].isHeadless)
-}
-
-func TestResolveCursorUsageWindowUntilOnlyUsesDefaultLookback(t *testing.T) {
-	loc := time.UTC
-
-	start, end, err := resolveCursorUsageWindow(UsageCursorConfig{
-		Until: "2026-05-31",
-	}, loc)
-
-	require.NoError(t, err)
-	assert.Equal(t, time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC), start)
-	assert.Equal(t,
-		time.Date(2026, 5, 31, 23, 59, 59, int(999*time.Millisecond), time.UTC),
-		end,
-	)
-}
-
-func TestResolveCursorUsageWindowRejectsInvertedRange(t *testing.T) {
-	_, _, err := resolveCursorUsageWindow(UsageCursorConfig{
-		Since: "2026-06-01",
-		Until: "2026-05-31",
-	}, time.UTC)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "after until")
-}
-
-func TestNewUsageCursorCommandExplicitMemberFilterDoesNotReuseConfigSibling(t *testing.T) {
-	tests := []struct {
-		name      string
-		args      []string
-		wantEmail any
-		wantUser  any
-	}{
-		{
-			name:      "explicit email replaces both configured filters",
-			args:      []string{"--email", "other@example.com"},
-			wantEmail: "other@example.com",
-			wantUser:  nil,
-		},
-		{
-			name:      "explicit empty email clears both configured filters",
-			args:      []string{"--email="},
-			wantEmail: nil,
-			wantUser:  nil,
-		},
-		{
-			name:      "explicit user id replaces both configured filters",
-			args:      []string{"--user-id", "987654321"},
-			wantEmail: nil,
-			wantUser:  float64(987654321),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			dataDir := t.TempDir()
-			t.Setenv("AGENTSVIEW_DATA_DIR", dataDir)
-			require.NoError(t, os.WriteFile(
-				filepath.Join(dataDir, "config.toml"),
-				[]byte(
-					"cursor_admin_api_key = 'config-key'\n"+
-						"cursor_admin_email = 'config@example.com'\n"+
-						"cursor_admin_user_id = '152683922'\n",
-				),
-				0o600,
-			), "write config")
-
-			var request map[string]any
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if !assert.NoError(t, json.UnmarshalRead(r.Body, &request),
-					"decode request") {
-					return
-				}
-				_, _ = w.Write([]byte(`{
-					"totalUsageEventsCount": 0,
-					"usageEvents": []
-				}`))
-			}))
-			t.Cleanup(server.Close)
-
-			origNewCursorUsageClient := newCursorUsageClient
-			newCursorUsageClient = func(apiKey string) *cursorusage.Client {
-				return cursorusage.NewClientWithBaseURL(server.URL, apiKey)
-			}
-			t.Cleanup(func() {
-				newCursorUsageClient = origNewCursorUsageClient
-			})
-
-			args := []string{
-				"--since", "2026-05-14",
-				"--until", "2026-05-14",
-			}
-			args = append(args, tc.args...)
-
-			cmd := newUsageCursorCommand()
-			cmd.SetArgs(args)
-			require.NoError(t, cmd.Execute(), "Execute")
-
-			require.NotNil(t, request, "request")
-			assert.Equal(t, tc.wantEmail, request["email"])
-			assert.Equal(t, tc.wantUser, request["userId"])
-		})
 	}
 }
 

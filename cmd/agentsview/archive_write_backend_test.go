@@ -33,16 +33,16 @@ func TestDaemonPushHeartbeat(t *testing.T) {
 		t.Cleanup(func() { daemonPushHeartbeatInterval = orig })
 
 		var out syncBuffer
-		stop := startDaemonPushHeartbeatTo(&out, "PostgreSQL")
+		stop := startDaemonPushHeartbeatTo(&out, "DuckDB")
 		var stopOnce stdsync.Once
 		stopHeartbeat := func() { stopOnce.Do(stop) }
 		t.Cleanup(stopHeartbeat)
 		assert.Contains(t, out.String(),
-			"Pushing to PostgreSQL via the local daemon")
+			"Pushing to DuckDB via the local daemon")
 
 		synctest.Sleep(daemonPushHeartbeatInterval)
 		require.Contains(t, out.String(),
-			"still pushing to PostgreSQL via the daemon",
+			"still pushing to DuckDB via the daemon",
 			"heartbeat line must appear")
 
 		stopHeartbeat()
@@ -64,15 +64,17 @@ func TestDaemonPushProgressSilencesHeartbeat(t *testing.T) {
 			t.Cleanup(func() { daemonPushHeartbeatInterval = orig })
 
 			onProgress, finish := daemonPushProgress(
-				"PostgreSQL", newReplicaPushProgressPrinter(),
+				"DuckDB", func(p storage.MirrorPushProgress) {
+					fmt.Printf("Pushing... %d/%d sessions", p.SessionsDone, p.SessionsTotal)
+				},
 			)
-			onProgress(storage.PushProgress{SessionsDone: 1, SessionsTotal: 2})
+			onProgress(storage.MirrorPushProgress{SessionsDone: 1, SessionsTotal: 2})
 			synctest.Sleep(150 * time.Millisecond)
 			finish()
 		})
 	})
 
-	assert.Contains(t, out, "Pushing to PostgreSQL via the local daemon")
+	assert.Contains(t, out, "Pushing to DuckDB via the local daemon")
 	assert.Contains(t, out, "Pushing... 1/2 sessions")
 	assert.NotContains(t, out, "still pushing",
 		"heartbeat must stay silent after the first progress event")
@@ -346,24 +348,7 @@ func (h *pushWatchOwnerHarness) hooks() *archivePushWatchHooks {
 			}
 			return storage.MirrorPushResult{SessionsPushed: attempt}, nil
 		},
-		replicaPush: func(
-			_ context.Context, reason pushReason, cfg ReplicaPushConfig,
-		) (storage.PushResult, error) {
-			attempt, partial := h.nextPGWatchAttempt(reason, cfg)
-			if partial {
-				return storage.PushResult{Errors: 1}, nil
-			}
-			return storage.PushResult{SessionsPushed: attempt}, nil
-		},
-		replicaStartupSync: func(
-			context.Context, *syncpkg.Engine, bool,
-		) (bool, error) {
-			h.mu.Lock()
-			h.startupSyncs++
-			h.events = append(h.events, "startup-sync")
-			h.mu.Unlock()
-			return false, nil
-		},
+
 		duckDBStartupSync: func(
 			context.Context, *syncpkg.Engine, bool,
 		) (bool, error) {
@@ -373,19 +358,7 @@ func (h *pushWatchOwnerHarness) hooks() *archivePushWatchHooks {
 			h.mu.Unlock()
 			return false, nil
 		},
-		newReplicaPusher: func(*syncpkg.Engine) *replicaPusher {
-			target := &pushWatchPGTarget{harness: h}
-			return &replicaPusher{
-				localSync: func(context.Context) error {
-					h.mu.Lock()
-					h.localPushSyncs++
-					h.events = append(h.events, "local-sync")
-					h.mu.Unlock()
-					return nil
-				},
-				connect: func(context.Context) (storage.Pusher, error) { return target, nil },
-			}
-		},
+
 		newDuckDBPusher: func(*syncpkg.Engine) *duckDBPusher {
 			return &duckDBPusher{
 				localSync: func(context.Context) error {
@@ -419,20 +392,6 @@ func (h *pushWatchOwnerHarness) nextAttempt(reason pushReason) (int, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.nextAttemptLocked(reason)
-}
-
-func (h *pushWatchOwnerHarness) nextPGAttempt() (int, bool) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.nextAttemptLocked("")
-}
-
-func (h *pushWatchOwnerHarness) nextPGWatchAttempt(
-	reason pushReason, cfg ReplicaPushConfig,
-) (int, bool) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.nextAttemptWithScopeLocked(reason, cfg.WatchBatch, cfg.WatchRecovery)
 }
 
 func (h *pushWatchOwnerHarness) nextAttemptLocked(
@@ -489,26 +448,6 @@ func (h *pushWatchOwnerHarness) degradationCallback() func([]string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.degraded
-}
-
-type pushWatchPGTarget struct {
-	harness *pushWatchOwnerHarness
-}
-
-func (*pushWatchPGTarget) EnsureSchema(context.Context) error { return nil }
-func (t *pushWatchPGTarget) PushWithOptions(
-	_ context.Context, _ storage.PushOptions, _ func(storage.PushProgress),
-) (storage.PushResult, error) {
-	attempt, partial := t.harness.nextPGAttempt()
-	if partial {
-		return storage.PushResult{Errors: 1}, nil
-	}
-	return storage.PushResult{SessionsPushed: attempt}, nil
-}
-func (*pushWatchPGTarget) Close() error { return nil }
-
-func isLocalEnginePushWatchOwner(name string) bool {
-	return name == "local PostgreSQL" || name == "local DuckDB"
 }
 
 func TestPushWatchProductionOwnersRetainPartialStartupUntilPeriodicSuccess(
@@ -1313,3 +1252,5 @@ func TestDaemonPushWatchOwnersSuppressOpenCodeSHMOnlyBatches(t *testing.T) {
 		})
 	}
 }
+
+func isLocalEnginePushWatchOwner(name string) bool { return name == "local DuckDB" }
