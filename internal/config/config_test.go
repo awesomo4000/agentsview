@@ -625,7 +625,7 @@ func TestLoad_DefaultsWithoutFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "127.0.0.1", cfg.Host)
-	assert.Equal(t, 8080, cfg.Port)
+	assert.Equal(t, 47831, cfg.Port)
 	assert.Empty(t, cfg.PublicOrigins)
 }
 
@@ -639,16 +639,16 @@ func TestLoadPFlags_AppliesExplicitFlags(t *testing.T) {
 
 func TestPortExplicitProvenance(t *testing.T) {
 	t.Run("standard flag marks explicit default", func(t *testing.T) {
-		cfg, err := loadConfigFromFlags(t, "-port", "8080")
+		cfg, err := loadConfigFromFlags(t, "-port", "47831")
 		require.NoError(t, err)
-		assert.Equal(t, 8080, cfg.Port)
+		assert.Equal(t, 47831, cfg.Port)
 		assert.True(t, cfg.PortExplicit)
 	})
 
 	t.Run("pflag marks explicit default", func(t *testing.T) {
-		cfg, err := loadConfigFromPFlags(t, "--port", "8080")
+		cfg, err := loadConfigFromPFlags(t, "--port", "47831")
 		require.NoError(t, err)
-		assert.Equal(t, 8080, cfg.Port)
+		assert.Equal(t, 47831, cfg.Port)
 		assert.True(t, cfg.PortExplicit)
 	})
 
@@ -664,9 +664,9 @@ func TestPortExplicitProvenance(t *testing.T) {
 		require.NoError(t, err)
 		pflagConfig, err := loadConfigFromPFlags(t)
 		require.NoError(t, err)
-		assert.Equal(t, 8080, standard.Port)
+		assert.Equal(t, 47831, standard.Port)
 		assert.False(t, standard.PortExplicit)
-		assert.Equal(t, 8080, pflagConfig.Port)
+		assert.Equal(t, 47831, pflagConfig.Port)
 		assert.False(t, pflagConfig.PortExplicit)
 	})
 
@@ -694,10 +694,10 @@ func TestPortExplicitProvenance(t *testing.T) {
 				setupTestEnv(t)
 				fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 				RegisterServePFlags(fs)
-				require.NoError(t, fs.Parse([]string{"--port", "8080"}))
+				require.NoError(t, fs.Parse([]string{"--port", "47831"}))
 				cfg, err := load.fn(fs)
 				require.NoError(t, err)
-				assert.Equal(t, 8080, cfg.Port)
+				assert.Equal(t, 47831, cfg.Port)
 				assert.True(t, cfg.PortExplicit)
 			})
 		}

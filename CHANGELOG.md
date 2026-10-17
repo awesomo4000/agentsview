@@ -2,6 +2,10 @@
 
 ## 10/17/2026
 
+- Default CLI and desktop UI serving to loopback port 47831. Preserve `--port`
+  and saved port overrides; reject occupied ports instead of silently moving.
+  Explicit `--port 0` remains available for temporary listeners.
+
 - Remove live Claude.ai sync, Chrome relay/extension, and desktop web-account auth.
   Keep local chat-archive imports, harness discovery, and log ingestion.
 - Remove Cursor Admin API, GitHub Gist publishing, managed Caddy/public hosting,

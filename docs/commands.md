@@ -357,7 +357,7 @@ Running plain `agentsview` shows help instead of starting the web UI.
 | Flag                | Default            | Description                                              |
 | ------------------- | ------------------ | -------------------------------------------------------- |
 | `--host`            | `127.0.0.1`        | Host to bind to                                          |
-| `--port`            | `8080`             | Explicit nonzero port must be free; `0` selects any      |
+| `--port`            | `47831`             | Selected nonzero port must be free; `0` selects any      |
 | `--no-browser`      | `false`            | Don't open browser on startup                            |
 | `--no-sync`         | `false`            | Disable initial, watched, and periodic sync              |
 | `--require-auth`    | `false`            | Require a bearer token for API requests                  |
@@ -373,21 +373,14 @@ Running plain `agentsview` shows help instead of starting the web UI.
 | `--tls-key`         |                    | TLS key path                                             |
 | `--allowed-subnet`  |                    | Client CIDR allowlist (repeatable/comma-separated)       |
 
-The server auto-discovers an available port if the default `8080` or a port set
-in `config.toml` is busy. An explicit nonzero `--port` exits when that port is
-occupied. Use `--port 0` to select any available port. For a supervised daemon
-that must keep a fixed port, pass `--port` in its launch command.
+The server defaults to `127.0.0.1:47831`. A port selected by default,
+`config.toml`, or `--port` must be available. Startup fails on a collision;
+it never silently advances to another port. Use `--port 0` to explicitly request
+a temporary port. Values outside 0 through 65535 are rejected.
 
-When replacing a running daemon, an occupied explicit port is rejected before
-the daemon stops. The daemon's existing host and port can be reused, including
-narrowing a wildcard bind to loopback. To widen a bind on the same explicit
-port, stop the daemon first with `agentsview daemon stop`.
-
-`agentsview update` preserves the original `--port` choice recorded by the
-running daemon, including `0`. Without an explicit port, restart tries the
-previous listening port and retains automatic fallback. See
-[Remote Access](/docs/remote-access/) for details on the remote access and proxy
-flags.
+The desktop launcher inherits the backend default and saved port setting.
+When replacing a running daemon, a known collision with another listener is
+rejected before the daemon stops. The daemon can reuse its own endpoint.
 
 **Examples:**
 
@@ -1710,7 +1703,7 @@ and operational guidance.
 agentsview mcp
 agentsview mcp --profile memory
 agentsview mcp --http 127.0.0.1:8085
-agentsview mcp --server http://127.0.0.1:8080
+agentsview mcp --server http://127.0.0.1:47831
 agentsview mcp status --json
 ```
 

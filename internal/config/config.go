@@ -336,6 +336,9 @@ type VectorEmbedConfig struct {
 	BackstopInterval string `toml:"backstop_interval" json:"backstop_interval"`
 }
 
+// DefaultPort is the fixed loopback UI port unless configuration or --port overrides it.
+const DefaultPort = 47831
+
 // DefaultRecallMaxRevisionLag is the default [vector]
 // recall_max_revision_lag: room for about 50 minutes of steady extraction
 // between Recall index builds.
@@ -1190,7 +1193,7 @@ func Default() (Config, error) {
 
 	return Config{
 		Host:                           "127.0.0.1",
-		Port:                           8080,
+		Port:                           DefaultPort,
 		ChartPalette:                   DefaultChartPalette,
 		ArchiveContent:                 ArchiveContentFull,
 		DataDir:                        dataDir,
@@ -1333,7 +1336,7 @@ func loadRemoteServeBase() (Config, error) {
 	// namespace exists, only deployment variables and explicit pg-serve
 	// flags shape its network/proxy behavior.
 	cfg.Host = "127.0.0.1"
-	cfg.Port = 8080
+	cfg.Port = DefaultPort
 	cfg.PublicURL = ""
 	cfg.PublicOrigins = nil
 	cfg.Proxy = ProxyConfig{}
@@ -2138,7 +2141,7 @@ func (f *stringListFlag) Type() string {
 // The caller must call fs.Parse before passing fs to Load.
 func RegisterServeFlags(fs *flag.FlagSet) {
 	fs.String("host", "127.0.0.1", "Interface/IP for the backend HTTP server to bind")
-	fs.Int("port", 8080, "Backend HTTP port; an explicit nonzero port must be available (0 selects an available port)")
+	fs.Int("port", DefaultPort, "Backend HTTP port; the selected nonzero port must be available (0 selects an available port)")
 	fs.Bool(
 		"no-browser", false,
 		"Don't open browser on startup",
@@ -2164,7 +2167,7 @@ func RegisterServeFlags(fs *flag.FlagSet) {
 // RegisterServePFlags registers serve-command flags on fs.
 func RegisterServePFlags(fs *pflag.FlagSet) {
 	fs.String("host", "127.0.0.1", "Interface/IP for the backend HTTP server to bind")
-	fs.Int("port", 8080, "Backend HTTP port; an explicit nonzero port must be available (0 selects an available port)")
+	fs.Int("port", DefaultPort, "Backend HTTP port; the selected nonzero port must be available (0 selects an available port)")
 	fs.Bool(
 		"no-browser", false,
 		"Don't open browser on startup",

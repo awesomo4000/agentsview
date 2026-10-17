@@ -341,7 +341,7 @@ func TestStopDaemonRuntimeForUpgradeChecksExplicitPortBeforeStop(t *testing.T) {
 		{name: "incumbent wildcard can narrow to loopback", explicit: true, ownEndpoint: true, wildcard: true},
 		{name: "same endpoint through localhost", explicit: true, ownEndpoint: true, host: "localhost"},
 		{name: "widening preserves incumbent on shared port", explicit: true, ownEndpoint: true, host: "0.0.0.0", otherHost: "127.0.0.2", wantError: true},
-		{name: "implicit port retains fallback"},
+		{name: "occupied configured port preserves incumbent", wantError: true},
 		{name: "explicit zero retains automatic selection", explicit: true, ephemeral: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

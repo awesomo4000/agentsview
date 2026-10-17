@@ -334,3 +334,21 @@ No live archives, installed services, or remote databases were changed. Native
 installer packaging and complete runtime traffic tracing were not performed.
 The inherited default port remains 8080; the planned fixed high-port policy is
 still pending.
+
+## Fixed local UI port (10/17/2026)
+
+The CLI and desktop now default to `127.0.0.1:47831`. The desktop no longer
+forces `--port 0`; it inherits the backend default or saved `port` setting.
+The development proxy also targets 47831. `--port` still overrides saved
+configuration, and explicit `--port 0` remains a temporary-port option.
+
+Default, configured, explicit, and restart ports fail on collision instead of
+silently advancing. Replacement preflight checks configured ports before
+stopping an existing daemon. Values outside 0 through 65535 are rejected.
+
+Validation: full configuration tests, focused CLI startup/collision/replacement
+checks, Go vet for the changed packages, all 103 desktop tests, and frontend
+format/lint/type checks passed. The rebuilt executable served a synthetic
+archive on 47831, rejected a deliberately occupied default port, and served
+successfully with a custom `--port`. No live data or installed services changed.
+A high port alone does not restrict access from ordinary local browsers.

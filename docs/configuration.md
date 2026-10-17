@@ -9,6 +9,14 @@ description: Config file, default paths, and runtime settings
 > hosting, S3, PostgreSQL, ClickHouse, telemetry, and automatic updates are gone.
 
 
+## Local UI port
+
+The CLI and desktop default to `127.0.0.1:47831`. Set `port = 47832` in
+`config.toml` to change the saved port, or use `agentsview serve --port 47832`
+for one launch. Command-line values override saved configuration. The selected
+port must be free; startup does not silently change it. Explicit `--port 0`
+requests a temporary port.
+
 ## Data Directory
 
 AgentsView stores all persistent data under a single directory, defaulting to
@@ -1805,13 +1813,13 @@ daemon's environment overrides the corresponding default.
 Trigger a sync from the API:
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/sync
+curl -X POST http://127.0.0.1:47831/api/v1/sync
 ```
 
 Trigger a full resync (re-parses all session files from scratch):
 
 ```bash
-curl -X POST http://127.0.0.1:8080/api/v1/resync
+curl -X POST http://127.0.0.1:47831/api/v1/resync
 ```
 
 Both endpoints stream progress via Server-Sent Events when accessed from a
@@ -1820,7 +1828,7 @@ browser or SSE-capable client.
 Check sync status:
 
 ```bash
-curl http://127.0.0.1:8080/api/v1/sync/status
+curl http://127.0.0.1:47831/api/v1/sync/status
 ```
 
 ## Privacy and Telemetry

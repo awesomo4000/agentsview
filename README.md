@@ -55,8 +55,10 @@ Go/npm dependencies. Pricing snapshots are checked in. Build-time and runtime ne
 removals are tracked separately in the checklist. It does not install the
 binary or build the native Tauri bundle.
 
-The planned server default is `127.0.0.1:47831`, with `--port` to override it.
-That change is not implemented yet; the inherited default is still `8080`.
+The server and desktop default to `127.0.0.1:47831`. Use `--port 47832` or
+`port = 47832` in `config.toml` to override it. An occupied port produces an
+error instead of silently selecting another. Explicit `--port 0` requests a
+temporary port. A high port does not prevent local browser access.
 
 ## Working on this fork
 

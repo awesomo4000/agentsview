@@ -26,7 +26,6 @@ func testBackendReadyConfig(ts *httptest.Server, token string) config.Config {
 
 func heldLoopbackPort(t *testing.T) (net.Listener, int) {
 	t.Helper()
-	t.Helper()
 	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
@@ -64,26 +63,7 @@ func TestPrepareServeRuntimeConfigPortPolicy(t *testing.T) {
 		fn    func(*testing.T) (config.Config, serveRuntimeOptions, func())
 		check func(*testing.T, config.Config, config.Config, string)
 	}{
-		{
-			name: "implicit collision selects another local port",
-			fn: func(t *testing.T) (config.Config, serveRuntimeOptions, func()) {
-				t.Helper()
-				listener, port := heldLoopbackPort(t)
-				cfg := config.Config{
-					Host: "127.0.0.1",
-					Port: port,
-				}
-				return cfg, serveRuntimeOptions{RequestedPort: port}, func() {
-					_ = listener.Close()
-				}
-			},
-			check: func(t *testing.T, before, after config.Config, output string) {
-				t.Helper()
 
-				assert.NotEqual(t, before.Port, after.Port)
-				assert.Contains(t, output, "in use, using")
-			},
-		},
 		{
 			name: "explicit zero selects an ephemeral port",
 			fn: func(t *testing.T) (config.Config, serveRuntimeOptions, func()) {
@@ -141,20 +121,27 @@ func TestPrepareServeRuntimeConfigPortPolicy(t *testing.T) {
 	}
 }
 
-func TestPrepareRunServeRuntimeConfigRestartUsesLocalURL(t *testing.T) {
-	listener, runtimePort := heldLoopbackPort(t)
+func TestPrepareRunServeRuntimeConfigRestartRejectsCollision(t *testing.T) {
+	listener, port := heldLoopbackPort(t)
 	defer listener.Close()
-	configuredPort := runtimePort - 1
+	_, _, err := prepareRunServeRuntimeConfig(t.Context(), config.Config{Host: "127.0.0.1", Port: 47831}, port, nil)
+	require.ErrorContains(t, err, "requested port")
+}
 
-	got, rtOpts, err := prepareRunServeRuntimeConfig(t.Context(), config.Config{
-		Host: "127.0.0.1",
-		Port: configuredPort,
-	}, runtimePort, nil)
-	require.NoError(t, err)
-	assert.NotEqual(t, runtimePort, got.Port)
-	assert.False(t, got.PortExplicit)
-	assert.Equal(t, configuredPort, rtOpts.RequestedPort)
-	assert.Equal(t, fmt.Sprintf("http://127.0.0.1:%d", got.Port), browserURL(got))
+func TestPrepareServeRuntimeConfigRejectsImplicitCollision(t *testing.T) {
+	listener, port := heldLoopbackPort(t)
+	defer listener.Close()
+	cfg := config.Config{Host: "127.0.0.1", Port: port}
+	got, err := prepareServeRuntimeConfig(t.Context(), cfg, serveRuntimeOptions{})
+	require.ErrorContains(t, err, "requested port")
+	assert.Equal(t, cfg, got)
+}
+
+func TestPrepareServeRuntimeConfigRejectsInvalidPorts(t *testing.T) {
+	for _, port := range []int{-1, 65536} {
+		_, err := prepareServeRuntimeConfig(t.Context(), config.Config{Host: "127.0.0.1", Port: port}, serveRuntimeOptions{})
+		require.ErrorContains(t, err, "invalid port")
+	}
 }
 
 func TestWaitForBackendReadyRejectsUnrelatedHTTPListener(t *testing.T) {

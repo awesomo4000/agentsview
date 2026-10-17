@@ -71,8 +71,8 @@ exports. Do not invoke a summarizer or choose a service as part of these cuts.
 
 ## Local server and execution
 
-- [ ] Default to `127.0.0.1:47831` across server and desktop launch paths.
-- [ ] Keep `--port`, reject invalid ports, and fail on a collision instead of
+- [x] Default to `127.0.0.1:47831` across server and desktop launch paths.
+- [x] Keep `--port`, reject invalid ports, and fail on a collision instead of
       silently selecting another port.
 - [ ] Remove wildcard/LAN serving and arbitrary remote connection settings.
 - [ ] Implement and test local API authentication, Host/Origin validation, and

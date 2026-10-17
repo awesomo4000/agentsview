@@ -9,7 +9,9 @@ hosts and legacy public-hosting configuration are rejected, including when
 authentication is enabled.
 
 Use `agentsview serve --port 47831 --no-browser` to choose a local port.
-The inherited default is still 8080. The fixed high-port default is pending.
+The default is 47831 for CLI and desktop. Configure another port with `--port`
+or `port` in `config.toml`. Occupied ports fail; only explicit `--port 0` asks
+for a temporary port.
 A high port does not prevent a normal local browser from accessing the UI.
 
 SSH/HTTP synchronization and remote client connections remain under review.

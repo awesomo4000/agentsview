@@ -47,28 +47,23 @@ func prepareServeRuntimeConfig(ctx context.Context,
 	cfg config.Config,
 	opts serveRuntimeOptions,
 ) (config.Config, error) {
-	requestedPort := opts.RequestedPort
-	if requestedPort == 0 {
-		requestedPort = cfg.Port
+	if cfg.Port < 0 || cfg.Port > 65535 {
+		return cfg, fmt.Errorf("invalid port %d: expected 0 through 65535", cfg.Port)
 	}
-
-	port, err := server.FindAvailablePort(ctx, cfg.Host, cfg.Port)
+	if cfg.Port != 0 {
+		address := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
+		listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+		if err != nil {
+			return cfg, fmt.Errorf("requested port %d on %s is unavailable; choose another --port or use --port 0: %w", cfg.Port, cfg.Host, err)
+		}
+		_ = listener.Close()
+		return cfg, nil
+	}
+	port, err := server.FindAvailablePort(ctx, cfg.Host, 0)
 	if err != nil {
 		return cfg, err
 	}
-	if cfg.PortExplicit && cfg.Port != 0 && port != cfg.Port {
-		return cfg, fmt.Errorf(
-			"requested port %d on %s is unavailable; choose another --port or use --port 0",
-			cfg.Port, cfg.Host,
-		)
-	}
-	if port != cfg.Port {
-		if cfg.Port == 0 {
-			fmt.Printf("Using available port %d\n", port)
-		} else {
-			fmt.Printf("Port %d in use, using %d\n", cfg.Port, port)
-		}
-	}
+	fmt.Printf("Using available port %d\n", port)
 	cfg.Port = port
 
 	return cfg, nil

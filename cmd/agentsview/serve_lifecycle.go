@@ -326,7 +326,7 @@ func stopDaemonRuntimeForUpgradeImpl(ctx context.Context,
 	}
 	// Reject a known port collision before taking down the incumbent. Its
 	// own bind endpoint, including a wildcard bind, is replaceable.
-	if cfg.PortExplicit && cfg.Port != 0 {
+	if cfg.Port != 0 {
 		reusesEndpoint := cfg.Port == rt.Port && cfg.Host == rt.Host
 		if cfg.Port == rt.Port && !reusesEndpoint {
 			port := strconv.Itoa(cfg.Port)

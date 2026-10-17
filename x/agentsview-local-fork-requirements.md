@@ -46,6 +46,7 @@ remaining SSH/HTTP sync and internal upload options require a separate decision.
 
 - Bind exclusively to `127.0.0.1`, default port `47831`.
 - The server launcher accepts `--port <port>`, with values 1 through 65535.
+  Explicit `--port 0` remains an opt-in temporary-port mode.
 - Use the selected port consistently in the UI and desktop launcher. If occupied,
   report the conflict instead of choosing another port silently.
 - Do not bind to wildcard or LAN addresses. A Unix socket bridge is deferred.
@@ -203,6 +204,6 @@ adapters are removed. File-based chat archive import, local exports, harness
 parsers, SQLite storage, the UI, DuckDB, local vectors, MCP, and SSH/HTTP sync
 remain. Fonts are bundled locally. The UI listener requires loopback.
 
-The fixed port and stricter collision policy remain pending; this checkpoint
-still uses the inherited default port. See REMOVALS.md and MINIMIZATION.md in
+CLI and desktop now default to port 47831 and reject collisions. Explicit
+port overrides and saved configuration remain supported. See REMOVALS.md and MINIMIZATION.md in
 the repository root for the implementation checklist and measured results.

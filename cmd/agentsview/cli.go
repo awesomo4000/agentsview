@@ -246,7 +246,7 @@ func newServeCommandWithDaemonDeps(deps daemonCommandDeps) *cobra.Command {
 		&restartPort,
 		"restart-port",
 		0,
-		"Reuse a previous daemon port while retaining automatic fallback",
+		"Reuse a previous daemon port; fail if it is unavailable",
 	)
 	_ = cmd.Flags().MarkHidden("restart-port")
 	config.RegisterServePFlags(cmd.Flags())

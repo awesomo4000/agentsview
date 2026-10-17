@@ -829,14 +829,13 @@ fn spawn_sidecar_with_args(
     Ok(command.args(args).spawn()?)
 }
 
+// Inherit the backend default or config.toml port, just like the CLI.
 fn sidecar_args() -> Vec<String> {
     vec![
         "serve".to_string(),
         "--background".to_string(),
         "--host".to_string(),
         HOST.to_string(),
-        "--port".to_string(),
-        "0".to_string(),
     ]
 }
 
@@ -3299,7 +3298,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn sidecar_args_use_cobra_long_flags() {
+    fn sidecar_args_inherit_configured_backend_port() {
         assert_eq!(
             sidecar_args(),
             vec![
@@ -3307,8 +3306,6 @@ mod tests {
                 "--background".to_string(),
                 "--host".to_string(),
                 HOST.to_string(),
-                "--port".to_string(),
-                "0".to_string(),
             ]
         );
     }
