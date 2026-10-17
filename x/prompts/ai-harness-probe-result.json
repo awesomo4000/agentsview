@@ -1,0 +1,5 @@
+{
+  "adapter": "claude",
+  "model": "codex/gpt-6-luna",
+  "content": "- **demo-widget:** Added a retry limit of 3 to the HTTP client, retrying transient failures only.\n- Two synthetic unit tests passed."
+}

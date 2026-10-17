@@ -1,0 +1,100 @@
+// This opt-in probe sends only the synthetic prompt below to an external ai binary.
+// It exercises AgentsView's real Claude-compatible subprocess adapter.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+	"reflect"
+	"strings"
+	"time"
+
+	"go.kenn.io/agentsview/internal/insight"
+)
+
+const prompt = `You are summarizing a day of AI agent activity. Provide a concise markdown summary of what was accomplished, key decisions made, and notable patterns. Group by project if multiple projects are present.
+
+Synthetic test data only:
+Project: demo-widget
+- Added a retry limit of 3 to the demo HTTP client.
+- Decided to retry transient failures only.
+- Two synthetic unit tests passed.
+Write no more than three short bullets. Do not invent work or inspect files.`
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+func run() error {
+	if os.Getenv("AV_PROBE_CHILD") == "1" {
+		return bridge()
+	}
+	ai := flag.String("ai", "", "absolute path to the external ai executable")
+	model := flag.String("model", "codex/gpt-6-luna", "model passed to ai")
+	flag.Parse()
+	if *ai == "" {
+		return errors.New("provide -ai /absolute/path/to/ai")
+	}
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	// These variables are inherited only by the probe's child adapter process.
+	for key, value := range map[string]string{"AV_PROBE_CHILD": "1", "AV_PROBE_AI": *ai, "AV_PROBE_MODEL": *model} {
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	result, err := insight.GenerateStreamWithOptions(ctx, "claude", prompt, nil, insight.GenerateOptions{
+		Agents: map[string]insight.AgentConfig{"claude": {Binary: self}},
+	})
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(result.Content) == "" {
+		return errors.New("empty parsed result")
+	}
+	if result.Model != *model {
+		return errors.New("model metadata did not round-trip")
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(struct {
+		Adapter string `json:"adapter"`
+		Model   string `json:"model"`
+		Content string `json:"content"`
+	}{result.Agent, result.Model, result.Content})
+}
+func bridge() error {
+	// Accept exactly the flags used by the existing Claude adapter.
+	expected := []string{"-p", "--output-format", "json", "--no-session-persistence", "--tools", ""}
+	if !reflect.DeepEqual(os.Args[1:], expected) {
+		return errors.New("unexpected adapter arguments")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Getenv("AV_PROBE_AI"), "--pipe", "-m", os.Getenv("AV_PROBE_MODEL"))
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	answer, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("ai failed: %w", err)
+	}
+	if strings.TrimSpace(string(answer)) == "" {
+		return errors.New("ai returned no answer")
+	}
+	// Use an encoder rather than interpolating text: quotes/newlines must be escaped.
+	return json.NewEncoder(os.Stdout).Encode(struct {
+		Result string `json:"result"`
+		Model  string `json:"model"`
+	}{string(answer), os.Getenv("AV_PROBE_MODEL")})
+}

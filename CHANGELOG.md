@@ -2,6 +2,10 @@
 
 ## 10/17/2026
 
+- Add a standalone Go probe showing Groundloop `ai` working through the existing
+  harness adapter with a synthetic prompt. Document the compatible JSON envelope
+  and the remaining need for a generic executable adapter.
+
 - Preserve built-in summarization, recall, and review prompts under `x/prompts`,
   with source snapshots, schemas, and an external-harness execution guide.
   Verify the adapter with a synthetic local executable; no model is invoked.

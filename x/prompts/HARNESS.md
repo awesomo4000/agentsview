@@ -107,3 +107,57 @@ No installed agent, live archive, or model service was used.
 Recall extraction and embeddings currently use separate HTTP clients. They do
 not automatically use this harness adapter. The extracted recall prompts can be
 reused, but wiring their structured response contract to a binary is still work.
+
+## Groundloop ai probe
+
+On 10/17/2026, the real `ai --pipe -m codex/gpt-6-luna` command successfully
+processed a synthetic three-fact session through the production
+`insight.GenerateStreamWithOptions` entry point. No archive or private transcript
+was read. Unlike the fake demonstration above, this probe did invoke the model
+through the external client, as requested.
+
+[ai-harness-probe.go.txt](ai-harness-probe.go.txt) is the standalone Go program.
+It uses itself as a Claude-compatible subprocess wrapper: validates the adapter
+arguments, forwards stdin to `ai`, captures its plain-text stdout, and emits a
+JSON object with `result` and `model`. The existing adapter parses that object
+back into an insight result. [The observed response](ai-harness-probe-result.json)
+contains the synthetic summary and model label.
+
+To repeat deliberately, from the repository root:
+
+```sh
+scratch_dir="$(mktemp -d "$PWD/.ai-probe.XXXXXX")"
+cp x/prompts/ai-harness-probe.go.txt "$scratch_dir/main.go"
+go run -tags fts5 "$scratch_dir/main.go" -ai /absolute/path/to/ai -model codex/gpt-6-luna
+rm "$scratch_dir/main.go"
+rmdir "$scratch_dir"
+```
+
+The most compact existing response envelope is:
+
+```json
+{"result":"Markdown summary or structured JSON answer as a string","model":"codex/gpt-6-luna"}
+```
+
+`result` must contain nonblank text; `model` is optional to the existing parser.
+No `type` field is needed for this single-object response. Encode it with a JSON
+library so quotes and newlines are escaped. For a structured review, the inner
+answer is itself JSON text and receives the review's normal schema validation.
+This probe checked ordinary summary generation and adapter parsing, not those
+structured review validators or persistence through the full server route.
+
+This is the existing Claude adapter's legacy envelope, not a cross-vendor
+standard. The probe reports `adapter: claude` because that is the adapter we
+borrowed; the actual producer is `ai` using `codex/gpt-6-luna`. A production
+integration should have its own adapter identity to avoid misleading provenance.
+
+Known adapter names remain `claude`, `codex`, `copilot`, `gemini`, and `kiro`.
+Configuration can choose a default and override a binary path, but cannot add
+an arbitrary name, argument list, or output parser. Therefore JSON output alone
+would not make `ai` a drop-in override: it would still receive Claude's flags.
+A small generic subprocess adapter with executable, argument array, stdin
+prompt, stdout answer, stderr diagnostics, and exit-status checking would let
+`ai` remain unchanged. That is the recommended production integration.
+
+This probe changed no runtime configuration or generation behavior. Embedded
+HTTP clients still remain until the separately planned removal.
