@@ -63,9 +63,6 @@ risk via documented flags and config.
 | Parser → SQLite / FTS5            | Trusted                                                             | Indexed content is preserved verbatim.                               |
 | HTTP server → caller              | Loopback-trusted; bearer-gated for `/api/` when `--require-auth`    | Static assets are not gated.                                         |
 | Browser → HTTP server             | Host-header allowlist + CORS + CSP + X-Frame-Options enforced       | DNS-rebinding, framing, and cross-origin defenses.                   |
-| agentsview → PostgreSQL (pg push) | TLS required for non-loopback hosts                                 | Plaintext rejected unless `allow_insecure = true` is set explicitly. |
-| agentsview → update endpoint      | One-way outbound, opt-out                                           | Disable with `--no-update-check`.                                    |
-| agentsview → LiteLLM pricing      | One-way outbound, on-demand                                         | Public JSON fetched from GitHub raw; no session data sent.           |
 
 ## Data at rest
 
@@ -123,12 +120,9 @@ complete description of the system once optional features are in use.
 - **Imports.** Imported archives from other agentsview instances or third-party
   exports are treated as untrusted structured data, no different from session
   files written by local agents.
-- **LiteLLM pricing.** Pricing metadata is fetched on demand from
-  `raw.githubusercontent.com/BerriAI/litellm/...` to compute token costs. No
-  session data is sent.
-- **Update check.** On startup agentsview makes one outbound HTTPS request to
-  check for new releases. No session data is sent; the request is opt-out via
-  `--no-update-check`.
+- **Pricing and updates.** This fork uses bundled pricing and local custom
+  rates. Public catalog downloads, update checks, and self-update installers
+  are removed. Other external integrations remain under review.
 
 ## Browser-facing hardening
 

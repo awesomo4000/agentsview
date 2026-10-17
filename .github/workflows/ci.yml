@@ -95,9 +95,6 @@ jobs:
           make sqlite-vec-header
           echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
-      - name: Generate pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot
-
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend
@@ -232,9 +229,6 @@ jobs:
           update: false
           install: mingw-w64-x86_64-gcc
           path-type: inherit
-
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
 
       - name: Run Go tests (Linux)
         if: runner.os == 'Linux'
@@ -372,9 +366,6 @@ jobs:
           update: false
           install: mingw-w64-x86_64-gcc
           path-type: inherit
-
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
 
       # The Windows system tree and the runner's data volume have parent
       # permissions that capture deliberately rejects. Use a private directory
@@ -540,9 +531,6 @@ jobs:
           install: mingw-w64-x86_64-gcc
           path-type: inherit
 
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
-
       - name: Run DuckDB tests
         run: go test -tags "fts5" ./internal/duckdb -count=1 -timeout=20m
         env:
@@ -581,9 +569,6 @@ jobs:
         run: |
           make sqlite-vec-header
           echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
-
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
 
       # internal/duckdb is excluded from -race (CGo-heavy, race-insensitive,
       # and 7+ minutes on its own); it is still covered without -race by the
@@ -669,9 +654,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
-
       - name: Run ClickHouse integration tests
         run: make test-clickhouse-ci
         env:
@@ -716,9 +698,6 @@ jobs:
         run: |
           rm -rf internal/web/dist
           cp -r frontend/dist internal/web/dist
-
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
 
       - name: Pre-build Go binaries
         run: |

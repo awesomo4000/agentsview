@@ -55,7 +55,6 @@
   import ShortcutsModal from "./lib/components/modals/ShortcutsModal.svelte";
   import PublishModal from "./lib/components/modals/PublishModal.svelte";
   import ResyncModal from "./lib/components/modals/ResyncModal.svelte";
-  import UpdateModal from "./lib/components/modals/UpdateModal.svelte";
   import ConfirmDeleteModal from "./lib/components/modals/ConfirmDeleteModal.svelte";
   import PerfDebugPanel from "./lib/components/debug/PerfDebugPanel.svelte";
   import AnalyticsPage from "./lib/components/analytics/AnalyticsPage.svelte";
@@ -753,7 +752,6 @@
     sync.loadStatus();
     sync.loadStats();
     sync.loadVersion();
-    sync.checkForUpdate();
     sync.startPolling();
 
     const healthCleanup = setupVisibilityHealthCheck({
@@ -924,9 +922,6 @@
   <ResyncModal />
 {/if}
 
-{#if ui.activeModal === "update"}
-  <UpdateModal />
-{/if}
 
 {#if ui.activeModal === "confirmDelete"}
   <ConfirmDeleteModal />

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json/v2"
 	"fmt"
 	"net"
@@ -303,89 +302,6 @@ func TestServeRestartHelpExplainsWriterOnlyAsymmetry(t *testing.T) {
 	assert.Contains(t, out,
 		"Unlike `agentsview serve stop`, this command intentionally leaves "+
 			"read-only ClickHouse and DuckDB servers running.")
-}
-
-func TestStopWritableDaemonsForUpdateStopsAllAndRestartsOne(t *testing.T) {
-	dir := runtimeTestDir(t)
-	secondPID := startSleepProcess(t)
-
-	now := time.Now()
-	_, err := writeRuntimeRecordForTest(dir, daemon.RuntimeRecord{
-		PID:       os.Getpid(),
-		Network:   daemon.NetworkTCP,
-		Address:   "127.0.0.1:18080",
-		Service:   daemonService,
-		Version:   "1.0.0",
-		StartedAt: now.Add(-time.Minute),
-		Metadata: map[string]string{
-			runtimeHost:        "127.0.0.1",
-			runtimePort:        "18080",
-			runtimeReadOnly:    "false",
-			runtimeRequireAuth: "true",
-			runtimeNoSync:      "true",
-		},
-	})
-	require.NoError(t, err)
-	_, err = writeRuntimeRecordForTest(dir, daemon.RuntimeRecord{
-		PID:       secondPID,
-		Network:   daemon.NetworkTCP,
-		Address:   "127.0.0.1:18081",
-		Service:   daemonService,
-		Version:   "1.0.0",
-		StartedAt: now,
-		Metadata: map[string]string{
-			runtimeHost:        "127.0.0.1",
-			runtimePort:        "18081",
-			runtimeReadOnly:    "false",
-			runtimeRequireAuth: "false",
-			runtimeNoSync:      "false",
-		},
-	})
-	require.NoError(t, err)
-
-	oldStop := stopDaemonRuntimeForUpgrade
-	var stopped []int
-	stopDaemonRuntimeForUpgrade = func(ctx context.Context,
-		_ config.Config, rt *DaemonRuntime,
-	) error {
-		stopped = append(stopped, rt.Record.PID)
-		return nil
-	}
-	t.Cleanup(func() { stopDaemonRuntimeForUpgrade = oldStop })
-
-	result, err := stopWritableDaemonsForUpdate(t.Context(), config.Config{DataDir: dir})
-	require.NoError(t, err)
-	assert.True(t, result.Stopped)
-	assert.Equal(t, "127.0.0.1", result.Host)
-	assert.Equal(t, 18080, result.Port)
-	assert.True(t, result.RequireAuth)
-	assert.True(t, result.RequireAuthKnown)
-	assert.True(t, result.NoSync)
-	assert.ElementsMatch(t, []int{os.Getpid(), secondPID}, stopped)
-}
-
-func TestStopWritableDaemonsForUpdateUsesStartupStateFallback(t *testing.T) {
-	dir := runtimeTestDir(t)
-	host, port := testPingServer(t)
-	createTime, ok := processCreateTimeMillis(os.Getpid())
-	require.True(t, ok)
-	writeStartupFallbackFixture(t, dir, host, port, os.Getpid(), strconv.FormatInt(createTime, 10))
-
-	oldStop := stopDaemonRuntimeForUpgrade
-	var stopped *DaemonRuntime
-	stopDaemonRuntimeForUpgrade = func(ctx context.Context, _ config.Config, rt *DaemonRuntime) error {
-		stopped = rt
-		return nil
-	}
-	t.Cleanup(func() { stopDaemonRuntimeForUpgrade = oldStop })
-
-	result, err := stopWritableDaemonsForUpdate(t.Context(), config.Config{DataDir: dir})
-	require.NoError(t, err)
-	assert.True(t, result.Stopped)
-	assert.Equal(t, host, result.Host)
-	assert.Equal(t, port, result.Port)
-	require.NotNil(t, stopped)
-	assert.Equal(t, os.Getpid(), stopped.Record.PID)
 }
 
 func TestStopDaemonProcessTerminatesAndCleansRecord(t *testing.T) {

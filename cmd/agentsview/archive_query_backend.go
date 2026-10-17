@@ -12,8 +12,6 @@ import (
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/parser"
-	"go.kenn.io/agentsview/internal/pricing"
-	"go.kenn.io/agentsview/internal/pricingrefresh"
 	"go.kenn.io/agentsview/internal/service"
 	"go.kenn.io/agentsview/internal/servicehttp"
 	"go.kenn.io/agentsview/internal/sync"
@@ -352,23 +350,7 @@ func (b localArchiveQueryBackend) SessionUsage(
 		fmt.Fprintf(os.Stderr, "session not found: %s\n", query.SessionID)
 		return nil, tokenUseExitNotFound, nil
 	}
-	if len(u.UnpricedModels) > 0 && !b.offline {
-		refreshed, refErr := pricingrefresh.RefreshIfStale(
-			b.database, pricing.FetchCatalog,
-			pricingrefresh.RefreshCooldown, time.Now(),
-		)
-		if refErr != nil {
-			fmt.Fprintf(os.Stderr,
-				"warning: pricing refresh failed: %v\n", refErr)
-		}
-		// A degraded refresh (see pricing.FetchCatalog) stores rows and
-		// reports an error at once, so re-read whenever rows changed.
-		if refreshed {
-			if u2, e := load(); e == nil && u2 != nil {
-				u = u2
-			}
-		}
-	}
+
 	if u.Agent == "" {
 		if def, ok := parser.AgentByPrefix(u.SessionID); ok {
 			u.Agent = string(def.Type)

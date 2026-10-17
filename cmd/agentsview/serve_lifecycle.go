@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -350,42 +349,6 @@ func stopDaemonRuntimeForUpgradeImpl(ctx context.Context,
 	}
 	stopOrphanedCaddyChild(rt.Record)
 	return nil
-}
-
-func stopWritableDaemonsForUpdate(ctx context.Context,
-	cfg config.Config,
-) (updateDaemonStopResult, error) {
-	records, _ := localWritableDaemonRecordsWithFallback(
-		cfg.DataDir, cfg.AuthToken,
-	)
-	var result updateDaemonStopResult
-	for _, rec := range records {
-		rt := daemonRuntimeFromRecord(rec)
-		if rt.ReadOnly {
-			continue
-		}
-		// A data dir supports one writable daemon. If multiple live writable
-		// records somehow exist, stop every old writer before the update but
-		// restart one replacement using the first runtime's externally visible
-		// settings. Restarting multiple writers would recreate the invalid
-		// state this path is trying to collapse.
-		if !result.Stopped {
-			result.Host = rt.Host
-			result.Port = rt.Port
-			result.ExplicitPort = rt.ExplicitPort
-			result.RequireAuth = rt.RequireAuth
-			result.RequireAuthKnown = rt.RequireAuthKnown
-			result.NoSync = rt.NoSync
-		}
-		if err := stopDaemonRuntimeForUpgrade(ctx, cfg, rt); err != nil {
-			return result, err
-		}
-		result.Stopped = true
-	}
-	if !result.Stopped && IsDaemonStarting(cfg.DataDir) {
-		return result, errors.New("agentsview server is starting; retry the update once it is ready")
-	}
-	return result, nil
 }
 
 // stopTargetConfirmed reports whether rec's live PID is safe to signal as the

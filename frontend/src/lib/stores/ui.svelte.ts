@@ -30,7 +30,6 @@ type ModalType =
   | "shortcuts"
   | "publish"
   | "resync"
-  | "update"
   | "confirmDelete"
   | null;
 

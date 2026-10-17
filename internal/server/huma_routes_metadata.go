@@ -7,7 +7,6 @@ import (
 
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/service"
-	"go.kenn.io/agentsview/internal/update"
 
 	"github.com/danielgtaylor/huma/v2"
 )
@@ -24,7 +23,6 @@ func (s *Server) registerMetadataRoutes() {
 	s.getLong(group, "/session-stats", "Get session stats", s.humaGetSessionStats)
 	s.get(group, "/version", "Get server version", s.humaGetVersion)
 	s.get(group, "/memory/status", "Get memory readiness", s.humaGetMemoryStatus)
-	s.get(group, "/update/check", "Check for updates", s.humaCheckUpdate)
 }
 
 type statsInput struct {
@@ -208,33 +206,4 @@ func (s *Server) humaGetMemoryStatus(
 		status.Archive.Identity = s.cfg.InstallationID
 	}
 	return &jsonOutput[service.MemoryStatus]{Body: status}, nil
-}
-
-func (s *Server) humaCheckUpdate(
-	ctx context.Context,
-	_ *emptyInput,
-) (*jsonOutput[updateCheckResponse], error) {
-	if s.cfg.DisableUpdateCheck {
-		return &jsonOutput[updateCheckResponse]{
-			Body: updateCheckResponse{CurrentVersion: s.version.Version},
-		}, nil
-	}
-	checkFn := s.updateCheckFn
-	if checkFn == nil {
-		checkFn = update.CheckForUpdate
-	}
-	info, err := checkFn(ctx, s.version.Version, false, s.dataDir)
-	if err != nil || info == nil {
-		return &jsonOutput[updateCheckResponse]{ //nolint:nilerr // Optional update metadata falls back to the installed version.
-			Body: updateCheckResponse{CurrentVersion: s.version.Version},
-		}, nil
-	}
-	return &jsonOutput[updateCheckResponse]{
-		Body: updateCheckResponse{
-			UpdateAvailable: !info.IsDevBuild,
-			CurrentVersion:  info.CurrentVersion,
-			LatestVersion:   info.LatestVersion,
-			IsDevBuild:      info.IsDevBuild,
-		},
-	}, nil
 }

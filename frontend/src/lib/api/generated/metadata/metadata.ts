@@ -15,7 +15,6 @@ import type {
   MachinesResponse,
   ProjectsResponse,
   ServiceMemoryStatus,
-  UpdateCheckResponse,
   VersionInfo,
 } from "../models";
 
@@ -202,22 +201,6 @@ export const getApiV1Stats = async (
   options?: Parameters<typeof orvalFetch>[1],
 ): Promise<DbStats> => {
   return orvalFetch<DbStats>(getGetApiV1StatsUrl(params), {
-    ...options,
-    method: "GET",
-  });
-};
-
-export const getGetApiV1UpdateCheckUrl = () => {
-  return `/api/v1/update/check`;
-};
-
-/**
- * @summary Check for updates
- */
-export const getApiV1UpdateCheck = async (
-  options?: Parameters<typeof orvalFetch>[1],
-): Promise<UpdateCheckResponse> => {
-  return orvalFetch<UpdateCheckResponse>(getGetApiV1UpdateCheckUrl(), {
     ...options,
     method: "GET",
   });

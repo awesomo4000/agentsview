@@ -1,8 +1,6 @@
 package pricing
 
 import (
-	"context"
-
 	"go.kenn.io/agentsview/internal/pricing/catalog"
 )
 
@@ -14,14 +12,6 @@ type ModelPricing = catalog.ModelPricing
 // PricingBand is a complete rate tuple applied above an exclusive input-token
 // threshold.
 type PricingBand = catalog.PricingBand
-
-// FetchLiteLLMPricingContext downloads the LiteLLM pricing JSON and binds the
-// request lifetime to ctx.
-func FetchLiteLLMPricingContext(
-	ctx context.Context,
-) ([]ModelPricing, error) {
-	return catalog.FetchLiteLLMPricingContext(ctx)
-}
 
 // ParseLiteLLMPricing parses the LiteLLM JSON map into
 // ModelPricing entries. Per-token costs are converted to

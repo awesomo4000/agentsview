@@ -1,7 +1,6 @@
 package pricing
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -50,16 +49,6 @@ func (d GenAIDocument) RawJSON() []byte {
 		return nil
 	}
 	return d.Prices.RawJSON()
-}
-
-func FetchGenAIPricesContext(ctx context.Context) (*GenAIPrices, error) {
-	return catalog.FetchGenAIPricesContext(ctx)
-}
-
-func FetchGenAIPricesAtRef(
-	ctx context.Context, ref string,
-) (*GenAIPrices, error) {
-	return catalog.FetchGenAIPricesAtRef(ctx, ref)
 }
 
 func ParseGenAIPrices(data []byte) (*GenAIPrices, error) {

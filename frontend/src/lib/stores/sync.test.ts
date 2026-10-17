@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 import { commitsDisagree, sync } from "./sync.svelte.js";
-import type {
-  SyncSyncStats as SyncStats,
-  UpdateCheckResponse as UpdateCheck,
-} from "../api/generated/index.js";
+import type { SyncSyncStats as SyncStats } from "../api/generated/index.js";
 
 const api = vi.hoisted(() => ({
   triggerSync: vi.fn(),
@@ -12,7 +9,6 @@ const api = vi.hoisted(() => ({
   getSyncStatus: vi.fn(),
   getStats: vi.fn(),
   getVersion: vi.fn(),
-  checkForUpdate: vi.fn(),
   isRemoteConnection: vi.fn(),
   setEventsAvailable: vi.fn(),
   ApiError: class MockGeneratedApiError extends Error {
@@ -43,7 +39,6 @@ vi.mock("../api/generated/index", () => ({
   MetadataService: {
     getApiV1Stats: vi.fn((params) => api.getStats(params)),
     getApiV1Version: vi.fn(() => api.getVersion()),
-    getApiV1UpdateCheck: vi.fn(() => api.checkForUpdate()),
   },
   SyncService: {
     getApiV1SyncStatus: vi.fn(() => api.getSyncStatus()),
@@ -479,66 +474,6 @@ describe("SyncStore.triggerResync", () => {
     expect(sync.triggerResync()).toBe(false);
     expect(api.triggerSync).not.toHaveBeenCalled();
     expect(api.triggerResync).not.toHaveBeenCalled();
-  });
-});
-
-describe("SyncStore.checkForUpdate", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    const s = sync as unknown as Record<string, unknown>;
-    s.updateAvailable = false;
-    s.latestVersion = null;
-  });
-
-  it("skips API call when isDesktop is true", async () => {
-    const s = sync as unknown as Record<string, unknown>;
-    // Temporarily override isDesktop
-    const original = s.isDesktop;
-    Object.defineProperty(sync, "isDesktop", {
-      value: true,
-      writable: true,
-      configurable: true,
-    });
-
-    await sync.checkForUpdate();
-
-    expect(api.checkForUpdate).not.toHaveBeenCalled();
-    expect(sync.updateAvailable).toBe(false);
-
-    Object.defineProperty(sync, "isDesktop", {
-      value: original,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("calls API and sets state when not desktop", async () => {
-    const mockResult: UpdateCheck = {
-      update_available: true,
-      current_version: "v0.9.0",
-      latest_version: "v1.0.0",
-    };
-    vi.mocked(api.checkForUpdate).mockResolvedValue(mockResult);
-
-    const s = sync as unknown as Record<string, unknown>;
-    const original = s.isDesktop;
-    Object.defineProperty(sync, "isDesktop", {
-      value: false,
-      writable: true,
-      configurable: true,
-    });
-
-    await sync.checkForUpdate();
-
-    expect(api.checkForUpdate).toHaveBeenCalled();
-    expect(sync.updateAvailable).toBe(true);
-    expect(sync.latestVersion).toBe("v1.0.0");
-
-    Object.defineProperty(sync, "isDesktop", {
-      value: original,
-      writable: true,
-      configurable: true,
-    });
   });
 });
 

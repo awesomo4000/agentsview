@@ -27,15 +27,14 @@ use tauri::plugin::Builder as PluginBuilder;
 use tauri::tray::TrayIconBuilder;
 use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::{
-    App, AppHandle, Emitter, Manager, RunEvent, State, Url, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder,
+    App, AppHandle, Manager, RunEvent, State, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+#[cfg(target_os = "linux")]
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
-use tauri_plugin_updater::UpdaterExt;
 
 const HOST: &str = "127.0.0.1";
 const CLAUDE_AUTH_WINDOW_LABEL: &str = "claude-auth";
@@ -84,14 +83,6 @@ const STATUS_PROBE_TIMEOUT: Duration = Duration::from_millis(1250);
 const STATUS_PROBE_FAILURE_NOTICE_AFTER: u32 = 10;
 const STATUS_PROBE_FAILURE_FAIL_AFTER: u32 = 30;
 const LOGIN_SHELL_ENV_TIMEOUT: Duration = Duration::from_secs(3);
-// Stopping the detached daemon before an update install must outlast
-// both a daemon that is still mid-startup (serve stop refuses with
-// "retry once it is ready" while the startup sync runs, which takes
-// tens of seconds on large archives) and serve stop's own 10s graceful
-// shutdown window before it escalates to a forced kill.
-const UPDATE_SIDECAR_STOP_TIMEOUT: Duration = Duration::from_secs(120);
-const UPDATE_STOP_RETRY_INTERVAL: Duration = Duration::from_secs(2);
-const SERVE_STOP_STARTING_RETRY_HINT: &str = "a server is starting; retry once it is ready";
 const DATA_VERSION_TOO_NEW_EXIT_CODE: i32 = 3;
 const DESKTOP_LOG_FILE_NAME: &str = "agentsview-desktop.log";
 const DESKTOP_LOG_QUEUE_CAPACITY: usize = 64;
@@ -99,7 +90,6 @@ const STARTUP_OUTPUT_MAX_CHARS: usize = 12_000;
 const DEEP_LINK_SCHEME: &str = "agentsview";
 const DEEP_LINK_SESSIONS_HOST: &str = "sessions";
 const ABOUT_MENU_ID: &str = "about";
-const CHECK_UPDATES_MENU_ID: &str = "check_updates";
 const OPEN_LOGS_FOLDER_MENU_ID: &str = "open_logs_folder";
 const DOCUMENTATION_MENU_ID: &str = "documentation";
 const SHOW_MAIN_WINDOW_MENU_ID: &str = "show_main_window";
@@ -132,7 +122,7 @@ struct SidecarState {
 }
 
 struct SidecarProcess {
-    child: CommandChild,
+    _child: CommandChild,
     generation: u64,
 }
 
@@ -243,7 +233,6 @@ struct DockModeCheckItem(Mutex<Option<CheckMenuItem<tauri::Wry>>>);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DesktopMenuAction {
     About,
-    CheckUpdates,
     OpenLogsFolder,
     Documentation,
     Quit,
@@ -298,22 +287,12 @@ pub fn run() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 
-    let mut updater_builder = tauri_plugin_updater::Builder::new();
-    // Override the placeholder pubkey from tauri.conf.json with
-    // the real key when baked in at compile time via env var.
-    if let Some(pubkey) = option_env!("AGENTSVIEW_UPDATER_PUBKEY") {
-        if !pubkey.is_empty() {
-            updater_builder = updater_builder.pubkey(pubkey.to_string());
-        }
-    }
-
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main_window(app);
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(updater_builder.build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(init_navigation_guard_plugin())
@@ -354,7 +333,6 @@ pub fn run() {
                             err.to_string().as_str(),
                         );
                     } else {
-                        schedule_auto_update_check(app.handle().clone());
                     }
                 }
                 Err(DataVersionPreflightError::TooNew(message)) => {
@@ -366,10 +344,6 @@ pub fn run() {
                         too_new_archive_status_message(message.as_str()).as_str(),
                         too_new_archive_footer_message(),
                     );
-                    let handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        check_for_updates(&handle, false).await;
-                    });
                 }
                 Err(DataVersionPreflightError::Failed(message)) => {
                     let window = main_window(app)?;
@@ -404,7 +378,6 @@ pub fn run() {
 fn desktop_menu_action(id: &str) -> Option<DesktopMenuAction> {
     match id {
         ABOUT_MENU_ID => Some(DesktopMenuAction::About),
-        CHECK_UPDATES_MENU_ID => Some(DesktopMenuAction::CheckUpdates),
         OPEN_LOGS_FOLDER_MENU_ID => Some(DesktopMenuAction::OpenLogsFolder),
         DOCUMENTATION_MENU_ID => Some(DesktopMenuAction::Documentation),
         QUIT_FROM_STATUS_ITEM_MENU_ID => Some(DesktopMenuAction::Quit),
@@ -421,12 +394,6 @@ fn handle_desktop_menu_event(handle: &AppHandle, id: &str) {
             if let Some(window) = handle.get_webview_window("main") {
                 let _ = window.eval("window.dispatchEvent(new CustomEvent('show-about'));");
             }
-        }
-        Some(DesktopMenuAction::CheckUpdates) => {
-            let handle = handle.clone();
-            tauri::async_runtime::spawn(async move {
-                check_for_updates(&handle, false).await;
-            });
         }
         Some(DesktopMenuAction::OpenLogsFolder) => open_logs_folder(handle),
         Some(DesktopMenuAction::Documentation) => {
@@ -909,10 +876,6 @@ fn sidecar_args() -> Vec<String> {
         "--port".to_string(),
         "0".to_string(),
     ]
-}
-
-fn sidecar_stop_args() -> Vec<String> {
-    vec!["serve".to_string(), "stop".to_string()]
 }
 
 fn sidecar_status_args() -> Vec<String> {
@@ -1436,7 +1399,10 @@ fn save_sidecar(app: &AppHandle, child: CommandChild) -> Result<u64, DynError> {
         .child
         .lock()
         .map_err(|_| io::Error::other("sidecar state lock poisoned"))?;
-    *guard = Some(SidecarProcess { child, generation });
+    *guard = Some(SidecarProcess {
+        _child: child,
+        generation,
+    });
     if let Ok(mut active_generation) = state.active_generation.lock() {
         *active_generation = Some(generation);
     }
@@ -1455,11 +1421,6 @@ fn save_sidecar_port(app: &AppHandle, port: u16) {
     defer_deep_link_dispatch(app);
     let state = app.state::<SidecarState>();
     set_sidecar_port(&state, Some(port));
-}
-
-fn clear_sidecar_port(app: &AppHandle) {
-    let state = app.state::<SidecarState>();
-    set_sidecar_port(&state, None);
 }
 
 fn set_sidecar_port(state: &SidecarState, port: Option<u16>) {
@@ -1514,32 +1475,12 @@ fn clear_sidecar_child_if_current(state: &SidecarState, generation: u64) {
     }
 }
 
-fn mark_sidecar_stopping(state: &SidecarState, generation: u64) {
-    if let Ok(mut guard) = state.stopping_generation.lock() {
-        *guard = Some(generation);
-    }
-}
-
-fn current_stopping_generation(state: &SidecarState) -> Option<u64> {
-    state
-        .stopping_generation
-        .lock()
-        .ok()
-        .and_then(|guard| *guard)
-}
-
 fn clear_stopping_generation_if_current(state: &SidecarState, generation: u64) {
     let Ok(mut guard) = state.stopping_generation.lock() else {
         return;
     };
     if *guard == Some(generation) {
         *guard = None;
-    }
-}
-
-fn mark_restart_after_stop_timeout(state: &SidecarState, generation: u64) {
-    if let Ok(mut guard) = state.restart_after_stop_timeout_generation.lock() {
-        *guard = Some(generation);
     }
 }
 
@@ -1562,32 +1503,11 @@ fn take_restart_after_stop_timeout_if_current(state: &SidecarState, generation: 
     false
 }
 
-fn begin_update_stop_wait(state: &SidecarState) {
-    let _gate = state.launch_gate.lock();
-    state
-        .active_update_stop_waiters
-        .fetch_add(1, Ordering::SeqCst);
-}
-
-fn end_update_stop_wait(state: &SidecarState) {
-    let previous = state
-        .active_update_stop_waiters
-        .fetch_sub(1, Ordering::SeqCst);
-    debug_assert!(previous > 0);
-}
-
 fn has_active_update_stop_waiter(state: &SidecarState) -> bool {
     state.active_update_stop_waiters.load(Ordering::SeqCst) > 0
 }
 
 // A completed update stop retires the launch it stopped; a failed one leaves it in charge.
-fn finish_update_stop_wait(state: &SidecarState, stopped: bool) {
-    let _gate = state.launch_gate.lock();
-    if stopped {
-        state.next_generation.fetch_add(1, Ordering::SeqCst);
-    }
-    end_update_stop_wait(state);
-}
 
 fn launch_superseded(state: &SidecarState, generation: u64) -> bool {
     state.next_generation.load(Ordering::SeqCst) != generation
@@ -1633,59 +1553,12 @@ fn take_restart_after_stop_timeout_for_terminated_sidecar(
     take_restart_after_stop_timeout_if_current(state, generation)
 }
 
-fn restart_backend_after_stop_timeout_if_terminated(
-    app: &AppHandle,
-    state: &SidecarState,
-    generation: u64,
-) {
-    if !sidecar_generation_terminated(state, generation) {
-        return;
-    }
-    if take_restart_after_stop_timeout_for_terminated_sidecar(state, generation) {
-        restart_backend_after_update(app.clone());
-    }
-}
-
 fn record_sidecar_terminated(state: &SidecarState, generation: u64) {
     if let Ok(mut guard) = state.terminated_generation.lock() {
         if *guard < generation {
             *guard = generation;
         }
         state.termination.notify_all();
-    }
-}
-
-fn sidecar_generation_terminated(state: &SidecarState, generation: u64) -> bool {
-    state
-        .terminated_generation
-        .lock()
-        .is_ok_and(|guard| *guard >= generation)
-}
-
-fn wait_for_sidecar_termination(state: &SidecarState, generation: u64, timeout: Duration) -> bool {
-    let Ok(mut guard) = state.terminated_generation.lock() else {
-        return false;
-    };
-    let deadline = Instant::now() + timeout;
-    loop {
-        if *guard >= generation {
-            return true;
-        }
-
-        let now = Instant::now();
-        if now >= deadline {
-            return false;
-        }
-        let remaining = deadline.saturating_duration_since(now);
-        match state.termination.wait_timeout(guard, remaining) {
-            Ok((next_guard, result)) => {
-                guard = next_guard;
-                if result.timed_out() && *guard < generation {
-                    return false;
-                }
-            }
-            Err(_) => return false,
-        }
     }
 }
 
@@ -2036,7 +1909,7 @@ fn too_new_archive_status_message(_detail: &str) -> String {
 }
 
 fn too_new_archive_footer_message() -> &'static str {
-    "AgentsView is checking for updates now. If no update appears, use Check for Updates from the AgentsView menu or install the latest release manually."
+    "Install a compatible build of this fork from your internal distribution. Automatic updates are disabled."
 }
 
 fn js_string_literal(value: &str) -> String {
@@ -2747,15 +2620,12 @@ fn setup_menu(app: &mut App) -> Result<(), DynError> {
     let about = MenuItemBuilder::with_id(ABOUT_MENU_ID, "About AgentsView").build(app)?;
     let open_logs_folder =
         MenuItemBuilder::with_id(OPEN_LOGS_FOLDER_MENU_ID, "Open Logs Folder").build(app)?;
-    let check_updates =
-        MenuItemBuilder::with_id(CHECK_UPDATES_MENU_ID, "Check for Updates...").build(app)?;
 
     #[cfg(target_os = "macos")]
     let app_submenu = SubmenuBuilder::new(app, "AgentsView")
         .item(&about)
         .separator()
         .item(&open_logs_folder)
-        .item(&check_updates)
         .separator()
         .item(&PredefinedMenuItem::services(app, None)?)
         .separator()
@@ -2771,7 +2641,6 @@ fn setup_menu(app: &mut App) -> Result<(), DynError> {
         .item(&about)
         .separator()
         .item(&open_logs_folder)
-        .item(&check_updates)
         .separator()
         .item(&PredefinedMenuItem::close_window(app, None)?)
         .separator()
@@ -2829,8 +2698,6 @@ fn setup_status_item(app: &mut App) -> Result<(), DynError> {
     let show = MenuItemBuilder::with_id(SHOW_MAIN_WINDOW_MENU_ID, "Show AgentsView").build(app)?;
     let open_logs =
         MenuItemBuilder::with_id(OPEN_LOGS_FOLDER_MENU_ID, "Open Logs Folder").build(app)?;
-    let check_updates =
-        MenuItemBuilder::with_id(CHECK_UPDATES_MENU_ID, "Check for Updates...").build(app)?;
     let quit =
         MenuItemBuilder::with_id(QUIT_FROM_STATUS_ITEM_MENU_ID, "Quit AgentsView").build(app)?;
     #[cfg(target_os = "macos")]
@@ -2854,7 +2721,6 @@ fn setup_status_item(app: &mut App) -> Result<(), DynError> {
         .item(&show)
         .separator()
         .item(&open_logs)
-        .item(&check_updates)
         .separator();
 
     #[cfg(target_os = "macos")]
@@ -3309,345 +3175,6 @@ fn append_open_logs_folder_failure_at_path(
 /// is dismissed. On Linux/WebKitGTK, native dialogs can leave the
 /// webview in a frozen state where it renders but does not process
 /// input events.
-fn restore_webview_focus(handle: &AppHandle) {
-    let handle = handle.clone();
-    // Delay focus restoration so the native GTK dialog has time to
-    // fully close and release window focus. Without this, set_focus()
-    // fires while the dialog still owns focus and the webview stays
-    // unresponsive.
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(100));
-        if let Some(window) = handle.get_webview_window("main") {
-            let _ = window.set_focus();
-        }
-    });
-}
-
-static UPDATE_CHECK_ACTIVE: AtomicBool = AtomicBool::new(false);
-
-// Guard that clears UPDATE_CHECK_ACTIVE on drop, ensuring the
-// flag is reset regardless of which return path is taken.
-struct UpdateGuard;
-
-impl Drop for UpdateGuard {
-    fn drop(&mut self) {
-        UPDATE_CHECK_ACTIVE.store(false, Ordering::SeqCst);
-    }
-}
-
-fn schedule_auto_update_check(handle: AppHandle) {
-    let disabled = std::env::var("AGENTSVIEW_DESKTOP_AUTOUPDATE")
-        .map(|v| v == "0")
-        .unwrap_or(false);
-    if disabled {
-        return;
-    }
-
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(5)).await;
-        check_for_updates(&handle, true).await;
-    });
-}
-
-async fn check_for_updates(handle: &AppHandle, silent: bool) {
-    if UPDATE_CHECK_ACTIVE
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        if !silent {
-            let h = handle.clone();
-            handle
-                .dialog()
-                .message("An update check is already in progress.")
-                .title("Update Check")
-                .show(move |_| restore_webview_focus(&h));
-        }
-        return;
-    }
-    let _guard = UpdateGuard;
-
-    let updater = match handle.updater() {
-        Ok(updater) => updater,
-        Err(err) => {
-            eprintln!("[agentsview] updater unavailable: {err}");
-            if !silent {
-                let h = handle.clone();
-                handle
-                    .dialog()
-                    .message("Could not check for updates. The updater is not configured.")
-                    .title("Update Check")
-                    .show(move |_| restore_webview_focus(&h));
-            }
-            return;
-        }
-    };
-
-    let update = match updater.check().await {
-        Ok(update) => update,
-        Err(err) => {
-            eprintln!("[agentsview] update check failed: {err}");
-            if !silent {
-                let h = handle.clone();
-                handle
-                    .dialog()
-                    .message("Could not check for updates. Please try again later.")
-                    .title("Update Check")
-                    .show(move |_| restore_webview_focus(&h));
-            }
-            return;
-        }
-    };
-
-    let Some(update) = update else {
-        if !silent {
-            let h = handle.clone();
-            handle
-                .dialog()
-                .message("You're running the latest version.")
-                .title("No Updates Available")
-                .show(move |_| restore_webview_focus(&h));
-        }
-        return;
-    };
-
-    let version = update.version.clone();
-    let confirmed = dialog_confirm(
-        handle,
-        "Update Available",
-        &format!(
-            "Version {version} is available. \
-             Would you like to download and install it?"
-        ),
-    )
-    .await;
-
-    if !confirmed {
-        return;
-    }
-
-    let update_bytes = match update.download(|_, _| {}, || {}).await {
-        Ok(bytes) => bytes,
-        Err(err) => {
-            eprintln!("[agentsview] update download failed: {err}");
-            let h = handle.clone();
-            handle
-                .dialog()
-                .message(
-                    "Failed to download the update. \
-                     Please try downloading manually from the releases page.",
-                )
-                .title("Update Failed")
-                .show(move |_| restore_webview_focus(&h));
-            return;
-        }
-    };
-
-    let backend_stopped =
-        Some(stop_backend_and_wait(handle.clone(), UPDATE_SIDECAR_STOP_TIMEOUT).await);
-    let backend_stopped_for_update = backend_stopped == Some(true);
-
-    if let Err(err) = install_downloaded_update(
-        update_bytes,
-        backend_stopped,
-        || restart_backend_after_update(handle.clone()),
-        |bytes| update.install(bytes),
-    ) {
-        eprintln!("[agentsview] update install failed: {err}");
-        let message = match err {
-            InstallDownloadedUpdateError::BackendStopTimedOut => {
-                "The update was downloaded, but the local backend \
-                 could not be stopped in time. Please try again in \
-                 a moment."
-            }
-            InstallDownloadedUpdateError::Install(_) => {
-                "Failed to install the update. \
-                 Please try downloading manually from the releases page."
-            }
-        };
-        let h = handle.clone();
-        handle
-            .dialog()
-            .message(message)
-            .title("Update Failed")
-            .show(move |_| restore_webview_focus(&h));
-        return;
-    }
-
-    let restart = dialog_confirm(
-        handle,
-        "Update Complete",
-        "Update installed. Restart now to apply?",
-    )
-    .await;
-
-    let emit_handle = handle.clone();
-    let restart_handle = handle.clone();
-    let backend_handle = handle.clone();
-    finish_successful_update(
-        backend_stopped_for_update,
-        restart,
-        || {
-            let _ = emit_handle.emit("restart", ());
-        },
-        || restart_handle.restart(),
-        || restart_backend_after_update(backend_handle),
-    );
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum InstallDownloadedUpdateError<E> {
-    BackendStopTimedOut,
-    Install(E),
-}
-
-impl<E: std::fmt::Display> std::fmt::Display for InstallDownloadedUpdateError<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BackendStopTimedOut => write!(f, "backend did not stop before update install"),
-            Self::Install(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl<E: std::fmt::Debug + std::fmt::Display> Error for InstallDownloadedUpdateError<E> {}
-
-fn install_downloaded_update<R, I, E>(
-    update_bytes: Vec<u8>,
-    backend_stopped: Option<bool>,
-    restart_backend: R,
-    install: I,
-) -> Result<(), InstallDownloadedUpdateError<E>>
-where
-    R: FnOnce(),
-    I: FnOnce(Vec<u8>) -> Result<(), E>,
-{
-    if backend_stopped == Some(false) {
-        return Err(InstallDownloadedUpdateError::BackendStopTimedOut);
-    }
-    match install(update_bytes) {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            if backend_stopped.is_some() {
-                restart_backend();
-            }
-            Err(InstallDownloadedUpdateError::Install(err))
-        }
-    }
-}
-
-fn finish_successful_update<E, A, B>(
-    backend_stopped_for_update: bool,
-    restart_confirmed: bool,
-    emit_restart: E,
-    restart_app: A,
-    restart_backend: B,
-) where
-    E: FnOnce(),
-    A: FnOnce(),
-    B: FnOnce(),
-{
-    if restart_confirmed {
-        emit_restart();
-        restart_app();
-    } else if backend_stopped_for_update {
-        restart_backend();
-    }
-}
-
-async fn dialog_confirm(handle: &AppHandle, title: &str, message: &str) -> bool {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    let h = handle.clone();
-    handle
-        .dialog()
-        .message(message)
-        .title(title)
-        .buttons(MessageDialogButtons::OkCancel)
-        .show(move |confirmed| {
-            restore_webview_focus(&h);
-            let _ = tx.send(confirmed);
-        });
-    rx.await.unwrap_or(false)
-}
-
-async fn stop_backend_and_wait(app: AppHandle, timeout: Duration) -> bool {
-    tauri::async_runtime::spawn_blocking(move || stop_backend_inner(&app, Some(timeout)))
-        .await
-        .unwrap_or(false)
-}
-
-fn stop_backend_inner(app: &AppHandle, wait_timeout: Option<Duration>) -> bool {
-    let state = app.state::<SidecarState>();
-    if let Some(timeout) = wait_timeout {
-        let deadline = Instant::now() + timeout;
-        begin_update_stop_wait(&state);
-        let mut waited_generation = None;
-        let detached_port = current_backend_port(app);
-        let active_generation = {
-            let Ok(guard) = state.child.lock() else {
-                end_update_stop_wait(&state);
-                return false;
-            };
-            guard.as_ref().map(|process| {
-                let generation = process.generation;
-                mark_sidecar_stopping(&state, generation);
-                if let Err(err) = request_sidecar_stop(process) {
-                    eprintln!("[agentsview] failed to stop sidecar: {err}");
-                }
-                generation
-            })
-        };
-        let stopped = if let Some(generation) = active_generation {
-            waited_generation = Some(generation);
-            let launcher_stopped = finish_backend_stop_wait(
-                app,
-                &state,
-                generation,
-                wait_for_sidecar_termination(&state, generation, remaining_timeout(deadline)),
-            );
-            launcher_stopped
-                && stop_detached_backend_for_update_with_port(app, deadline, detached_port)
-        } else if let Some(generation) = current_stopping_generation(&state) {
-            waited_generation = Some(generation);
-            let launcher_stopped = finish_backend_stop_wait(
-                app,
-                &state,
-                generation,
-                wait_for_sidecar_termination(&state, generation, remaining_timeout(deadline)),
-            );
-            launcher_stopped
-                && stop_detached_backend_for_update_with_port(app, deadline, detached_port)
-        } else {
-            stop_detached_backend_for_update_with_port(app, deadline, detached_port)
-        };
-        finish_update_stop_wait(&state, stopped);
-        if let Some(generation) = waited_generation {
-            restart_backend_after_stop_timeout_if_terminated(app, &state, generation);
-        }
-        return stopped;
-    }
-
-    let process = {
-        let Ok(mut guard) = state.child.lock() else {
-            return false;
-        };
-        guard.take()
-    };
-    if let Some(process) = process.as_ref() {
-        let _ = mark_sidecar_inactive_if_current(&state, process.generation);
-        clear_restart_after_stop_timeout_if_current(&state, process.generation);
-        clear_stopping_generation_if_current(&state, process.generation);
-    }
-
-    if let Some(process) = process {
-        if let Err(err) = process.child.kill() {
-            eprintln!("[agentsview] failed to stop sidecar: {err}");
-        }
-        clear_sidecar_port(app);
-        return true;
-    }
-    clear_sidecar_port(app);
-    true
-}
 
 fn current_backend_port(app: &AppHandle) -> Option<u16> {
     app.state::<SidecarState>()
@@ -3655,202 +3182,6 @@ fn current_backend_port(app: &AppHandle) -> Option<u16> {
         .lock()
         .ok()
         .and_then(|guard| *guard)
-}
-
-fn stop_detached_backend_for_update_with_port(
-    app: &AppHandle,
-    deadline: Instant,
-    port: Option<u16>,
-) -> bool {
-    // serve stop exits non-zero while the daemon is still starting up
-    // ("a server is starting; retry once it is ready"), so a single
-    // failed attempt must not abort the update. Retry until the
-    // deadline passes.
-    let result = retry_stop_launcher(
-        deadline,
-        UPDATE_STOP_RETRY_INTERVAL,
-        |remaining| {
-            let (mut rx, child) = match spawn_sidecar_with_args(app, sidecar_stop_args()) {
-                Ok(spawned) => spawned,
-                Err(err) => {
-                    eprintln!("[agentsview] failed to run serve stop before update install: {err}");
-                    return StopLauncherResult::Fatal;
-                }
-            };
-            let result = wait_for_stop_launcher(&mut rx, remaining);
-            if result != StopLauncherResult::Success {
-                let _ = child.kill();
-            }
-            result
-        },
-        thread::sleep,
-    );
-    if result != StopLauncherResult::Success {
-        if port.is_none() {
-            eprintln!(
-                "[agentsview] serve stop did not report success, but no detached daemon port is known"
-            );
-        }
-        if result == StopLauncherResult::RetryableStartup {
-            eprintln!("[agentsview] gave up stopping the backend before update install");
-        }
-        return false;
-    }
-    if let Some(port) = port {
-        if !wait_for_server_stopped(port, remaining_timeout(deadline)) {
-            eprintln!(
-                "[agentsview] timed out waiting for detached daemon to stop before update install"
-            );
-            return false;
-        }
-    }
-    clear_sidecar_port(app);
-    true
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum StopLauncherResult {
-    Success,
-    RetryableStartup,
-    Fatal,
-}
-
-fn retry_stop_launcher<A, S>(
-    deadline: Instant,
-    retry_interval: Duration,
-    mut attempt: A,
-    mut sleep: S,
-) -> StopLauncherResult
-where
-    A: FnMut(Duration) -> StopLauncherResult,
-    S: FnMut(Duration),
-{
-    loop {
-        let result = attempt(remaining_timeout(deadline));
-        if result != StopLauncherResult::RetryableStartup {
-            return result;
-        }
-        if remaining_timeout(deadline) <= retry_interval {
-            return result;
-        }
-        sleep(retry_interval);
-    }
-}
-
-fn remaining_timeout(deadline: Instant) -> Duration {
-    deadline
-        .checked_duration_since(Instant::now())
-        .unwrap_or_default()
-}
-
-fn wait_for_stop_launcher(rx: &mut CommandRx, timeout: Duration) -> StopLauncherResult {
-    let deadline = Instant::now() + timeout;
-    let mut output = String::new();
-    loop {
-        match rx.try_recv() {
-            Ok(CommandEvent::Terminated(payload)) => {
-                return classify_stop_launcher_termination(payload.code, &output);
-            }
-            Ok(CommandEvent::Stdout(bytes)) => {
-                let line = String::from_utf8_lossy(&bytes);
-                eprintln!("[agentsview] {}", line.trim_end());
-                output.push_str(&line);
-            }
-            Ok(CommandEvent::Stderr(bytes)) => {
-                let line = String::from_utf8_lossy(&bytes);
-                eprintln!("[agentsview:stderr] {}", line.trim_end());
-                output.push_str(&line);
-            }
-            Ok(CommandEvent::Error(err)) => {
-                eprintln!("[agentsview:error] {err}");
-                return StopLauncherResult::Fatal;
-            }
-            Ok(_) => {}
-            Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
-            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                return StopLauncherResult::Fatal;
-            }
-        }
-        if Instant::now() >= deadline {
-            eprintln!("[agentsview] timed out waiting for serve stop before update install");
-            return StopLauncherResult::Fatal;
-        }
-        thread::sleep(READY_POLL_INTERVAL);
-    }
-}
-
-fn classify_stop_launcher_termination(code: Option<i32>, output: &str) -> StopLauncherResult {
-    if code == Some(0) {
-        return StopLauncherResult::Success;
-    }
-    if output.contains(SERVE_STOP_STARTING_RETRY_HINT) {
-        return StopLauncherResult::RetryableStartup;
-    }
-    StopLauncherResult::Fatal
-}
-
-fn finish_backend_stop_wait(
-    app: &AppHandle,
-    state: &SidecarState,
-    generation: u64,
-    terminated: bool,
-) -> bool {
-    if terminated {
-        clear_restart_after_stop_timeout_if_current(state, generation);
-        let _ = mark_sidecar_inactive_if_current(state, generation);
-        clear_sidecar_child_if_current(state, generation);
-        clear_stopping_generation_if_current(state, generation);
-        clear_sidecar_port(app);
-    } else {
-        mark_restart_after_stop_timeout(state, generation);
-        eprintln!("[agentsview] timed out waiting for sidecar to stop before update install");
-    }
-    terminated
-}
-
-fn request_sidecar_stop(process: &SidecarProcess) -> io::Result<()> {
-    request_process_stop(process.child.pid())
-}
-
-#[cfg(windows)]
-fn request_process_stop(pid: u32) -> io::Result<()> {
-    let status = std::process::Command::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/T", "/F"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::other(format!(
-            "taskkill failed for pid {pid} with status {status}"
-        )))
-    }
-}
-
-#[cfg(unix)]
-fn request_process_stop(pid: u32) -> io::Result<()> {
-    let status = std::process::Command::new("kill")
-        .args(["-TERM", &pid.to_string()])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(io::Error::other(format!(
-            "kill failed for pid {pid} with status {status}"
-        )))
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-fn request_process_stop(pid: u32) -> io::Result<()> {
-    Err(io::Error::other(format!(
-        "stopping pid {pid} is unsupported on this platform"
-    )))
 }
 
 fn restart_backend_after_update(handle: AppHandle) {
@@ -3935,17 +3266,6 @@ fn wait_for_server(port: u16, timeout: Duration) -> bool {
         thread::sleep(READY_POLL_INTERVAL);
     }
     false
-}
-
-fn wait_for_server_stopped(port: u16, timeout: Duration) -> bool {
-    let deadline = Instant::now() + timeout;
-    while Instant::now() < deadline {
-        if !backend_endpoint_ready(port) {
-            return true;
-        }
-        thread::sleep(READY_POLL_INTERVAL);
-    }
-    !backend_endpoint_ready(port)
 }
 
 fn backend_endpoint_ready(port: u16) -> bool {
@@ -4091,7 +3411,9 @@ fn validate_claude_fetch_path(path: &str) -> Result<(), String> {
     const ORGANIZATIONS_REQUEST: usize = 0;
     const CONVERSATIONS_REQUEST: usize = 1;
     const CONVERSATION_REQUEST: usize = 2;
-    let shapes: Vec<_> = include_str!("../../../internal/importer/claude_ai_requests.txt").lines().collect();
+    let shapes: Vec<_> = include_str!("../../../internal/importer/claude_ai_requests.txt")
+        .lines()
+        .collect();
     if path == shapes[ORGANIZATIONS_REQUEST] {
         return Ok(());
     }
@@ -4099,19 +3421,30 @@ fn validate_claude_fetch_path(path: &str) -> Result<(), String> {
         uuid::Uuid::parse_str(id)
             .is_ok_and(|uuid| uuid.hyphenated().to_string() == id.to_ascii_lowercase())
     };
-    let (prefix, rest) = shapes[CONVERSATIONS_REQUEST].split_once("{organization}").unwrap();
+    let (prefix, rest) = shapes[CONVERSATIONS_REQUEST]
+        .split_once("{organization}")
+        .unwrap();
     if let Some(rest_path) = path.strip_prefix(prefix) {
         if let Some((org, tail)) = rest_path.split_once('/') {
             if valid_uuid(org) {
-                let list_prefix = rest.trim_start_matches('/').strip_suffix("{offset}").unwrap();
+                let list_prefix = rest
+                    .trim_start_matches('/')
+                    .strip_suffix("{offset}")
+                    .unwrap();
                 if let Some(offset) = tail.strip_prefix(list_prefix) {
                     if !offset.is_empty() && offset.bytes().all(|b| b.is_ascii_digit()) {
                         return Ok(());
                     }
                 }
-                let detail = shapes[CONVERSATION_REQUEST].split_once("{organization}/").unwrap().1;
+                let detail = shapes[CONVERSATION_REQUEST]
+                    .split_once("{organization}/")
+                    .unwrap()
+                    .1;
                 let (detail_prefix, detail_suffix) = detail.split_once("{conversation}").unwrap();
-                if let Some(id) = tail.strip_prefix(detail_prefix).and_then(|s| s.strip_suffix(detail_suffix)) {
+                if let Some(id) = tail
+                    .strip_prefix(detail_prefix)
+                    .and_then(|s| s.strip_suffix(detail_suffix))
+                {
                     if valid_uuid(id) {
                         return Ok(());
                     }
@@ -4204,7 +3537,7 @@ impl ClaudeAuthState {
 mod tests {
     use super::*;
     use serde_json::Value;
-    use std::collections::{HashMap, VecDeque};
+    use std::collections::HashMap;
     use std::fs;
     use std::io::{Read, Write};
     use std::net::TcpListener;
@@ -4228,14 +3561,6 @@ mod tests {
                 "--port".to_string(),
                 "0".to_string(),
             ]
-        );
-    }
-
-    #[test]
-    fn sidecar_stop_args_use_serve_stop() {
-        assert_eq!(
-            sidecar_stop_args(),
-            vec!["serve".to_string(), "stop".to_string()]
         );
     }
 
@@ -4382,8 +3707,8 @@ mod tests {
         assert!(message.contains("updated by a newer version of AgentsView"));
         assert!(!message.contains("database data version"));
         assert!(!message.contains("bundled backend"));
-        assert!(footer.contains("checking for updates now"));
-        assert!(footer.contains("Check for Updates"));
+        assert!(footer.contains("Automatic updates are disabled"));
+        assert!(footer.contains("internal distribution"));
     }
 
     #[test]
@@ -5194,10 +4519,6 @@ agentsview running at http://127.0.0.1:18082
             Some(DesktopMenuAction::OpenLogsFolder)
         );
         assert_eq!(
-            desktop_menu_action(CHECK_UPDATES_MENU_ID),
-            Some(DesktopMenuAction::CheckUpdates)
-        );
-        assert_eq!(
             desktop_menu_action(QUIT_FROM_STATUS_ITEM_MENU_ID),
             Some(DesktopMenuAction::Quit)
         );
@@ -5420,341 +4741,11 @@ agentsview running at http://127.0.0.1:18082
     }
 
     #[test]
-    fn launcher_terminated_after_startup_preserves_port() {
-        let state = SidecarState::default();
-        set_sidecar_port(&state, Some(18080));
-        *state
-            .active_generation
-            .lock()
-            .expect("lock active_generation") = Some(1);
-
-        handle_launcher_terminated_after_startup(&state, 1);
-
-        assert_eq!(
-            state
-                .backend_port
-                .lock()
-                .expect("lock backend_port after launcher terminated")
-                .to_owned(),
-            Some(18080)
-        );
-        assert_eq!(
-            state
-                .active_generation
-                .lock()
-                .expect("lock active_generation after launcher terminated")
-                .to_owned(),
-            None
-        );
-        assert!(sidecar_generation_terminated(&state, 1));
-    }
-
-    #[test]
-    fn restart_after_stop_timeout_is_consumed_for_matching_generation() {
-        let state = SidecarState::default();
-
-        mark_restart_after_stop_timeout(&state, 2);
-
-        assert!(!take_restart_after_stop_timeout_if_current(&state, 1));
-        assert!(take_restart_after_stop_timeout_if_current(&state, 2));
-        assert!(!take_restart_after_stop_timeout_if_current(&state, 2));
-    }
-
-    #[test]
-    fn update_stop_retires_running_launch() {
-        let state = SidecarState::default();
-        state.next_generation.store(1, Ordering::SeqCst);
-        assert!(launch_is_current(&state, 1));
-
-        begin_update_stop_wait(&state);
-        assert!(!launch_is_current(&state, 1));
-        assert!(!launch_superseded(&state, 1));
-
-        finish_update_stop_wait(&state, true);
-        assert!(launch_superseded(&state, 1));
-
-        let replacement = state.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
-        assert!(launch_is_current(&state, replacement));
-        assert!(launch_superseded(&state, 1));
-    }
-
-    #[test]
-    fn failed_update_stop_keeps_launch_current() {
-        let state = SidecarState::default();
-        state.next_generation.store(7, Ordering::SeqCst);
-        begin_update_stop_wait(&state);
-        finish_update_stop_wait(&state, false);
-        assert!(launch_is_current(&state, 7));
-        assert!(!launch_superseded(&state, 7));
-    }
-
-    #[test]
-    fn launch_survives_update_stop_waits_for_outcome() {
-        for (stopped, survives) in [(true, false), (false, true)] {
-            let state = Arc::new(SidecarState::default());
-            state.next_generation.store(1, Ordering::SeqCst);
-            begin_update_stop_wait(&state);
-            let (tx, rx) = std::sync::mpsc::channel();
-            let waiter = Arc::clone(&state);
-            thread::spawn(move || {
-                let _ = tx.send(with_current_launch(&waiter, 1, || ()).is_some());
-            });
-            assert!(rx.recv_timeout(Duration::from_millis(200)).is_err());
-            finish_update_stop_wait(&state, stopped);
-            assert_eq!(rx.recv_timeout(Duration::from_secs(5)), Ok(survives));
-        }
-    }
-
-    #[test]
     fn launch_survives_update_stop_returns_at_once_without_stop() {
         let state = SidecarState::default();
         state.next_generation.store(3, Ordering::SeqCst);
         assert_eq!(with_current_launch(&state, 3, || 7), Some(7));
         assert_eq!(with_current_launch(&state, 2, || 7), None);
-    }
-
-    #[test]
-    fn update_stop_waits_for_launch_action() {
-        let state = Arc::new(SidecarState::default());
-        state.next_generation.store(1, Ordering::SeqCst);
-        let (tx, rx) = std::sync::mpsc::channel();
-        let stopper = Arc::clone(&state);
-        with_current_launch(&state, 1, || {
-            thread::spawn(move || {
-                begin_update_stop_wait(&stopper);
-                let _ = tx.send(());
-            });
-            assert!(rx.recv_timeout(Duration::from_millis(200)).is_err());
-        });
-        assert!(rx.recv_timeout(Duration::from_secs(5)).is_ok());
-    }
-
-    #[test]
-    fn restart_after_stop_timeout_waits_for_active_update_stop_waiter() {
-        let state = SidecarState::default();
-
-        mark_restart_after_stop_timeout(&state, 2);
-        begin_update_stop_wait(&state);
-
-        assert!(!take_restart_after_stop_timeout_for_terminated_sidecar(
-            &state, 2
-        ));
-
-        end_update_stop_wait(&state);
-
-        assert!(take_restart_after_stop_timeout_for_terminated_sidecar(
-            &state, 2
-        ));
-    }
-
-    #[test]
-    fn install_downloaded_update_installs_after_backend_stop() {
-        let events = Mutex::new(Vec::new());
-
-        let result = install_downloaded_update(
-            b"update-bytes".to_vec(),
-            Some(true),
-            || events.lock().expect("lock events").push("restart"),
-            |bytes| {
-                assert_eq!(bytes, b"update-bytes");
-                events.lock().expect("lock events").push("install");
-                Ok::<(), ()>(())
-            },
-        );
-
-        assert_eq!(result, Ok(()));
-        assert_eq!(events.lock().expect("lock events").as_slice(), ["install"]);
-    }
-
-    #[test]
-    fn install_downloaded_update_can_install_without_backend_stop_result() {
-        let events = Mutex::new(Vec::new());
-
-        let result = install_downloaded_update(
-            b"update-bytes".to_vec(),
-            None,
-            || events.lock().expect("lock events").push("restart"),
-            |bytes| {
-                assert_eq!(bytes, b"update-bytes");
-                events.lock().expect("lock events").push("install");
-                Ok::<(), ()>(())
-            },
-        );
-
-        assert_eq!(result, Ok(()));
-        assert_eq!(events.lock().expect("lock events").as_slice(), ["install"]);
-    }
-
-    #[test]
-    fn install_downloaded_update_does_not_restart_after_stop_timeout() {
-        let events = Mutex::new(Vec::new());
-
-        let result = install_downloaded_update(
-            b"update-bytes".to_vec(),
-            Some(false),
-            || events.lock().expect("lock events").push("restart"),
-            |_| {
-                events.lock().expect("lock events").push("install");
-                Ok::<(), ()>(())
-            },
-        );
-
-        assert_eq!(
-            result,
-            Err(InstallDownloadedUpdateError::BackendStopTimedOut)
-        );
-        assert!(events.lock().expect("lock events").is_empty());
-    }
-
-    #[test]
-    fn install_downloaded_update_restarts_backend_after_install_failure() {
-        let events = Mutex::new(Vec::new());
-
-        let result = install_downloaded_update(
-            b"update-bytes".to_vec(),
-            Some(true),
-            || events.lock().expect("lock events").push("restart"),
-            |bytes| {
-                assert_eq!(bytes, b"update-bytes");
-                events.lock().expect("lock events").push("install");
-                Err::<(), &str>("install failed")
-            },
-        );
-
-        assert_eq!(
-            result,
-            Err(InstallDownloadedUpdateError::Install("install failed"))
-        );
-        assert_eq!(
-            events.lock().expect("lock events").as_slice(),
-            ["install", "restart"]
-        );
-    }
-
-    #[test]
-    fn stop_launcher_retries_startup_refusal_then_succeeds() {
-        let attempts = Mutex::new(VecDeque::from([
-            StopLauncherResult::RetryableStartup,
-            StopLauncherResult::Success,
-        ]));
-        let sleeps = Mutex::new(Vec::new());
-
-        let result = retry_stop_launcher(
-            Instant::now() + Duration::from_secs(10),
-            Duration::from_secs(2),
-            |_| {
-                attempts
-                    .lock()
-                    .expect("lock attempts")
-                    .pop_front()
-                    .expect("configured attempt")
-            },
-            |duration| sleeps.lock().expect("lock sleeps").push(duration),
-        );
-
-        assert_eq!(result, StopLauncherResult::Success);
-        assert!(attempts.lock().expect("lock attempts").is_empty());
-        assert_eq!(
-            sleeps.lock().expect("lock sleeps").as_slice(),
-            [Duration::from_secs(2)]
-        );
-    }
-
-    #[test]
-    fn stop_launcher_does_not_retry_fatal_failure() {
-        let attempts = Mutex::new(0);
-        let sleeps = Mutex::new(Vec::new());
-
-        let result = retry_stop_launcher(
-            Instant::now() + Duration::from_secs(10),
-            Duration::from_secs(2),
-            |_| {
-                *attempts.lock().expect("lock attempts") += 1;
-                StopLauncherResult::Fatal
-            },
-            |duration| sleeps.lock().expect("lock sleeps").push(duration),
-        );
-
-        assert_eq!(result, StopLauncherResult::Fatal);
-        assert_eq!(*attempts.lock().expect("lock attempts"), 1);
-        assert!(sleeps.lock().expect("lock sleeps").is_empty());
-    }
-
-    #[test]
-    fn stop_launcher_stops_retrying_when_deadline_is_exhausted() {
-        let attempts = Mutex::new(0);
-
-        let result = retry_stop_launcher(
-            Instant::now(),
-            Duration::from_secs(2),
-            |_| {
-                *attempts.lock().expect("lock attempts") += 1;
-                StopLauncherResult::RetryableStartup
-            },
-            |_| panic!("deadline must prevent another retry"),
-        );
-
-        assert_eq!(result, StopLauncherResult::RetryableStartup);
-        assert_eq!(*attempts.lock().expect("lock attempts"), 1);
-    }
-
-    #[test]
-    fn stop_launcher_classifies_only_startup_refusal_as_retryable() {
-        assert_eq!(
-            classify_stop_launcher_termination(
-                Some(1),
-                "serve stop: a server is starting; retry once it is ready",
-            ),
-            StopLauncherResult::RetryableStartup
-        );
-        assert_eq!(
-            classify_stop_launcher_termination(
-                Some(1),
-                "serve stop: stopping pid 42: access denied",
-            ),
-            StopLauncherResult::Fatal
-        );
-        assert_eq!(
-            classify_stop_launcher_termination(Some(0), ""),
-            StopLauncherResult::Success
-        );
-    }
-
-    #[test]
-    fn stop_launcher_treats_command_error_as_fatal() {
-        let (tx, mut rx) = tokio::sync::mpsc::channel(2);
-        tx.try_send(CommandEvent::Error("wait failed".to_string()))
-            .expect("send command error");
-        tx.try_send(CommandEvent::Terminated(
-            tauri_plugin_shell::process::TerminatedPayload {
-                code: Some(0),
-                signal: None,
-            },
-        ))
-        .expect("send misleading success");
-
-        assert_eq!(
-            wait_for_stop_launcher(&mut rx, Duration::from_secs(1)),
-            StopLauncherResult::Fatal
-        );
-    }
-
-    #[test]
-    fn finish_successful_update_restarts_backend_when_restart_is_declined() {
-        let events = Mutex::new(Vec::new());
-
-        finish_successful_update(
-            true,
-            false,
-            || events.lock().expect("lock events").push("emit-restart"),
-            || events.lock().expect("lock events").push("restart-app"),
-            || events.lock().expect("lock events").push("restart-backend"),
-        );
-
-        assert_eq!(
-            events.lock().expect("lock events").as_slice(),
-            ["restart-backend"]
-        );
     }
 
     #[test]
@@ -5790,16 +4781,6 @@ agentsview running at http://127.0.0.1:18082
         assert!(request.contains(&format!("Host: {HOST}:{port}\r\n")));
         assert!(!request.contains("Authorization:"));
         assert!(ready);
-    }
-
-    #[test]
-    fn wait_for_server_stopped_rejects_auth_challenge() {
-        let response = b"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\nUnauthorized\n";
-        let (port, request) = spawn_response_server(response);
-        let stopped = wait_for_server_stopped(port, Duration::ZERO);
-        request.join().expect("response server should finish");
-
-        assert!(!stopped);
     }
 
     #[test]
@@ -6607,8 +5588,16 @@ agentsview running at http://127.0.0.1:18082
 mod claude_sync_tests {
     #[test]
     fn claude_browser_response_omits_absent_fields() {
-        let response = super::ClaudeBrowserResponse { status: 200, body: String::new(), error: None, retry_after: None };
-        assert_eq!(serde_json::to_string(&response).unwrap(), r#"{"status":200,"body":""}"#);
+        let response = super::ClaudeBrowserResponse {
+            status: 200,
+            body: String::new(),
+            error: None,
+            retry_after: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&response).unwrap(),
+            r#"{"status":200,"body":""}"#
+        );
     }
 
     #[test]
@@ -6652,16 +5641,24 @@ mod claude_sync_tests {
             assert!(super::validate_claude_fetch_path(&path).is_ok(), "{path}");
         }
         for path in [
-            "".into(), "/api".into(), "/api/../settings".into(), "/api/organizations/../organizations".into(),
-            "//example.com/api/organizations".into(), "https://claude.ai/api/organizations".into(),
-            "/api/organizations?extra=true".into(), format!("{base}/settings"),
-            list.replace("limit=50", "limit=100"), list.replace("offset=0", "offset=-1"),
-            format!("{list}&extra=true"), format!("{list}#fragment"),
+            "".into(),
+            "/api".into(),
+            "/api/../settings".into(),
+            "/api/organizations/../organizations".into(),
+            "//example.com/api/organizations".into(),
+            "https://claude.ai/api/organizations".into(),
+            "/api/organizations?extra=true".into(),
+            format!("{base}/settings"),
+            list.replace("limit=50", "limit=100"),
+            list.replace("offset=0", "offset=-1"),
+            format!("{list}&extra=true"),
+            format!("{list}#fragment"),
             list.replace("11111111-1111-4111-8111-111111111111", "%2e%2e"),
             detail.replace("22222222-2222-4222-8222-222222222222", ".."),
             detail.replace("22222222-2222-4222-8222-222222222222", "%2e%2e"),
             detail.replace("22222222-2222-4222-8222-222222222222", "one/../../settings"),
-            detail.replace("tree=True", "tree=False"), format!("{detail}&extra=true"),
+            detail.replace("tree=True", "tree=False"),
+            format!("{detail}&extra=true"),
         ] {
             assert!(super::validate_claude_fetch_path(&path).is_err(), "{path}");
         }

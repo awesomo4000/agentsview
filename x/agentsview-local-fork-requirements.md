@@ -180,11 +180,14 @@ PostgreSQL replication, serving, direct reads, and its driver are removed.
 The `pg` commands, `--pg` flags, and hosted-contributor memory mode are gone.
 Legacy PostgreSQL configuration is rejected. Local/HTTP MCP and memory reads,
 SQLite vectors, and ClickHouse/DuckDB remain.
-Updates, pricing refresh, external fonts, and other remote features remain.
+Automatic updates and public pricing refreshes are now removed, including
+the Tauri updater and build-time snapshot downloads. Bundled rates, stored
+pricing, and local custom overrides remain until internal rates are supplied.
+External fonts and other remote features remain.
 This is an intermediate development build, not an offline-approved release.
 The fixed port and access-control requirements above remain pending.
 
-The upstream build restores a pricing snapshot and installs frontend packages,
+The build uses checked-in pricing snapshots and installs frontend packages,
 including a pinned public GitHub dependency on `kenn-io/kit-ui`. Those build
 steps remain intact for baseline comparison. `go mod tidy` completed after the
 vault removal; docbank and PostHog are no longer in the manifests.

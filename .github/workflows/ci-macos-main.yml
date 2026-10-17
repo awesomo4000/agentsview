@@ -36,8 +36,5 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
-
       - name: Run focused macOS FSEvents tests
         run: CGO_ENABLED=1 go test -tags "fts5" ./internal/fsevents ./internal/sync ./internal/db ./cmd/agentsview -count=1 -timeout=20m

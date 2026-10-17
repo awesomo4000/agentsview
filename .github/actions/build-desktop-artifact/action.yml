@@ -98,7 +98,6 @@ runs:
         if [ -n "$AGENTSVIEW_TARGET_TRIPLE" ]; then
           build_cmd+=(--target "$AGENTSVIEW_TARGET_TRIPLE")
         fi
-        build_cmd+=(--config '{"bundle":{"createUpdaterArtifacts":false}}')
 
         if ! "${build_cmd[@]}"; then
           echo "::warning::Desktop bundle failed; retrying once"

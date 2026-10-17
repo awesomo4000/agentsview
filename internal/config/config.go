@@ -879,7 +879,6 @@ type Config struct {
 	AuthToken            string                      `json:"auth_token,omitempty" toml:"auth_token"`
 	RequireAuth          bool                        `json:"require_auth" toml:"require_auth"`
 	NoBrowser            bool                        `json:"no_browser" toml:"no_browser"`
-	DisableUpdateCheck   bool                        `json:"disable_update_check" toml:"disable_update_check"`
 	NoSync               bool                        `json:"-" toml:"-"`
 	SkipInitialSync      bool                        `json:"-" toml:"-"`
 	ArchiveContent       ArchiveContent              `json:"archive_content" toml:"archive_content"`
@@ -1670,7 +1669,6 @@ func (c *Config) applyConfigTOML(data string) error {
 		AuthToken                      string                 `toml:"auth_token"`
 		RequireAuth                    bool                   `toml:"require_auth"`
 		RemoteAccess                   bool                   `toml:"remote_access"`
-		DisableUpdateCheck             bool                   `toml:"disable_update_check"`
 		ArchiveContent                 string                 `toml:"archive_content"`
 		DefaultClickHouse              string                 `toml:"default_clickhouse"`
 		ClickHouse                     ClickHouseConfig       `toml:"clickhouse"`
@@ -1792,7 +1790,6 @@ func (c *Config) applyConfigTOML(data string) error {
 		c.AuthToken = file.AuthToken
 	}
 	c.RequireAuth = file.RequireAuth || file.RemoteAccess
-	c.DisableUpdateCheck = file.DisableUpdateCheck
 	if meta.IsDefined("archive_content") {
 		policy, err := ParseArchiveContent(file.ArchiveContent)
 		if err != nil {
@@ -2203,9 +2200,7 @@ func (c *Config) loadEnv() {
 			)
 		}
 	}
-	if v := os.Getenv("AGENTSVIEW_DISABLE_UPDATE_CHECK"); v != "" {
-		c.DisableUpdateCheck = v == "1" || v == "true"
-	}
+
 	if v := os.Getenv("AGENTSVIEW_ARCHIVE_CONTENT"); v != "" {
 		if policy, err := ParseArchiveContent(v); err == nil {
 			c.ArchiveContent = policy
@@ -2299,10 +2294,6 @@ func RegisterServeFlags(fs *flag.FlagSet) {
 		"Skip initial sync and disable background sync/file watching",
 	)
 	fs.Bool(
-		"no-update-check", false,
-		"Disable the update check API endpoint",
-	)
-	fs.Bool(
 		"require-auth", false,
 		"Require a bearer token for all API requests",
 	)
@@ -2365,10 +2356,6 @@ func RegisterServePFlags(fs *pflag.FlagSet) {
 	fs.Bool(
 		"no-sync", false,
 		"Skip initial sync and disable background sync/file watching",
-	)
-	fs.Bool(
-		"no-update-check", false,
-		"Disable the update check API endpoint",
 	)
 	fs.Bool(
 		"require-auth", false,
@@ -2434,8 +2421,6 @@ func applyFlagValue(cfg *Config, name, value string) {
 		cfg.NoBrowser = value == "true"
 	case "no-sync":
 		cfg.NoSync = value == "true"
-	case "no-update-check":
-		cfg.DisableUpdateCheck = value == "true"
 	case "require-auth":
 		cfg.RequireAuth = value == "true"
 	case "events-coalesce-interval":

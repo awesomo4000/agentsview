@@ -112,7 +112,6 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newSyncWorkerCommand())
 	root.AddCommand(newPruneCommand())
 	root.AddCommand(newDBCommand())
-	root.AddCommand(newUpdateCommand())
 	root.AddCommand(newTokenUseCommand())
 	root.AddCommand(newImportCommand())
 	root.AddCommand(newChromeCommand())
@@ -449,24 +448,6 @@ func newPruneCommand() *cobra.Command {
 	cmd.Flags().StringVar(&firstMessage, "first-message", "", "Sessions whose first message starts with this text")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would be pruned without deleting")
 	cmd.Flags().BoolVar(&yes, "yes", false, "Skip confirmation prompt")
-	return cmd
-}
-
-func newUpdateCommand() *cobra.Command {
-	var cfg UpdateConfig
-	cmd := &cobra.Command{
-		Use:          "update",
-		Short:        "Check for and install updates",
-		GroupID:      groupMeta,
-		SilenceUsage: true,
-		Args:         cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			runUpdate(cmd.Context(), cfg)
-		},
-	}
-	cmd.Flags().BoolVar(&cfg.Check, "check", false, "Check for updates without installing")
-	cmd.Flags().BoolVar(&cfg.Yes, "yes", false, "Install without confirmation prompt")
-	cmd.Flags().BoolVar(&cfg.Force, "force", false, "Force check (ignore cache)")
 	return cmd
 }
 

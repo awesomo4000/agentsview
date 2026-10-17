@@ -45,9 +45,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Restore pricing snapshot
-        run: go run ./internal/pricing/cmd/litellm-snapshot -restore
-
       - name: Build pinned simple and cppjieba sidecar
         run: bash scripts/build-simple-fts.sh dist/agentsview-simple
 

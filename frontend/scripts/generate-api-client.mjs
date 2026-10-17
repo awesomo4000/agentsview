@@ -90,13 +90,6 @@ const previousGeneratedSources = verifyGenerated ? generatedSources(generatedDir
 const specPath = join(repoRoot, "openapi.yaml");
 const previousSpec =
   verifyGenerated && existsSync(specPath) ? readFileSync(specPath, "utf8") : null;
-const pricingSnapshot = join(repoRoot, "internal/pricing/snapshot/litellm_snapshot.json.gz");
-if (!existsSync(pricingSnapshot)) {
-  run("go", ["run", "./internal/pricing/cmd/litellm-snapshot"], { cwd: repoRoot });
-}
-run("go", ["run", "./internal/pricing/cmd/litellm-snapshot", "-restore"], {
-  cwd: repoRoot,
-});
 const spec = run("go", ["run", "./cmd/agentsview", "openapi", "--yaml"], {
   cwd: repoRoot,
   capture: true,

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDevBackendBuildRestoresPricingSnapshotBeforeBuild(t *testing.T) {
+func TestDevBackendBuildBuildsWithoutPricingDownload(t *testing.T) {
 	requireUnixShell(t)
 
 	root := t.TempDir()
@@ -22,38 +22,16 @@ func TestDevBackendBuildRestoresPricingSnapshotBeforeBuild(t *testing.T) {
 
 	out, err := runInWorkspace(t, root, stubs.env(), "bash", "scripts/dev-backend-build.sh")
 	require.NoError(t, err, "%s", out)
+	assertNoEventContains(t, stubs.events(t), "go run")
 
 	events := stubs.events(t)
 	assertEventOrder(t, events,
-		"go run ./internal/pricing/cmd/litellm-snapshot -restore",
 		"go build -tags fts5",
 	)
 	require.FileExists(t, filepath.Join(root, "tmp", "agentsview"))
 }
 
-func TestDevBackendBuildStopsWhenPricingSnapshotRestoreFails(t *testing.T) {
-	requireUnixShell(t)
-
-	root := t.TempDir()
-	installRepoFile(t, root, "scripts/dev-backend-build.sh", 0o755)
-	stubs := installUnixBuildStubs(t, root)
-
-	out, err := runInWorkspace(
-		t,
-		root,
-		stubs.env("RESTORE_FAIL=1"),
-		"bash",
-		"scripts/dev-backend-build.sh",
-	)
-	require.Error(t, err, "script should fail when snapshot restore fails: %s", out)
-
-	events := stubs.events(t)
-	assertEventContains(t, events,
-		"go run ./internal/pricing/cmd/litellm-snapshot -restore")
-	assertNoEventContains(t, events, "go build")
-}
-
-func TestE2EServerRestoresPricingSnapshotBeforeServerBuild(t *testing.T) {
+func TestE2EServerBuildsServerWithoutPricingDownload(t *testing.T) {
 	requireUnixShell(t)
 
 	root := t.TempDir()
@@ -70,17 +48,17 @@ func TestE2EServerRestoresPricingSnapshotBeforeServerBuild(t *testing.T) {
 		"scripts/e2e-server.sh",
 	)
 	require.NoError(t, err, "%s", out)
+	assertNoEventContains(t, stubs.events(t), "go run")
 
 	assertEventOrder(t, stubs.events(t),
 		"fixture -out",
-		"go run ./internal/pricing/cmd/litellm-snapshot -restore",
 		"npm run build",
 		"go build -tags fts5,kit_posthog_disabled",
 		"built-binary serve --port 8090 --no-browser",
 	)
 }
 
-func TestE2EServerRestoresPricingSnapshotBeforeFixtureBuild(t *testing.T) {
+func TestE2EServerBuildsFixtureWithoutPricingDownload(t *testing.T) {
 	requireUnixShell(t)
 
 	root := t.TempDir()
@@ -97,67 +75,13 @@ func TestE2EServerRestoresPricingSnapshotBeforeFixtureBuild(t *testing.T) {
 		"scripts/e2e-server.sh",
 	)
 	require.NoError(t, err, "%s", out)
+	assertNoEventContains(t, stubs.events(t), "go run")
 
 	assertEventOrder(t, stubs.events(t),
-		"go run ./internal/pricing/cmd/litellm-snapshot -restore",
 		"go build -tags fts5,kit_posthog_disabled",
 		"built-binary -out",
 		"server serve --port 8090 --no-browser",
 	)
-}
-
-func TestE2EServerStopsWhenPricingSnapshotRestoreFails(t *testing.T) {
-	requireUnixShell(t)
-
-	root := t.TempDir()
-	installRepoFile(t, root, "scripts/e2e-server.sh", 0o755)
-	writeE2EWorkspace(t, root)
-	fixture := writeFixtureBinary(t, root)
-	stubs := installUnixBuildStubs(t, root)
-
-	out, err := runInWorkspace(
-		t,
-		root,
-		stubs.env("E2E_PREBUILT_FIXTURE="+fixture, "RESTORE_FAIL=1"),
-		"bash",
-		"scripts/e2e-server.sh",
-	)
-	require.Error(t, err, "script should fail when snapshot restore fails: %s", out)
-
-	events := stubs.events(t)
-	assertEventContains(t, events,
-		"go run ./internal/pricing/cmd/litellm-snapshot -restore")
-	assertNoEventContains(t, events, "go build")
-}
-
-func TestDesktopDevPowerShellStopsWhenPricingSnapshotRestoreFails(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("PowerShell native command failure handling is Windows-specific")
-	}
-	requireCommand(t, "pwsh")
-
-	root := t.TempDir()
-	installRepoFile(t, root, "scripts/desktop-dev.ps1", 0o755)
-	writeDesktopDevWorkspace(t, root)
-	stubs := installWindowsBuildStubs(t, root)
-
-	out, err := runInWorkspace(
-		t,
-		root,
-		stubs.env("RESTORE_FAIL=1"),
-		"pwsh",
-		"-NoProfile",
-		"-ExecutionPolicy",
-		"Bypass",
-		"-File",
-		filepath.Join(root, "scripts", "desktop-dev.ps1"),
-	)
-	require.Error(t, err, "script should fail when snapshot restore fails: %s", out)
-
-	events := stubs.events(t)
-	assertEventContains(t, events,
-		"go run ./internal/pricing/cmd/litellm-snapshot -restore")
-	assertNoEventContains(t, events, "go build")
 }
 
 type buildStubs struct {

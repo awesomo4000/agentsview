@@ -22,7 +22,6 @@ import (
 	"go.kenn.io/agentsview/internal/export"
 	"go.kenn.io/agentsview/internal/money"
 	"go.kenn.io/agentsview/internal/parser"
-	"go.kenn.io/agentsview/internal/pricing"
 	"go.kenn.io/agentsview/internal/pricingrefresh"
 	"go.kenn.io/agentsview/internal/service"
 	"go.kenn.io/agentsview/internal/sync"
@@ -495,12 +494,9 @@ func seedPricing(
 	}
 }
 
-func ensurePricing(database *db.DB, offline bool) {
-	if _, err := pricingrefresh.Ensure(
-		database, offline, pricing.FetchCatalog, time.Now(),
-	); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"warning: pricing refresh failed: %v\n", err)
+func ensurePricing(database *db.DB, _ bool) {
+	if err := pricingrefresh.SeedFallback(database); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: pricing seed failed: %v\n", err)
 	}
 }
 

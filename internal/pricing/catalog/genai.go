@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/jsontext"
@@ -10,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -20,14 +18,6 @@ import (
 
 	"go.kenn.io/agentsview/internal/money"
 )
-
-const genAIPricesBaseURL = "https://raw.githubusercontent.com/pydantic/" +
-	"genai-prices/"
-const genAIPricesPath = "prices/new_data/v2/data.json"
-
-// GenAIPricesURL is the live Pydantic GenAI Prices v2 document refreshed by
-// Agentsview.
-const GenAIPricesURL = genAIPricesBaseURL + "main/" + genAIPricesPath
 
 const maxGenAIPricesBytes = 8 << 20
 
@@ -159,48 +149,6 @@ type rawGenAIMatch struct {
 	Regex      *string          `json:"regex"`
 	Or         []jsontext.Value `json:"or"`
 	And        []jsontext.Value `json:"and"`
-}
-
-// FetchGenAIPricesContext downloads and parses the current GenAI Prices v2
-// document. The returned value retains the upstream JSON for persistence.
-func FetchGenAIPricesContext(ctx context.Context) (*GenAIPrices, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	return fetchGenAIPrices(ctx, client, GenAIPricesURL)
-}
-
-// FetchGenAIPricesAtRef downloads GenAI Prices from an immutable upstream Git
-// ref for reproducible embedded snapshot generation.
-func FetchGenAIPricesAtRef(
-	ctx context.Context, ref string,
-) (*GenAIPrices, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	return fetchGenAIPrices(
-		ctx, client, genAIPricesBaseURL+ref+"/"+genAIPricesPath,
-	)
-}
-
-func fetchGenAIPrices(
-	ctx context.Context, client *http.Client, url string,
-) (*GenAIPrices, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating GenAI Prices request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetching GenAI Prices: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(
-			"fetching GenAI Prices: status %d", resp.StatusCode,
-		)
-	}
-	data, err := readLimitedGenAIPrices(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading GenAI Prices response: %w", err)
-	}
-	return ParseGenAIPrices(data)
 }
 
 func readLimitedGenAIPrices(reader io.Reader) ([]byte, error) {

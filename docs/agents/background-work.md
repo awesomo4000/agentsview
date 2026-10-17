@@ -3,16 +3,8 @@
 Read this file before changing watchers, polling, sync scheduling, or other
 long-running background work. Also read it before investigating memory growth.
 
-## The internal/poller Scheduler
-
-Define interval-driven jobs against external APIs or shared resources as
-`poller.Job` values passed to `poller.Start` at daemon startup. Jobs cannot be
-added later. The scheduler owns jitter, cooldown recorded before attempts,
-capped failure backoff, `RetryAfterError`, and cancellation. Status is in memory
-only; `TriggerNow` bypasses cooldown.
-
-Pricing refresh uses the scheduler. Periodic session sync, vector embedding, and
-recall extraction still own their timing; migrating them is separate work.
+Pricing refresh and its scheduler were removed from this fork. Periodic
+session sync, vector embedding, and recall extraction retain their own timing.
 
 ## Memory and Work Bounds
 

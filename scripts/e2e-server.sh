@@ -39,22 +39,11 @@ mkdir -p "$EMPTY_DIR"
 # otherwise build from source (local dev).
 FIXTURE="${E2E_PREBUILT_FIXTURE:-}"
 SERVER="${E2E_PREBUILT_SERVER:-}"
-PRICING_SNAPSHOT_RESTORED=0
-
-restore_pricing_snapshot() {
-    if [ "$PRICING_SNAPSHOT_RESTORED" -eq 1 ]; then
-        return
-    fi
-
-    (cd "$ROOT" && go run ./internal/pricing/cmd/litellm-snapshot -restore)
-    PRICING_SNAPSHOT_RESTORED=1
-}
 
 if [ -n "$FIXTURE" ] && [ -f "$FIXTURE" ] && [ -x "$FIXTURE" ]; then
     echo "Using pre-built fixture: $FIXTURE"
 else
     echo "Building test fixture..."
-    restore_pricing_snapshot
     FIXTURE="$TMPDIR/testfixture"
     CGO_ENABLED=1 go build -tags "fts5,kit_posthog_disabled" \
       -o "$FIXTURE" "$ROOT/cmd/testfixture"
@@ -69,7 +58,6 @@ if [ -n "$SERVER" ] && [ -f "$SERVER" ] && [ -x "$SERVER" ]; then
     echo "Using pre-built server: $SERVER"
 else
     echo "Building server..."
-    restore_pricing_snapshot
     SERVER="$TMPDIR/agentsview"
     cd "$ROOT/frontend" && \
       VITE_PROJECT_MAPPING_WORKSPACE="${VITE_PROJECT_MAPPING_WORKSPACE:-true}" \

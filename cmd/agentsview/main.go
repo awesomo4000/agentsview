@@ -24,7 +24,6 @@ import (
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/parser"
-	"go.kenn.io/agentsview/internal/poller"
 	"go.kenn.io/agentsview/internal/rawderive"
 	"go.kenn.io/agentsview/internal/recall/extract"
 	"go.kenn.io/agentsview/internal/remotesync"
@@ -513,18 +512,13 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 	// copy pricing across the swap themselves, since this seed
 	// only runs once per daemon lifetime. Synchronous fallback
 	// upsert so the first usage page load does not observe an
-	// empty table; the scheduler's background LiteLLM refresh
-	// follows immediately.
+	// empty table. Rates come only from the bundled local catalog.
 	var pricingRefreshRunner remoteSyncExclusiveRunner
 	if engine != nil {
 		pricingRefreshRunner = engine
 	}
 	seedPricing(database, pricingRefreshRunner)
-	scheduler := poller.Start(ctx, pricingRefreshJob(database, pricingRefreshRunner))
-	defer func() {
-		stop()
-		scheduler.Wait()
-	}()
+	defer stop()
 
 	preparedCfg, rtOpts, prepErr := prepareRunServeRuntimeConfig(ctx,
 		cfg, restartPort, startupProgress.SetCaddyProcess,

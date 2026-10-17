@@ -774,45 +774,6 @@ func TestFindDaemonRuntime_IgnoresIncompatibleStartupStateFallback(t *testing.T)
 	assert.True(t, rt.RuntimeFallback)
 }
 
-func TestWriteDaemonRuntimeFailurePreservesUpdateLaunchArgs(t *testing.T) {
-	dir := runtimeTestDir(t)
-	MarkDaemonStarting(dir)
-	t.Cleanup(func() { UnmarkDaemonStarting(dir) })
-	newStartupStateWriter(dir, time.Now).SetPhase("starting HTTP server")
-	host, port := testPingServer(t)
-	runtimePath, err := runtimeStore(dir).Path(os.Getpid())
-	require.NoError(t, err)
-	require.NoError(t, os.Mkdir(runtimePath, 0o700))
-
-	_, err = WriteDaemonRuntimeWithAuthAndNoSync(
-		dir, host, port, "test", "https://viewer.example/base", false, true, true, new(port),
-	)
-	require.Error(t, err)
-
-	rt := FindWritableDaemonRuntime(dir)
-	require.NotNil(t, rt)
-	assert.Equal(t, "test", rt.Record.Version)
-	assert.Equal(t, "https://viewer.example/base", rt.BrowserURL)
-	state := readStartupState(dir)
-	require.NotNil(t, state)
-	assert.True(t, state.RequireAuthKnown)
-	assert.True(t, state.RequireAuth)
-	assert.True(t, state.NoSyncKnown)
-	assert.True(t, state.NoSync)
-
-	oldStop := stopDaemonRuntimeForUpgrade
-	stopDaemonRuntimeForUpgrade = func(ctx context.Context, _ config.Config, _ *DaemonRuntime) error { return nil }
-	t.Cleanup(func() { stopDaemonRuntimeForUpgrade = oldStop })
-	result, err := stopWritableDaemonsForUpdate(t.Context(), config.Config{DataDir: dir})
-	require.NoError(t, err)
-	assert.True(t, result.Stopped)
-	args := restartDaemonAfterUpdateArgs(config.Config{}, result)
-	assert.Contains(t, args, "--require-auth")
-	assert.Contains(t, args, "--no-sync")
-	assert.Contains(t, args, "--port")
-	assert.NotContains(t, args, "--restart-port")
-}
-
 func TestWriteDaemonRuntimeFailurePreservesManagedCaddyIdentity(t *testing.T) {
 	dir := runtimeTestDir(t)
 	MarkDaemonStarting(dir)
@@ -839,47 +800,6 @@ func TestWriteDaemonRuntimeFailurePreservesManagedCaddyIdentity(t *testing.T) {
 	require.NotNil(t, rt)
 	assert.Equal(t, strconv.Itoa(os.Getpid()), rt.Record.Metadata[runtimeCaddyPID])
 	assert.Equal(t, strconv.FormatInt(caddyCreateTime, 10), rt.Record.Metadata[runtimeCaddyCreateTime])
-}
-
-func TestStopWritableDaemonsForUpdateIgnoresStaleWritableRecordBeforeFallback(t *testing.T) {
-	dir := runtimeTestDir(t)
-	staleHost, stalePort := testPingServer(t)
-	createTime, ok := processCreateTimeMillis(os.Getpid())
-	require.True(t, ok)
-	writeRuntimeRecordFixture(t, dir, daemon.RuntimeRecord{
-		PID:       os.Getpid(),
-		Service:   daemonService,
-		Version:   "stale",
-		Network:   daemon.NetworkTCP,
-		Address:   net.JoinHostPort(staleHost, strconv.Itoa(stalePort)),
-		StartedAt: time.Now(),
-		Metadata: map[string]string{
-			runtimeHost:        staleHost,
-			runtimePort:        strconv.Itoa(stalePort),
-			runtimeAPIVersion:  strconv.Itoa(daemonAPIVersion),
-			runtimeDataVersion: strconv.Itoa(db.CurrentDataVersion()),
-			runtimeCreateTime:  "1",
-		},
-	})
-	host, port := testPingServer(t)
-	writeStartupFallbackFixture(
-		t, dir, host, port, os.Getpid(), strconv.FormatInt(createTime, 10),
-	)
-
-	oldStop := stopDaemonRuntimeForUpgrade
-	var stopped *DaemonRuntime
-	stopDaemonRuntimeForUpgrade = func(ctx context.Context, _ config.Config, rt *DaemonRuntime) error {
-		stopped = rt
-		return nil
-	}
-	t.Cleanup(func() { stopDaemonRuntimeForUpgrade = oldStop })
-
-	result, err := stopWritableDaemonsForUpdate(t.Context(), config.Config{DataDir: dir})
-	require.NoError(t, err)
-	require.NotNil(t, stopped)
-	assert.True(t, result.Stopped)
-	assert.Equal(t, port, stopped.Port)
-	assert.Equal(t, strconv.FormatInt(createTime, 10), stopped.Record.Metadata[runtimeCreateTime])
 }
 
 func newAuthenticatedPingDaemon(t *testing.T, token string) testDaemonEndpoint {

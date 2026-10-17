@@ -126,11 +126,6 @@ type Server struct {
 	// exceed a short timeout. Zero in production.
 	handlerDelay time.Duration
 
-	// updateCheckFn is the function called to check for
-	// updates. Defaults to update.CheckForUpdate; tests
-	// can override it via WithUpdateChecker.
-	updateCheckFn UpdateCheckFunc
-
 	// basePath is a URL prefix for reverse-proxy deployments
 	// (e.g. "/agentsview"). When set, all routes are served
 	// under this prefix and a <base href> tag is injected
@@ -501,12 +496,6 @@ func WithHTTPRemoteCleanupRegistry(registry *remotesync.CleanupRegistry) Option 
 // live-refresh SSE; absent in PG serve mode where the engine is nil.
 func WithBroadcaster(b *Broadcaster) Option {
 	return func(s *Server) { s.broadcaster = b }
-}
-
-// WithUpdateChecker overrides the update check function,
-// allowing tests to substitute a deterministic stub.
-func WithUpdateChecker(f UpdateCheckFunc) Option {
-	return func(s *Server) { s.updateCheckFn = f }
 }
 
 // WithBasePath sets a URL prefix for reverse-proxy deployments.

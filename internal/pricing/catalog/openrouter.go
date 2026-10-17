@@ -1,54 +1,12 @@
 package catalog
 
 import (
-	"context"
 	"encoding/json/v2"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
-	"time"
 
 	"go.kenn.io/agentsview/internal/money"
 )
-
-// openrouterURL is OpenRouter's public model list. It needs no auth and
-// returns every proxied model with its per-token prompt/completion price.
-const openrouterURL = "https://openrouter.ai/api/v1/models"
-
-// FetchOpenRouterPricingContext downloads the OpenRouter model catalog and
-// binds the request lifetime to ctx.
-func FetchOpenRouterPricingContext(
-	ctx context.Context,
-) ([]ModelPricing, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	return fetchOpenRouterPricing(ctx, client, openrouterURL)
-}
-
-func fetchOpenRouterPricing(
-	ctx context.Context, client *http.Client, url string,
-) ([]ModelPricing, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating openrouter pricing request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetching openrouter pricing: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(
-			"fetching openrouter pricing: status %d", resp.StatusCode,
-		)
-	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading openrouter response: %w", err)
-	}
-	return ParseOpenRouterPricing(data)
-}
 
 type openrouterEntry struct {
 	ID           string `json:"id"`

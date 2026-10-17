@@ -155,17 +155,6 @@
       </div>
       <span class="sep">&middot;</span>
     {/if}
-    {#if sync.updateAvailable && !sync.isDesktop}
-      {@const latestVersion = sync.latestVersion ?? ""}
-      <button
-        class="update-available"
-        onclick={() => (ui.activeModal = "update")}
-        title={m.status_bar_update_available_title({ version: latestVersion })}
-      >
-        {m.status_bar_update_available()}
-      </button>
-      <span class="sep">&middot;</span>
-    {/if}
     {#if sync.versionMismatch}
       <button
         class="version-warn"
@@ -250,16 +239,6 @@
     color: var(--text-primary);
   }
 
-  .update-available {
-    color: var(--accent-blue);
-    font-size: 10px;
-    cursor: pointer;
-    font-weight: 500;
-  }
-
-  .update-available:hover {
-    text-decoration: underline;
-  }
 
   .version-warn {
     color: var(--accent-red);

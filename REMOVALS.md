@@ -19,11 +19,11 @@ identity. Any later migration must preserve existing attribution.
 
 ## Automatic external requests
 
-- [ ] Remove update checking and self-update commands.
-- [ ] Remove Tauri auto-update and its remote configuration.
-- [ ] Remove scheduled pricing refresh and online catalog fetchers.
+- [x] Remove update checking and self-update commands.
+- [x] Remove Tauri auto-update and its remote configuration.
+- [x] Remove scheduled pricing refresh and online catalog fetchers.
 - [ ] Replace the embedded third-party pricing catalog with supplied local rates.
-- [ ] Remove the build's pricing-snapshot download dependency.
+- [x] Remove the build's pricing-snapshot download dependency.
 - [ ] Bundle fonts locally and remove Google Fonts requests.
 - [ ] Audit other UI resources and webview navigation for external requests.
 

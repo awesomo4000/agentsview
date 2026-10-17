@@ -506,7 +506,6 @@ export * from "./terminalConfigBodyMode.ts";
 export * from "./terminalResponse.ts";
 export * from "./trashResponse.ts";
 export * from "./unsupportedUsage.ts";
-export * from "./updateCheckResponse.ts";
 export * from "./updateSessionLabelsInputBody.ts";
 export * from "./uploadSessionResponse.ts";
 export * from "./usageSummaryResponse.ts";

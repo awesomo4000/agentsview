@@ -1,8 +1,6 @@
 package catalog
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,38 +77,4 @@ func TestParseOpenRouterPricing(t *testing.T) {
 func TestParseOpenRouterPricingRejectsInvalidJSON(t *testing.T) {
 	_, err := ParseOpenRouterPricing([]byte(`<html>`))
 	require.Error(t, err)
-}
-
-func TestFetchOpenRouterPricing(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(
-		w http.ResponseWriter, _ *http.Request,
-	) {
-		_, _ = w.Write([]byte(`{"data": [{
-			"id": "provider/model",
-			"pricing": {"prompt": "0.000001", "completion": "0.000002"}
-		}]}`))
-	}))
-	t.Cleanup(server.Close)
-
-	prices, err := fetchOpenRouterPricing(
-		t.Context(), server.Client(), server.URL,
-	)
-	require.NoError(t, err)
-	require.Len(t, prices, 1)
-	assert.Equal(t, "provider/model", prices[0].ModelPattern)
-}
-
-func TestFetchOpenRouterPricingRejectsErrorStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(
-		w http.ResponseWriter, _ *http.Request,
-	) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	t.Cleanup(server.Close)
-
-	_, err := fetchOpenRouterPricing(
-		t.Context(), server.Client(), server.URL,
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "status 503")
 }

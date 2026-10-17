@@ -585,7 +585,7 @@ func startFixtureServer(
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, bin, "serve", "--host", "127.0.0.1",
-		"--port", strconv.Itoa(port), "--no-browser", "--no-sync", "--no-update-check")
+		"--port", strconv.Itoa(port), "--no-browser", "--no-sync")
 	cmd.Env = append(os.Environ(), "AGENTSVIEW_DATA_DIR="+dataDir, "DO_NOT_TRACK=1")
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	if err := cmd.Start(); err != nil {

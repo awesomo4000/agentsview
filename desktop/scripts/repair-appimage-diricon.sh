@@ -16,44 +16,7 @@ require_cmd() {
 require_cmd grep
 require_cmd head
 require_cmd mksquashfs
-require_cmd tar
 require_cmd unsquashfs
-
-normalize_signature_file() {
-  local signature="$1"
-  local tmp="${signature}.tmp"
-
-  awk '
-    /^Public signature:$/ {
-      getline
-      print
-      found = 1
-      exit
-    }
-    END {
-      if (!found) {
-        exit 2
-      }
-    }
-  ' "$signature" > "$tmp" || cp "$signature" "$tmp"
-
-  tr -d '[:space:]' < "$tmp" > "$signature"
-  rm -f "$tmp"
-
-  if ! grep -Eq '^[A-Za-z0-9+/]+={0,2}$' "$signature"; then
-    echo "error: signer output for $signature is not a base64 signature payload" >&2
-    exit 1
-  fi
-
-  local len
-  len="$(wc -c < "$signature" | tr -d '[:space:]')"
-  if [ $((len % 4)) -ne 0 ]; then
-    echo "error: signer output for $signature has invalid base64 length" >&2
-    exit 1
-  fi
-
-  printf '\n' >> "$signature"
-}
 
 find_squashfs_offset() {
   local appimage="$1"
@@ -68,29 +31,6 @@ find_squashfs_offset() {
 
   echo "error: could not find SquashFS payload in $appimage" >&2
   return 1
-}
-
-refresh_updater_archive() {
-  local appimage="$1"
-  local archive="${appimage}.tar.gz"
-  local signature="${archive}.sig"
-  local appimage_dir appimage_name
-
-  if [ ! -f "$archive" ]; then
-    return 0
-  fi
-
-  appimage_dir="$(dirname "$appimage")"
-  appimage_name="$(basename "$appimage")"
-  tar -C "$appimage_dir" -czf "$archive" "$appimage_name"
-
-  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || [ -n "${TAURI_SIGNING_PRIVATE_KEY_PATH:-}" ]; then
-    npx tauri signer sign "$archive" > "$signature"
-    normalize_signature_file "$signature"
-  elif [ -f "$signature" ]; then
-    echo "error: refreshed $archive but cannot refresh $signature without a Tauri signing key" >&2
-    exit 1
-  fi
 }
 
 repair_one() {
@@ -133,7 +73,6 @@ repair_one() {
   chmod "$mode" "$patched"
   mv "$patched" "$appimage"
 
-  refresh_updater_archive "$appimage"
   echo "Repaired AppImage .DirIcon: $appimage"
 }
 

@@ -75,54 +75,9 @@ exit 1
 EOF
 chmod +x "$fake_bin/stat"
 
-cat > "$fake_bin/npx" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [ "$*" != "tauri signer sign $TEST_ARCHIVE" ]; then
-  echo "unsupported npx invocation: $*" >&2
-  exit 1
-fi
-
-cat <<'SIGNATURE'
-Your file was signed successfully, You can find the signature here:
-/tmp/AgentsView.AppImage.tar.gz.sig
-
-Public signature:
-YWJjCg==
-
-Make sure to include this into the signature field of your update server.
-SIGNATURE
-EOF
-chmod +x "$fake_bin/npx"
-
 appimage="$tmp_root/AgentsView.AppImage"
-archive="${appimage}.tar.gz"
-signature="${archive}.sig"
 printf 'runtime hsqs old-rootfs\n' > "$appimage"
 chmod 0755 "$appimage"
-printf 'stale archive\n' > "$archive"
-
-TEST_ARCHIVE="$archive" \
-TAURI_SIGNING_PRIVATE_KEY="test-key" \
-PATH="$fake_bin:$PATH" \
-  bash "$SCRIPT_DIR/repair-appimage-diricon.sh" "$appimage" >/dev/null
-
-archive_listing="$(tar -tzf "$archive")"
-assert_eq "$archive_listing" "AgentsView.AppImage" \
-  "updater archive contains the repaired AppImage"
-
-extracted_dir="$tmp_root/extracted"
-mkdir -p "$extracted_dir"
-tar -xzf "$archive" -C "$extracted_dir"
-assert_eq "$(cat "$extracted_dir/AgentsView.AppImage")" "$(cat "$appimage")" \
-  "updater archive contains current AppImage bytes"
-
-archived_mode="$(tar -tvzf "$archive" | awk '{print $1}')"
-assert_eq "$archived_mode" "-rwxr-xr-x" \
-  "updater archive preserves executable AppImage mode"
-
-assert_eq "$(cat "$signature")" "YWJjCg==" \
-  "updater signature contains only the base64 public signature"
-
-echo "repair-appimage-diricon updater archive checks passed"
+PATH="$fake_bin:$PATH" bash "$SCRIPT_DIR/repair-appimage-diricon.sh" "$appimage" >/dev/null
+assert_eq "$(cat "$appimage")" "runtime patched-rootfs" "AppImage payload is repaired"
+echo "repair-appimage-diricon checks passed"

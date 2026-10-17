@@ -16,7 +16,6 @@ GOLANGCI_LINT_CACHE ?= $(CURDIR)/.golangci-cache
 export GOLANGCI_LINT_CACHE
 CUSTOM_GCL := ./custom-gcl
 GOEXE := $(shell go env GOEXE)
-PRICING_SNAPSHOT_FILE := internal/pricing/snapshot/litellm_snapshot.json.gz
 
 # sqlite-vec's cgo bindings #include "sqlite3.h". Without an override the
 # compiler falls back to the system header (the macOS SDK one marks
@@ -57,9 +56,9 @@ sqlite-vec-header:
 		$(SQLITE_INCLUDE_DIR)/sqlite3.h
 
 # Restore the generated LiteLLM fallback snapshot from its artifact branch.
-# Pinned ref, SHA256, and branch are compiled into the snapshot tool.
+# Pricing snapshots are bundled in the repository.
 pricing-snapshot: sqlite-vec-header
-	go run ./internal/pricing/cmd/litellm-snapshot -restore
+	@test -s internal/pricing/snapshot/litellm_snapshot.json.gz
 
 # Build the binary (debug, with embedded pricing snapshot and frontend)
 build: pricing-snapshot frontend
@@ -224,11 +223,8 @@ desktop-build:
 	cd desktop && npm ci && npm run tauri:build
 
 # Build only the macOS .app bundle (skip DMG packaging).
-# Skips updater artifact signing when TAURI_SIGNING_PRIVATE_KEY
-# is not set so local builds succeed without release keys.
 desktop-macos-app:
-	cd desktop && npm ci && npm run tauri:build:macos-app \
-		$(if $(TAURI_SIGNING_PRIVATE_KEY),,-- --config '{"bundle":{"createUpdaterArtifacts":false}}')
+	cd desktop && npm ci && npm run tauri:build:macos-app
 	mkdir -p $(DESKTOP_DIST_DIR)/macos
 	rm -rf $(DESKTOP_DIST_DIR)/macos/AgentsView.app
 	cp -R desktop/src-tauri/target/release/bundle/macos/AgentsView.app \
@@ -287,8 +283,7 @@ desktop-windows-installer:
 # Build Linux AppImage bundle
 # Run on a Linux host.
 desktop-linux-appimage:
-	cd desktop && npm ci && npm run tauri:build:linux \
-		$(if $(TAURI_SIGNING_PRIVATE_KEY),,-- --config '{"bundle":{"createUpdaterArtifacts":false}}')
+	cd desktop && npm ci && npm run tauri:build:linux
 	cd desktop && bash scripts/repair-appimage-diricon.sh \
 		src-tauri/target/release/bundle/appimage/*.AppImage
 	mkdir -p $(DESKTOP_DIST_DIR)/linux
@@ -407,7 +402,6 @@ test-clickhouse: pricing-snapshot ensure-embed-dir clickhouse-up
 # ClickHouse integration tests for CI (clickhouse already running as service)
 test-clickhouse-ci: pricing-snapshot ensure-embed-dir
 	CGO_ENABLED=1 go test -tags "fts5,chtest" -v ./internal/clickhouse/... ./internal/activity/... -count=1 -timeout=20m
-
 
 # Local E2E builds enable the mapping workspace. Prebuilt servers must opt in
 # because their embedded frontend may not include the workspace yet.
@@ -564,7 +558,6 @@ tidy: pricing-snapshot
 # Clean build artifacts
 clean:
 	rm -f agentsview agentsv
-	rm -f $(PRICING_SNAPSHOT_FILE)
 	rm -rf internal/web/dist dist/ tmp/ $(SQLITE_INCLUDE_DIR)
 	mkdir -p internal/web/dist
 	printf '%s\n' \
@@ -641,7 +634,7 @@ help:
 	@echo ""
 	@echo "  build          - Build with embedded frontend"
 	@echo "  build-release  - Release build (optimized, stripped)"
-	@echo "  pricing-snapshot - Restore LiteLLM snapshot from artifact branch"
+	@echo "  pricing-snapshot - Verify bundled pricing snapshot"
 	@echo "  install        - Build and install to ~/.local/bin or GOPATH"
 	@echo "  install-cjk-fts - Install agentsview with the optional CJK FTS sidecar"
 	@echo "  simple-fts     - Build the pinned simple/cppjieba SQLite extension"

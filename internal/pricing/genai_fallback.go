@@ -21,8 +21,6 @@ const (
 
 var immutableGenAISourceRefPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
-//go:generate go run ./cmd/genai-snapshot -out snapshot/genai_prices.json.gz
-
 //go:embed snapshot/genai_prices.json.gz
 var genAISnapshotFS embed.FS
 

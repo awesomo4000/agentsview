@@ -1,5 +1,13 @@
 # Changelog
 
+## 10/17/2026
+
+- Remove automatic update checks, the self-update command, web update prompts,
+  and the Tauri updater. Install future fork builds through internal distribution.
+- Remove public pricing downloads and scheduled refreshes. Bundle the existing
+  pinned pricing snapshot for builds; preserve stored rates, usage calculations,
+  and local custom overrides while replacement internal rates remain pending.
+
 ## 10/16/2026
 
 - Start the local fork from AgentsView commit

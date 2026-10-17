@@ -20,7 +20,7 @@ import (
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/service"
 	"go.kenn.io/agentsview/internal/servicehttp"
-	"go.kenn.io/agentsview/internal/update"
+	"go.kenn.io/agentsview/internal/versionutil"
 )
 
 type transportMode int
@@ -407,11 +407,11 @@ func shouldReplaceDaemonRuntime(rt *DaemonRuntime, currentVersion string) bool {
 		return false
 	}
 	// Development versions cannot reliably be ordered across branches.
-	if update.IsDevBuildVersion(currentVersion) || update.IsDevBuildVersion(rt.Record.Version) ||
+	if versionutil.IsDevBuildVersion(currentVersion) || versionutil.IsDevBuildVersion(rt.Record.Version) ||
 		strings.HasSuffix(currentVersion, "-dirty") || strings.HasSuffix(rt.Record.Version, "-dirty") {
 		return true
 	}
-	return update.IsNewer(currentVersion, rt.Record.Version)
+	return versionutil.IsNewer(currentVersion, rt.Record.Version)
 }
 
 func longLivedDaemonCompatibilityError(err error) error {

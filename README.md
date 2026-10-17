@@ -30,6 +30,8 @@ folder exchange, raw archive backup/recovery, and the hosted raw PostgreSQL
 service. Removing docbank also removes the transitive PostHog dependency.
 S3 discovery and ingestion are also removed, including the MinIO client.
 PostgreSQL replication, serving, direct reads, and the pgx driver are removed.
+Automatic updates, self-update installers, and public pricing refreshes are
+also removed. Bundled rates and local custom pricing remain.
 Other external integrations remain. This is a development fork, not yet an
 Internet-independent or privacy-approved release.
 
@@ -44,7 +46,7 @@ make build
 ```
 
 This builds `./agentsview` with the frontend embedded. It currently downloads
-Go/npm dependencies and a pricing snapshot. Build-time and runtime network
+Go/npm dependencies. Pricing snapshots are checked in. Build-time and runtime network
 removals are tracked separately in the checklist. It does not install the
 binary or build the native Tauri bundle.
 

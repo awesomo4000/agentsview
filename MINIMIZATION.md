@@ -184,6 +184,51 @@ Validation:
 - Native Tauri packaging, browser smoke, and runtime traffic tracing were not
   performed. No private logs were used.
 
+## Updates and pricing downloads removed
+
+Removed the CLI self-updater, update-check HTTP route, web update prompts,
+Tauri updater plugin, update menus, and updater signing/archive steps.
+Daemon version comparisons remain in `internal/versionutil` because they
+protect compatibility when a client connects to an existing daemon.
+
+Removed LiteLLM, OpenRouter, and GenAI Prices network fetchers, the scheduled
+pricing job, its unused poller package, and the unknown-model fetch fallback.
+Startup and usage paths seed bundled rates locally. Existing stored prices,
+normalization, cost calculations, and custom overrides remain. Replacing the
+bundled third-party catalog with approved internal rates is still pending.
+
+The existing immutable LiteLLM snapshot is now checked in, alongside the
+GenAI snapshot. Builds, development scripts, API generation, CI, and container
+builds no longer download pricing. `make clean` preserves both snapshots.
+The LiteLLM snapshot source reference is
+`7d50a31eb5b080c29438f97be7701e117938ce88`; its SHA-256 is
+`a9b59c9780c31c299a7049d5cc15d6dec6b4418cf6f5363f85c35e85c965d3ac`.
+
+The embedded-UI executable is 158,815,730 bytes, or 151.46 MiB, down 0.20 MiB
+from the PostgreSQL cut. Go module requirements remain at 131. The desktop Rust
+lockfile shrank from 556 to 526 package entries after removing the updater.
+No native release-bundle size was measured.
+
+Validation:
+
+- `make build`: passed with the embedded UI and checked-in pricing snapshot.
+- Pricing parsing and calculations, local catalog seeding, version comparison,
+  CLI custom pricing, shared replica, server, and export regressions passed.
+  Local seeding tests forbid HTTP requests and check stored rates survive.
+- Build-script tests passed and assert no pricing generator is invoked.
+  AppImage icon-repair tests and shell syntax checks passed.
+- API clients regenerated; `npm run check` passed with zero errors or warnings.
+  Frontend startup/sync tests passed, 95 tests. Frontend format/lint/type checks
+  passed after removing an unused import.
+- Tauri `cargo check` and all 107 Rust library tests passed. No desktop app was
+  launched, installed, signed, or packaged.
+- `go fmt ./...`, `go vet -tags fts5 ./...`, and all ordinary Go test-package
+  compilation passed. One initial linker run exhausted disk space; after
+  clearing this task's desktop build artifacts, that package passed with
+  `-p 1`.
+- Full runtime network tracing and browser smoke remain pending. Other external
+  integrations and fonts remain, so this is not an offline-approved release.
+
 ## Next removals
 
 [REMOVALS.md](REMOVALS.md) owns the removal checklist. Continue with automatic

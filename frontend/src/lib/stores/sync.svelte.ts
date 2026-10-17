@@ -48,8 +48,6 @@ class SyncStore {
   // becomes reachable.
   backendDegraded: boolean = $state(false);
   backendDegradedMessage: string | null = $state(null);
-  updateAvailable: boolean = $state(false);
-  latestVersion: string | null = $state(null);
   readonly buildCommit: string = import.meta.env.VITE_BUILD_COMMIT;
   readonly isDesktop: boolean =
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("desktop");
@@ -213,20 +211,6 @@ class SyncStore {
         this.markBackendFailure(error);
       }
       console.warn("Failed to load version info:", error);
-    }
-  }
-
-  async checkForUpdate() {
-    // Desktop app uses the native Tauri updater; the
-    // Go backend endpoint checks upstream releases which
-    // is irrelevant and potentially wrong for forks.
-    if (this.isDesktop) return;
-    try {
-      const result = await MetadataService.getApiV1UpdateCheck();
-      this.updateAvailable = result.update_available;
-      this.latestVersion = result.latest_version ?? null;
-    } catch (error) {
-      console.warn("Failed to check for updates:", error);
     }
   }
 

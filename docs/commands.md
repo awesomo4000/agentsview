@@ -354,7 +354,6 @@ Running plain `agentsview` shows help instead of starting the web UI.
 | `--port`            | `8080`             | Explicit nonzero port must be free; `0` selects any      |
 | `--no-browser`      | `false`            | Don't open browser on startup                            |
 | `--no-sync`         | `false`            | Disable initial, watched, and periodic sync              |
-| `--no-update-check` | `false`            | Disable automatic update checks                          |
 | `--require-auth`    | `false`            | Require a bearer token for API requests                  |
 | `--background`      | `false`            | Start `agentsview serve` as a managed background process |
 | `--replace`         | `false`            | Replace a running local daemon before starting           |
@@ -2023,7 +2022,6 @@ agentsview help
 | `AGENTSVIEW_CLICKHOUSE_DATABASE`      | `agentsview`                                         | ClickHouse database name for the default target                                                     |
 | `AGENTSVIEW_CLICKHOUSE_MACHINE`       |                                                      | Machine name for ClickHouse push                                                                    |
 | `AGENTSVIEW_GITHUB_TOKEN`             |                                                      | GitHub token used for local Gist publishing fallback and `agentsview stats` PR aggregation          |
-| `AGENTSVIEW_DISABLE_UPDATE_CHECK`     |                                                      | Set to `1` to disable the update check                                                              |
 | `AGENTSVIEW_ARCHIVE_CONTENT`          | `full`                                               | Archive storage policy when `config.toml` sets none: `full`, `transcripts`, or `usage`              |
 | `AGENTSVIEW_NO_DAEMON`                |                                                      | Set to `1`, `true`, `yes`, or `on` to disable CLI daemon auto-start                                 |
 | `AGENTSVIEW_DAEMON_IDLE_TIMEOUT`      | `20m`                                                | Override idle self-shutdown duration for detached background daemons                                |

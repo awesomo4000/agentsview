@@ -10,7 +10,7 @@ The wrapper does not reimplement the web app. Instead, it:
 1. Loads the local URL in a native webview.
 
 On macOS and Windows, the same desktop process also provides a system tray item
-for showing the AgentsView window, opening logs, checking for updates, and
+for showing the AgentsView window, opening logs, and
 quitting.
 
 ## Requirements
@@ -64,7 +64,7 @@ Closing the main window hides AgentsView instead of quitting; the tray item
 keeps the backend running. The window comes back through the tray menu, a deep
 link, or (on macOS) standard reopen gestures: clicking the Dock icon or
 activating the app with no visible windows. The tray menu provides Show
-AgentsView, Open Logs Folder, Check for Updates, and Quit; Quit is the only
+AgentsView, Open Logs Folder and Quit; Quit is the only
 explicit way to exit. Both platforms share one status-item setup path and one
 close-handler path, with a platform-specific icon: the monochrome template
 asset on macOS and Tauri's packaged default window icon on Windows.
@@ -105,3 +105,6 @@ Optional escape hatch:
 - On Windows, this file resolves to `%USERPROFILE%\\.agentsview\\desktop.env`.
 - Force a custom PATH with `AGENTSVIEW_DESKTOP_PATH`.
 - Skip login-shell env loading with `AGENTSVIEW_DESKTOP_SKIP_LOGIN_SHELL_ENV=1`.
+
+Automatic update checks and installers are removed in this fork. Distribute
+compatible desktop builds internally.

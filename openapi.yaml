@@ -7685,21 +7685,6 @@ components:
       required:
         - kind
       type: object
-    UpdateCheckResponse:
-      additionalProperties: false
-      properties:
-        current_version:
-          type: string
-        is_dev_build:
-          type: boolean
-        latest_version:
-          type: string
-        update_available:
-          type: boolean
-      required:
-        - update_available
-        - current_version
-      type: object
     UpdateSessionLabelsInputBody:
       additionalProperties: false
       properties:
@@ -22944,79 +22929,6 @@ paths:
       summary: Get trend terms
       tags:
         - Trends
-  /api/v1/update/check:
-    get:
-      operationId: get-api-v1-update-check
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UpdateCheckResponse"
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Forbidden
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Not Found
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Conflict
-        "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Internal Server Error
-        "501":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Not Implemented
-        "502":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Bad Gateway
-        "503":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Service Unavailable
-        "504":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
-          description: Gateway Timeout
-      summary: Check for updates
-      tags:
-        - Metadata
   /api/v1/usage/comparison:
     get:
       operationId: get-api-v1-usage-comparison

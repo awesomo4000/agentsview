@@ -300,7 +300,6 @@ func TestServeStaleArchiveHelperProcess(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "")
 	t.Setenv("GH_CONFIG_DIR", t.TempDir())
 	localTransport := http.DefaultTransport
-	withPricingCatalogTransport(t, pricingCatalogTransport{requests: make(chan *http.Request, 16)})
 	var cfg config.Config
 	require.NoError(t, json.Unmarshal([]byte(data), &cfg))
 	cfg.DBPath = filepath.Join(cfg.DataDir, "sessions.db")

@@ -28,8 +28,6 @@ const (
 
 var immutableFallbackSourceRefPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
-//go:generate go run ./cmd/litellm-snapshot -out snapshot/litellm_snapshot.json.gz
-
 //go:embed snapshot/litellm_snapshot.json.gz
 var litellmSnapshotFS embed.FS
 

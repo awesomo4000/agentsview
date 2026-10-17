@@ -2,28 +2,18 @@ package catalog
 
 import (
 	"cmp"
-	"context"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ccoveille/go-safecast/v2"
 
 	"go.kenn.io/agentsview/internal/money"
-)
-
-const (
-	litellmBaseURL     = "https://raw.githubusercontent.com/BerriAI/litellm/"
-	litellmPricingFile = "model_prices_and_context_window.json"
-	litellmURL         = litellmBaseURL + "main/" + litellmPricingFile
 )
 
 // ModelPricing holds per-model token pricing in cost per million tokens.
@@ -52,57 +42,6 @@ type PricingBand struct {
 var inputThresholdRatePattern = regexp.MustCompile(
 	`^input_cost_per_token_above_([0-9]+)(k?)_tokens$`,
 )
-
-// FetchLiteLLMPricingContext downloads the LiteLLM pricing JSON and binds the
-// request lifetime to ctx.
-func FetchLiteLLMPricingContext(
-	ctx context.Context,
-) ([]ModelPricing, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	return fetchLiteLLMPricing(ctx, client, litellmURL)
-}
-
-// FetchLiteLLMPricingAtRef downloads the catalog from an immutable upstream
-// Git ref for reproducible fallback snapshot generation.
-func FetchLiteLLMPricingAtRef(
-	ctx context.Context, ref string,
-) ([]ModelPricing, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	return fetchLiteLLMPricing(
-		ctx,
-		client,
-		litellmBaseURL+ref+"/"+litellmPricingFile,
-	)
-}
-
-func fetchLiteLLMPricing(
-	ctx context.Context,
-	client *http.Client,
-	url string,
-) ([]ModelPricing, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating litellm pricing request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetching litellm pricing: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(
-			"fetching litellm pricing: status %d", resp.StatusCode,
-		)
-	}
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading litellm response: %w", err)
-	}
-
-	return ParseLiteLLMPricing(data)
-}
 
 // ParseLiteLLMPricing parses the LiteLLM JSON map into
 // ModelPricing entries. Per-token costs are converted to
