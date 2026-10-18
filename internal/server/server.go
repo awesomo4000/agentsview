@@ -13,6 +13,7 @@ import (
 	"net/http"
 	httppprof "net/http/pprof"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -275,7 +276,7 @@ func New(
 }
 
 func insightGenerateOptions(cfg config.Config) insight.GenerateOptions {
-	opts := insight.GenerateOptions{Agents: insightAgentConfig(cfg.Agent)}
+	opts := insight.GenerateOptions{Agents: insightAgentConfig(cfg.Agent), External: cfg.Insights.External, LedgerPath: filepath.Join(cfg.DataDir, "harness-executions.db")}
 	if strings.TrimSpace(cfg.Insights.Endpoint) != "" &&
 		strings.TrimSpace(cfg.Insights.Model) != "" {
 		opts.Endpoint = &insight.EndpointConfig{

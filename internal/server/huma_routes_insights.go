@@ -372,6 +372,7 @@ func (s *Server) humaGenerateInsight(
 		}
 
 		result, err := s.generateStreamFunc(genCtx, req.Agent, prompt, enqueueLog)
+		defer finishInsightExecution(result, 0)
 		if err == nil && req.Type == insight.ToolEffectivenessType {
 			// One bad citation shouldn't throw away a paid run, so a rejected reply gets one corrected retry.
 			report, rejected := insight.ParseToolEffectivenessReport(result.Content)
@@ -381,6 +382,7 @@ func (s *Server) humaGenerateInsight(
 			if rejected != nil {
 				enqueueLog(insight.LogEvent{Stream: "stderr", Line: "report failed validation, asking once more: " + rejected.Error()})
 				result, err = s.generateStreamFunc(genCtx, req.Agent, insight.ToolEffectivenessCorrectionPrompt(prompt, rejected), enqueueLog)
+				defer finishInsightExecution(result, 0)
 			}
 		}
 		dropped, drained, senderStopped, timedOut := finishLogStream()
@@ -477,6 +479,7 @@ func (s *Server) humaGenerateInsight(
 			})
 			return
 		}
+		finishInsightExecution(result, id)
 		saved, err := s.db.GetInsight(hctx.Context(), id)
 		if err != nil || saved == nil {
 			log.Printf("insight get error: id=%d err=%v", id, err)

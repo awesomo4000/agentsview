@@ -2,6 +2,12 @@
 
 ## 10/18/2026
 
+- Run insights through a configured external executable with a strict JSON
+  result envelope or explicit plain-text compatibility mode. Record each
+  invocation in separate SQLite storage, preserving usage and deployment
+  identity without changing source-session charges. Keep existing UI selectors
+  and partition cached insights by external configuration.
+
 - Audit existing usage and provider fields and define the external-harness
   execution contract. Keep source-session accounting separate from summary
   attempts, with explicit deployment identity and unknown-value semantics.

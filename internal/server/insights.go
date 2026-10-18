@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json/v2"
 	"fmt"
 	"log"
@@ -231,6 +232,14 @@ func (s *Server) generateCannedInsight(
 		return
 	}
 
+	if req.Agent == "external" {
+		configJSON, marshalErr := json.Marshal(generationOptions.External)
+		if marshalErr != nil {
+			sendJSON("error", map[string]string{"message": "invalid external configuration"})
+			return
+		}
+		cacheKey = fmt.Sprintf("%s:external:%x", cacheKey, sha256.Sum256(configJSON))
+	}
 	if !req.ForceRefresh {
 		cached, err := s.db.GetCachedInsight(ctx, cacheKey)
 		if err != nil {
@@ -272,6 +281,7 @@ func (s *Server) generateCannedInsight(
 	result, err := s.generateStreamFunc(
 		genCtx, req.Agent, prompt, nil,
 	)
+	defer finishInsightExecution(result, 0)
 	if err != nil {
 		log.Printf("canned insight generate error: %v", err)
 		sendJSON("error", map[string]string{
@@ -380,6 +390,7 @@ func (s *Server) generateCannedInsight(
 		return
 	}
 
+	finishInsightExecution(result, id)
 	saved, err := s.db.GetInsight(ctx, id)
 	if err != nil || saved == nil {
 		log.Printf("canned insight get error: id=%d err=%v",
@@ -679,4 +690,12 @@ func cannedCoachLocalTime(
 		}
 	}
 	return t.In(loc), true
+}
+
+func finishInsightExecution(result insight.Result, id int64) {
+	if result.Finish != nil {
+		if err := result.Finish(id); err != nil {
+			log.Printf("finish insight execution %s: %v", result.ExecutionID, err)
+		}
+	}
 }

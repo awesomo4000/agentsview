@@ -29,6 +29,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/gofrs/flock"
 	"github.com/spf13/pflag"
+	"go.kenn.io/agentsview/internal/harness"
 	"go.kenn.io/agentsview/internal/jsonutil"
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/pathutil"
@@ -561,10 +562,11 @@ type AgentConfig struct {
 // InsightsConfig controls an optional OpenAI-compatible chat-completions
 // endpoint for generated insights.
 type InsightsConfig struct {
-	Endpoint  string `json:"endpoint,omitempty" toml:"endpoint"`
-	Model     string `json:"model,omitempty" toml:"model"`
-	APIKeyEnv string `json:"api_key_env,omitempty" toml:"api_key_env"`
-	AllowHTTP bool   `json:"allow_http,omitempty" toml:"allow_http"`
+	External  *harness.Config `json:"external,omitempty" toml:"external"`
+	Endpoint  string          `json:"endpoint,omitempty" toml:"endpoint"`
+	Model     string          `json:"model,omitempty" toml:"model"`
+	APIKeyEnv string          `json:"api_key_env,omitempty" toml:"api_key_env"`
+	AllowHTTP bool            `json:"allow_http,omitempty" toml:"allow_http"`
 	// DefaultAgent selects the agent CLI insight generation uses when a
 	// request does not choose one. Empty keeps DefaultInsightAgent.
 	DefaultAgent string `json:"default_agent,omitempty" toml:"default_agent"`
@@ -578,6 +580,7 @@ const DefaultInsightAgent = "claude"
 // in display order. internal/insight re-exports the same names so config
 // validation and generation stay in step.
 var insightAgentNames = []string{
+	"external",
 	"claude",
 	"codex",
 	"copilot",
@@ -615,6 +618,17 @@ func (c InsightsConfig) APIKey() string {
 
 // Validate checks endpoint intent, transport safety, and the default agent.
 func (c InsightsConfig) Validate() error {
+	if c.DefaultAgent == "external" && c.External == nil {
+		return errors.New("external default agent requires [insights.external]")
+	}
+	if c.External != nil {
+		if err := c.External.Validate(); err != nil {
+			return err
+		}
+		if c.Endpoint != "" {
+			return errors.New("external harness and insight endpoint are mutually exclusive")
+		}
+	}
 	if strings.TrimSpace(c.DefaultAgent) != "" {
 		if _, err := ParseInsightAgent(c.DefaultAgent); err != nil {
 			return fmt.Errorf("[insights] %w", err)

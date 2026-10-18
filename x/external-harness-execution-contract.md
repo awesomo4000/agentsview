@@ -1,10 +1,12 @@
 # External harness execution and accounting
 
-Status: proposed implementation contract, based on the agreed direction.
+Status: implementation contract, partially implemented. See
+[adapter setup and current limits](external-harness-setup.md).
 Updated: 10/18/2026.
 Scope: preserve deterministic session accounting, add an external-process
 interface for insight generation, and distinguish model deployments.
-No runtime or schema changes are implemented by this document.
+The generic adapter and separate invocation ledger are implemented. Remaining
+provenance and accounting work is listed in the setup guide.
 
 ## Two accounting domains
 

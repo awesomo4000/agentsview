@@ -17,6 +17,7 @@ import (
 	"unicode/utf16"
 
 	"go.kenn.io/agentsview/internal/config"
+	"go.kenn.io/agentsview/internal/harness"
 	"go.kenn.io/agentsview/internal/stringutil"
 )
 
@@ -31,9 +32,11 @@ const claudeStdoutLogMaxBytes = 16 * 1024
 
 // Result holds the output from an AI agent invocation.
 type Result struct {
-	Content string
-	Agent   string
-	Model   string
+	ExecutionID string
+	Finish      func(int64) error
+	Content     string
+	Agent       string
+	Model       string
 }
 
 // ValidTypes lists the insight types the generate route accepts.
@@ -90,8 +93,10 @@ type AgentConfig struct {
 
 // GenerateOptions holds optional insight generation overrides.
 type GenerateOptions struct {
-	Agents   map[string]AgentConfig
-	Endpoint *EndpointConfig
+	External   *harness.Config
+	LedgerPath string
+	Agents     map[string]AgentConfig
+	Endpoint   *EndpointConfig
 }
 
 // GenerateStreamWithOptions invokes an AI agent CLI to generate an
@@ -104,6 +109,22 @@ func GenerateStreamWithOptions(
 		return Result{}, fmt.Errorf(
 			"unsupported agent: %s", agent,
 		)
+	}
+	if agent == "external" {
+		if opts.External == nil {
+			return Result{}, errors.New("external harness is not configured")
+		}
+		record, content, err := harness.Run(ctx, *opts.External, prompt, opts.LedgerPath)
+		result := Result{Content: content, Agent: opts.External.ID, ExecutionID: record.ID}
+		if record.ID != "" {
+			result.Finish = func(id int64) error { return harness.Finish(opts.LedgerPath, record.ID, id) }
+		}
+		if record.Observation != nil {
+			if model, ok := record.Observation.Identity["reported_model"]; ok && model.Source == "provider_response" && model.Value != nil {
+				result.Model = *model.Value
+			}
+		}
+		return result, err
 	}
 	if opts.Endpoint != nil {
 		return generateEndpoint(ctx, *opts.Endpoint, prompt)
