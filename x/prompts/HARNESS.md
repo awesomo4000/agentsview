@@ -161,3 +161,10 @@ prompt, stdout answer, stderr diagnostics, and exit-status checking would let
 
 This probe changed no runtime configuration or generation behavior. Embedded
 HTTP clients still remain until the separately planned removal.
+
+## Accounting and deployment identity
+
+The proposed [execution contract](../external-harness-execution-contract.md)
+separates source-session usage from summarization attempts and records requested
+versus reported model, backend/deployment, completion, and usage provenance.
+It is a design for implementation, not behavior supported by this probe.

@@ -1,0 +1,35 @@
+{
+  "schema_version": "agentsview.execution-result.v1",
+  "result": "Synthetic summary for project demo.",
+  "completion": {
+    "reason": "stop",
+    "provider_reason": "end_turn"
+  },
+  "identity": {
+    "harness_version": {"value": "synthetic-build-1", "source": "configured"},
+    "provider_id": {"value": null, "source": "unknown"},
+    "backend_id": {"value": "enterprise-demo", "source": "configured"},
+    "deployment_id": {"value": "demo-deployment-a", "source": "configured"},
+    "requested_model": {"value": "demo-model-alias", "source": "configured"},
+    "reported_model": {"value": "demo-model-revision-1", "source": "provider_response"},
+    "model_revision": {"value": null, "source": "unknown"},
+    "provider_request_id": {"value": "synthetic-request-001", "source": "provider_response"}
+  },
+  "usage": {
+    "source": "provider_response",
+    "scope": "invocation",
+    "coverage": "complete",
+    "input_tokens": 1200,
+    "output_tokens": 250,
+    "cache_read_input_tokens": 200,
+    "cache_creation_input_tokens": null,
+    "reasoning_tokens": 50,
+    "total_tokens": 1450,
+    "semantics": {
+      "cache_read_included_in_input": true,
+      "cache_creation_included_in_input": null,
+      "reasoning_included_in_output": true
+    }
+  },
+  "reported_cost": null
+}

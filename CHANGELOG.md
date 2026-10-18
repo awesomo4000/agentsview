@@ -1,5 +1,12 @@
 # Changelog
 
+## 10/18/2026
+
+- Audit existing usage and provider fields and define the external-harness
+  execution contract. Keep source-session accounting separate from summary
+  attempts, with explicit deployment identity and unknown-value semantics.
+  This documents planned behavior; runtime and storage are unchanged.
+
 ## 10/17/2026
 
 - Add a standalone Go probe showing Groundloop `ai` working through the existing
