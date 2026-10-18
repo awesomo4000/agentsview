@@ -1,9 +1,7 @@
 package remotesync
 
 import (
-	"compress/gzip"
 	"context"
-	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,34 +19,12 @@ type HTTPSource struct {
 }
 
 func (s HTTPSource) client() *http.Client {
-	if s.Client != nil {
-		return s.Client
-	}
-	// Archive responses can stream for hours; ctx governs their lifetime.
-	return &http.Client{Timeout: 0}
+	return &http.Client{Transport: disabledRemoteTransport{}}
 }
 
 // Archive requests an archive and returns its body once the daemon accepts.
 func (s HTTPSource) Archive(ctx context.Context, request ArchiveRequest) (*ArchiveStream, error) {
-	resp, err := s.requestArchive(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		defer resp.Body.Close()
-		return nil, httpStatusError(resp)
-	}
-	if err := ValidateProtocolHeader(resp.Header); err != nil {
-		_ = resp.Body.Close()
-		return nil, err
-	}
-	// The daemon negotiates zstd or gzip from Accept-Encoding. Extraction
-	// rejects any other value, so it is passed through unchanged.
-	return &ArchiveStream{
-		Body:     resp.Body,
-		Encoding: ArchiveEncoding(resp.Header.Get("Content-Encoding")),
-		Size:     positiveContentLength(resp.ContentLength),
-	}, nil
+	return nil, fmt.Errorf("remote sync transport has been removed")
 }
 
 func positiveContentLength(n int64) int64 {
@@ -61,76 +37,13 @@ func positiveContentLength(n int64) int64 {
 func (s HTTPSource) Manifest(
 	ctx context.Context, targets TargetSet,
 ) (Manifest, bool, error) {
-	body := generatedTargets(targets)
-	resp, err := apiclient.RawRequest(s.URL, s.client(), func(api *apiclient.Client) error {
-		_, err := api.PostAPIV1RemoteSyncManifestWithResponse(ctx, &apiclient.PostAPIV1RemoteSyncManifestRequestOptions{Body: &body})
-		return err
-	}, s.transferHeaders)
-	if err != nil {
-		return Manifest{}, false, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotImplemented {
-		if err := ValidateProtocolHeader(resp.Header); err != nil {
-			return Manifest{}, false, err
-		}
-		return Manifest{}, false, nil
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return Manifest{}, false, httpStatusError(resp)
-	}
-	if err := ValidateProtocolHeader(resp.Header); err != nil {
-		return Manifest{}, false, err
-	}
-	bodyReader := &httpBodyReader{r: resp.Body}
-	reader := io.Reader(bodyReader)
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		gz, err := gzip.NewReader(bodyReader)
-		if err != nil {
-			if bodyReader.err != nil {
-				err = bodyReader.err
-			}
-			return Manifest{}, false, fmt.Errorf("decode manifest gzip: %w", err)
-		}
-		defer gz.Close()
-		reader = gz
-	}
-	var manifest Manifest
-	if err := json.UnmarshalRead(reader, &manifest); err != nil {
-		if bodyReader.err != nil {
-			err = bodyReader.err
-		}
-		return Manifest{}, false, fmt.Errorf("decode remote manifest: %w", err)
-	}
-	return manifest, true, nil
+	return Manifest{}, false, fmt.Errorf("remote sync transport has been removed")
 }
 
 func (s HTTPSource) Targets(
 	ctx context.Context,
 ) (TargetSet, error) {
-	resp, err := apiclient.RawRequest(s.URL, s.client(), func(api *apiclient.Client) error {
-		_, err := api.GetAPIV1RemoteSyncTargetsWithResponse(ctx, &apiclient.GetAPIV1RemoteSyncTargetsRequestOptions{})
-		return err
-	}, s.transferHeaders)
-	if err != nil {
-		return TargetSet{}, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return TargetSet{}, httpStatusError(resp)
-	}
-	if err := ValidateProtocolHeader(resp.Header); err != nil {
-		return TargetSet{}, err
-	}
-	var targets TargetSet
-	bodyReader := &httpBodyReader{r: resp.Body}
-	if err := json.UnmarshalRead(bodyReader, &targets); err != nil {
-		if bodyReader.err != nil {
-			err = bodyReader.err
-		}
-		return TargetSet{}, fmt.Errorf("decode remote targets: %w", err)
-	}
-	return targets, nil
+	return TargetSet{}, fmt.Errorf("remote sync transport has been removed")
 }
 
 func (s HTTPSource) transferHeaders(_ context.Context, req *http.Request) error {
@@ -163,18 +76,7 @@ func generatedTargets(targets TargetSet) apiclient.RemotesyncTargetSet {
 func (s HTTPSource) requestArchive(
 	ctx context.Context, request ArchiveRequest,
 ) (*http.Response, error) {
-	targets := generatedTargets(request.TargetSet)
-	body := apiclient.RemotesyncArchiveRequest{
-		Dirs: targets.Dirs, Files: targets.Files, ProviderExtraFiles: targets.ProviderExtraFiles,
-		ExtraFiles: targets.ExtraFiles, CodexIndexFiles: targets.CodexIndexFiles, ForbiddenRoots: targets.ForbiddenRoots,
-	}
-	if request.DeltaFiles != nil {
-		body.DeltaFiles = new(request.DeltaFiles)
-	}
-	return apiclient.RawRequest(s.URL, s.client(), func(api *apiclient.Client) error {
-		_, err := api.PostAPIV1RemoteSyncArchiveWithResponse(ctx, &apiclient.PostAPIV1RemoteSyncArchiveRequestOptions{Body: &body})
-		return err
-	}, s.transferHeaders)
+	return nil, fmt.Errorf("remote sync transport has been removed")
 }
 
 // StatusError reports a non-2xx response from a remote daemon's
@@ -201,4 +103,10 @@ func httpStatusError(resp *http.Response) error {
 		Status: resp.Status,
 		Detail: strings.TrimSpace(string(body)),
 	}
+}
+
+type disabledRemoteTransport struct{}
+
+func (disabledRemoteTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("remote sync transport has been removed")
 }

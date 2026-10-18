@@ -8,7 +8,6 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -225,14 +224,5 @@ func (c *Client) request[T any](operation func(*apiclient.Client) (T, error), to
 type rawHTTPTransport struct{ *http.Client }
 
 func (t rawHTTPTransport) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
-	resp, err := t.Client.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		defer resp.Body.Close()
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
-		return nil, decodeAPIError(resp.StatusCode, body)
-	}
-	return resp, nil
+	return nil, errors.New("raw upload transport has been removed")
 }

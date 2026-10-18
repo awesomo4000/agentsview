@@ -8,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
 	"regexp"
 	"runtime"
 	"sort"
@@ -105,6 +103,7 @@ func GenerateStreamWithOptions(
 	ctx context.Context, agent, prompt string, onLog LogFunc,
 	opts GenerateOptions,
 ) (Result, error) {
+
 	if !ValidAgents[agent] {
 		return Result{}, fmt.Errorf(
 			"unsupported agent: %s", agent,
@@ -126,38 +125,8 @@ func GenerateStreamWithOptions(
 		}
 		return result, err
 	}
-	if opts.Endpoint != nil {
-		return generateEndpoint(ctx, *opts.Endpoint, prompt)
-	}
+	return Result{}, errors.New("built-in AI runners are removed; configure the external harness")
 
-	path, err := resolveAgentBinary(agent, opts)
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"%s CLI not found: %w", agent, err,
-		)
-	}
-
-	switch agent {
-	case "codex":
-		return generateCodex(ctx, path, prompt, onLog)
-	case "copilot":
-		return generateCopilot(ctx, path, prompt, onLog)
-	case "gemini":
-		return generateGemini(
-			ctx, path, prompt, onLog, opts.Agents[agent],
-		)
-	case "kiro":
-		return generateKiro(ctx, path, prompt, onLog)
-	default:
-		return generateClaude(ctx, path, prompt, onLog)
-	}
-}
-
-func resolveAgentBinary(agent string, opts GenerateOptions) (string, error) {
-	if cfg, ok := opts.Agents[agent]; ok && strings.TrimSpace(cfg.Binary) != "" {
-		return strings.TrimSpace(cfg.Binary), nil
-	}
-	return exec.LookPath(agentBinary(agent))
 }
 
 // agentEnv returns the current environment with
@@ -171,9 +140,6 @@ func resolveAgentBinary(agent string, opts GenerateOptions) (string, error) {
 // var requires a code change, and missing one breaks auth.
 // Sandboxing is handled by CLI flags (--tools, --sandbox,
 // --config-dir, etc.), not by env filtering.
-func agentEnv() []string {
-	return append(os.Environ(), "CLAUDE_NO_SOUND=1")
-}
 
 func emitLog(onLog LogFunc, stream, line string) {
 	if onLog == nil {
@@ -235,92 +201,6 @@ func collectStreamLines(
 }
 
 // generateClaude invokes `claude -p --output-format json`.
-func generateClaude(
-	ctx context.Context, path, prompt string, onLog LogFunc,
-) (Result, error) {
-	cmd := exec.CommandContext(
-		ctx, path,
-		"-p", "--output-format", "json",
-		"--no-session-persistence",
-		"--tools", "",
-	)
-	cmd.Env = agentEnv()
-	cmd.Stdin = strings.NewReader(prompt)
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stdout pipe: %w", err,
-		)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stderr pipe: %w", err,
-		)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return Result{}, fmt.Errorf("start claude: %w", err)
-	}
-
-	stderrDone := collectStreamLines(
-		stderrPipe, "stderr", onLog,
-	)
-	stdoutBytes, readErr := io.ReadAll(stdoutPipe)
-	if readErr != nil {
-		_, _ = io.Copy(io.Discard, stdoutPipe)
-	}
-	stderrText := <-stderrDone
-	runErr := cmd.Wait()
-	if readErr != nil {
-		return Result{}, fmt.Errorf(
-			"read claude stdout: %w", readErr,
-		)
-	}
-
-	emitLog(
-		onLog,
-		"stdout",
-		truncateLogLine(string(stdoutBytes), claudeStdoutLogMaxBytes),
-	)
-
-	// Honor context cancellation over salvaging stdout, but
-	// only when the command actually failed. A successful
-	// cmd.Run with a race-y post-completion cancel should
-	// still return the valid result.
-	if runErr != nil && ctx.Err() != nil {
-		return Result{}, fmt.Errorf(
-			"claude CLI cancelled: %w", ctx.Err(),
-		)
-	}
-
-	// Claude Code CLI outputs a JSON array of events when
-	// invoked with -p --output-format json. Find the element
-	// with type="result" and extract its result field.
-	// Also accept the legacy single-object format as a
-	// fallback for older Claude CLI versions.
-	content, model := parseCLIResult(stdoutBytes)
-	if strings.TrimSpace(content) != "" {
-		return Result{
-			Content: content,
-			Agent:   "claude",
-			Model:   model,
-		}, nil
-	}
-
-	if runErr != nil {
-		return Result{}, fmt.Errorf(
-			"claude CLI failed: %w\nstderr: %s",
-			runErr, stderrText,
-		)
-	}
-
-	return Result{}, fmt.Errorf(
-		"claude returned empty result\nraw: %s",
-		string(stdoutBytes),
-	)
-}
 
 // parseCLIResult extracts the result text and model from
 // claude CLI output. Claude Code (v2+) outputs a JSON array
@@ -367,74 +247,6 @@ func parseCLIResult(data []byte) (result, model string) {
 
 // generateCodex invokes `codex exec` in read-only sandbox
 // and parses the JSONL stream for agent_message items.
-func generateCodex(
-	ctx context.Context, path, prompt string, onLog LogFunc,
-) (Result, error) {
-	cmd := exec.CommandContext(
-		ctx, path,
-		"exec", "--json",
-		"--sandbox", "read-only",
-		"--skip-git-repo-check",
-		"--ephemeral",
-		"-",
-	)
-	cmd.Env = agentEnv()
-	cmd.Stdin = strings.NewReader(prompt)
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stdout pipe: %w", err,
-		)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stderr pipe: %w", err,
-		)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return Result{}, fmt.Errorf(
-			"start codex: %w", err,
-		)
-	}
-
-	stderrDone := collectStreamLines(
-		stderrPipe, "stderr", onLog,
-	)
-	content, parseErr := parseCodexStream(stdoutPipe, onLog)
-
-	// Drain remaining stdout so cmd.Wait doesn't block.
-	if parseErr != nil {
-		_, _ = io.Copy(io.Discard, stdoutPipe)
-	}
-
-	stderrText := <-stderrDone
-	if waitErr := cmd.Wait(); waitErr != nil {
-		if parseErr != nil {
-			return Result{}, fmt.Errorf(
-				"codex failed: %w (parse: %w)\nstderr: %s",
-				waitErr, parseErr, stderrText,
-			)
-		}
-		return Result{}, fmt.Errorf(
-			"codex failed: %w\nstderr: %s",
-			waitErr, stderrText,
-		)
-	}
-	if parseErr != nil {
-		return Result{}, fmt.Errorf(
-			"parse codex stream: %w\nstderr: %s",
-			parseErr, stderrText,
-		)
-	}
-
-	return Result{
-		Content: content,
-		Agent:   "codex",
-	}, nil
-}
 
 // codexEvent represents a JSONL event from codex --json.
 type codexEvent struct {
@@ -576,153 +388,9 @@ func windowsArgLength(s string) int {
 // generateCopilot invokes `copilot -p <prompt> --silent`.
 // The prompt is passed as the -p argument (copilot does not
 // read prompts from stdin). Output is plain text on stdout.
-func generateCopilot(
-	ctx context.Context, path, prompt string, onLog LogFunc,
-) (Result, error) {
-	cmd := exec.CommandContext(
-		ctx, path,
-		"-p", prompt,
-		"--silent",
-		"--no-custom-instructions",
-		"--no-ask-user",
-		"--disable-builtin-mcps",
-	)
-	cmd.Env = agentEnv()
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stdout pipe: %w", err,
-		)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stderr pipe: %w", err,
-		)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return Result{}, fmt.Errorf(
-			"start copilot: %w", err,
-		)
-	}
-
-	stderrDone := collectStreamLines(
-		stderrPipe, "stderr", onLog,
-	)
-	// Read stdout raw to preserve blank lines in plain
-	// text output (collectStreamLines drops empty lines).
-	stdoutBytes, readErr := io.ReadAll(stdoutPipe)
-	stderrText := <-stderrDone
-	runErr := cmd.Wait()
-
-	if readErr != nil {
-		return Result{}, fmt.Errorf(
-			"read copilot stdout: %w", readErr,
-		)
-	}
-
-	emitLog(onLog, "stdout", string(stdoutBytes))
-
-	if runErr != nil && ctx.Err() != nil {
-		return Result{}, fmt.Errorf(
-			"copilot CLI cancelled: %w", ctx.Err(),
-		)
-	}
-	if runErr != nil {
-		return Result{}, fmt.Errorf(
-			"copilot CLI failed: %w\nstderr: %s",
-			runErr, stderrText,
-		)
-	}
-
-	content := strings.TrimSpace(string(stdoutBytes))
-	if content == "" {
-		return Result{}, errors.New("copilot returned empty result")
-	}
-
-	return Result{
-		Content: content,
-		Agent:   "copilot",
-	}, nil
-}
 
 // generateGemini invokes `gemini --output-format stream-json`
 // and parses the JSONL stream for result/assistant messages.
-func generateGemini(
-	ctx context.Context, path, prompt string, onLog LogFunc,
-	cfg AgentConfig,
-) (Result, error) {
-	if strings.TrimSpace(cfg.Sandbox) == "" && !cfg.AllowUnsafe {
-		return Result{}, errors.New("gemini insights require an explicit sandbox or unsafe opt-in; set [agent.gemini].sandbox to a Gemini sandbox provider or [agent.gemini].allow_unsafe = true")
-	}
-	cmd := exec.CommandContext(
-		ctx, path,
-		"--model", geminiInsightModel,
-		"--output-format", "stream-json",
-	)
-	cmd.Env = agentEnv()
-	if sandbox := strings.TrimSpace(cfg.Sandbox); sandbox != "" {
-		cmd.Env = append(cmd.Env, "GEMINI_SANDBOX="+sandbox)
-	}
-	cmd.Stdin = strings.NewReader(prompt)
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stdout pipe: %w", err,
-		)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf(
-			"create stderr pipe: %w", err,
-		)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return Result{}, fmt.Errorf(
-			"start gemini: %w", err,
-		)
-	}
-
-	stderrDone := collectStreamLines(
-		stderrPipe, "stderr", onLog,
-	)
-	content, parseErr := parseStreamJSON(stdoutPipe, onLog)
-
-	// Drain remaining stdout so cmd.Wait doesn't block.
-	if parseErr != nil {
-		_, _ = io.Copy(io.Discard, stdoutPipe)
-	}
-
-	stderrText := <-stderrDone
-	if waitErr := cmd.Wait(); waitErr != nil {
-		if parseErr != nil {
-			return Result{}, fmt.Errorf(
-				"gemini failed: %w (parse: %w)\nstderr: %s",
-				waitErr, parseErr, stderrText,
-			)
-		}
-		return Result{}, fmt.Errorf(
-			"gemini failed: %w\nstderr: %s",
-			waitErr, stderrText,
-		)
-	}
-	if parseErr != nil {
-		return Result{}, fmt.Errorf(
-			"parse gemini stream: %w\nstderr: %s",
-			parseErr, stderrText,
-		)
-	}
-
-	return Result{
-		Content: content,
-		Agent:   "gemini",
-		Model:   geminiInsightModel,
-	}, nil
-}
 
 // streamMessage represents a JSONL event from stream-json
 // output (shared format between Claude and Gemini CLIs).
@@ -827,75 +495,3 @@ var ansiRE = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]`)
 // prevent tool execution. Use only with trusted session data.
 // The working directory is set to os.TempDir() to limit
 // exposure if tools are triggered.
-func generateKiro(
-	ctx context.Context, path, prompt string, onLog LogFunc,
-) (Result, error) {
-	cmd := exec.CommandContext(
-		ctx, path,
-		"chat",
-		"--no-interactive",
-		"--trust-tools=",
-		"--wrap", "never",
-	)
-	cmd.Env = agentEnv()
-	cmd.Dir = os.TempDir()
-	cmd.Stdin = strings.NewReader(prompt)
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf("create stdout pipe: %w", err)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return Result{}, fmt.Errorf("create stderr pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return Result{}, fmt.Errorf("start kiro-cli: %w", err)
-	}
-
-	stderrDone := collectStreamLines(stderrPipe, "stderr", onLog)
-	stdoutBytes, readErr := io.ReadAll(stdoutPipe)
-	stderrText := <-stderrDone
-	runErr := cmd.Wait()
-
-	if readErr != nil {
-		return Result{}, fmt.Errorf("read kiro stdout: %w", readErr)
-	}
-
-	emitLog(onLog, "stdout", string(stdoutBytes))
-
-	if runErr != nil && ctx.Err() != nil {
-		return Result{}, fmt.Errorf("kiro-cli cancelled: %w", ctx.Err())
-	}
-	if runErr != nil {
-		return Result{}, fmt.Errorf(
-			"kiro-cli failed: %w\nstderr: %s", runErr, stderrText,
-		)
-	}
-
-	// Strip ANSI escape codes and the trust/timing banners.
-	clean := ansiRE.ReplaceAllString(string(stdoutBytes), "")
-	var lines []string
-	for line := range strings.SplitSeq(clean, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "Agents can sometimes") ||
-			strings.HasPrefix(trimmed, "Learn more at") ||
-			strings.HasPrefix(trimmed, "▸ Time:") {
-			continue
-		}
-		lines = append(lines, line)
-	}
-	content := strings.TrimSpace(strings.Join(lines, "\n"))
-	if content == "" {
-		return Result{}, errors.New("kiro returned empty result")
-	}
-
-	return Result{
-		Content: content,
-		Agent:   "kiro",
-	}, nil
-}

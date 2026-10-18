@@ -1,4 +1,5 @@
 {
+  "privacy_network_disabled": "このローカルアーカイブ版ではネットワーク送信が無効です。",
   "data_reclassify_session_preview_filtered_empty": "プレビューするセッションがありません。自動セッションは非表示です。含めるにはフィルターボタンを使用してください。",
   "data_batch_saving_progress": [
     {

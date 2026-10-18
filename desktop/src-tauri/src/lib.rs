@@ -974,11 +974,8 @@ fn is_allowed_navigation_url(url: &Url, backend_port: Option<u16>) -> bool {
     false
 }
 
-fn is_allowed_external_open_url(url: &Url) -> bool {
-    matches!(
-        url.scheme(),
-        "http" | "https" | "mailto" | "codex" | "claude"
-    )
+fn is_allowed_external_open_url(_url: &Url) -> bool {
+    false
 }
 
 // sidecar_env returns the environment passed to the backend
@@ -4221,22 +4218,22 @@ agentsview running at http://127.0.0.1:18082
     }
 
     #[test]
-    fn is_allowed_external_open_url_limits_schemes() {
+    fn external_navigation_never_hands_transcript_links_to_other_apps() {
         let https = Url::parse("https://example.com").expect("valid https url");
-        assert!(is_allowed_external_open_url(&https));
+        assert!(!is_allowed_external_open_url(&https));
 
         let http = Url::parse("http://example.com").expect("valid http url");
-        assert!(is_allowed_external_open_url(&http));
+        assert!(!is_allowed_external_open_url(&http));
 
         let mailto = Url::parse("mailto:test@example.com").expect("valid mailto url");
-        assert!(is_allowed_external_open_url(&mailto));
+        assert!(!is_allowed_external_open_url(&mailto));
 
         let codex = Url::parse("codex://threads/session-123").expect("valid codex url");
-        assert!(is_allowed_external_open_url(&codex));
+        assert!(!is_allowed_external_open_url(&codex));
 
         let claude =
             Url::parse("claude://code/new?folder=%2Ftmp%2Fproject").expect("valid Claude Code url");
-        assert!(is_allowed_external_open_url(&claude));
+        assert!(!is_allowed_external_open_url(&claude));
 
         let obsolete_claude =
             Url::parse("claude-cli://open?cwd=%2Ftmp%2Fproject").expect("valid obsolete URL");

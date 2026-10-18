@@ -326,69 +326,14 @@ type quackClient struct {
 func openQuackClient(ctx context.Context,
 	rawURL, token string, allowInsecure bool, attachTimeout time.Duration,
 ) (*quackClient, error) {
-	if err := ValidateQuackClientURL(rawURL, token, allowInsecure); err != nil {
-		return nil, err
-	}
-	timeout := resolveAttachTimeout(attachTimeout)
-	// Cheap TCP preflight before ATTACH: catches unreachable or blackholed
-	// endpoints in a bounded time even when the extension would otherwise
-	// hang. A successful dial only proves the port accepts connections; the
-	// watchdog below still guards a server that accepts but never responds
-	// (e.g. a stalled SSL handshake).
-	if timeout > 0 {
-		if err := preflightQuackDial(ctx, rawURL, timeout); err != nil {
-			return nil, err
-		}
-	}
-	conn, err := openDuckDB("")
-	if err != nil {
-		return nil, fmt.Errorf("opening duckdb client: %w", err)
-	}
-	conn.SetMaxOpenConns(1)
-	conn.SetMaxIdleConns(1)
-	if err := configureDuckDBThreads(ctx, conn); err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	if _, err := conn.ExecContext(ctx, "INSTALL quack"); err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("installing quack extension: %w", err)
-	}
-	if _, err := conn.ExecContext(ctx, "LOAD quack"); err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("loading quack extension: %w", err)
-	}
-	client := &quackClient{
-		duck:   conn,
-		rawURL: rawURL,
-		token:  token,
-	}
-	if err := runWithAttachTimeout(rawURL, timeout, func() error {
-		return client.attach(context.Background())
-	}); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return client, nil
+	return nil, errors.New("remote Quack transport has been removed; use a local DuckDB mirror")
 }
 
 // preflightQuackDial performs a bounded TCP dial against the host:port encoded
 // in a quack URL before ATTACH. It returns nil (skips the check) when no
 // definite host:port can be derived, leaving the attach watchdog as the guard.
 func preflightQuackDial(ctx context.Context, rawURL string, timeout time.Duration) error {
-	addr, ok := quackDialAddress(rawURL)
-	if !ok {
-		return nil
-	}
-	conn, err := (&net.Dialer{Timeout: timeout}).DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return fmt.Errorf(
-			"connecting to quack endpoint %s: %w",
-			RedactQuackURL(rawURL), err,
-		)
-	}
-	return conn.Close()
+	return errors.New("remote Quack transport has been removed")
 }
 
 // runWithAttachTimeout runs attach and enforces timeout. A non-positive

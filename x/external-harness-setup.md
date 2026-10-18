@@ -75,9 +75,10 @@ conflict flags, grouped retry identities, rate-table calculations, and accountin
 UI/export integration from the broader contract remain to be implemented.
 The client must expose structured metadata before its usage can be recorded.
 
-Existing vendor runners and embedded insight, recall, and embedding HTTP clients
-still exist. This change does not establish network isolation. Their removal is
-separate pending work; do not load private data on the assumption it is complete.
+Built-in vendor runners and embedded insight, recall, and embedding HTTP senders
+are removed. The configured executable is now the only insight generation path.
+Its networking remains under the executable/operator policy. The application
+restrictions are documented in the [runtime network audit](runtime-network-audit.md).
 
 ## Verification
 

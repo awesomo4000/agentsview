@@ -88,7 +88,7 @@ func TestHTTPSyncRejectsRemoteWithoutProtocolHandshake(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	_, err := RemoteSync{Host: "devbox", Source: HTTPSource{URL: ts.URL}}.Prepare(t.Context())
+	_, err := RemoteSync{Host: "devbox", Source: fixtureHTTPSource{URL: ts.URL}}.Prepare(t.Context())
 
 	require.ErrorContains(t, err, "remote sync protocol")
 	assert.False(t, archiveRequested)
@@ -104,7 +104,7 @@ func TestHTTPSyncRejectsMismatchedRemoteProtocol(t *testing.T) {
 			}))
 			t.Cleanup(ts.Close)
 
-			_, err := RemoteSync{Host: "devbox", Source: HTTPSource{URL: ts.URL}}.Prepare(t.Context())
+			_, err := RemoteSync{Host: "devbox", Source: fixtureHTTPSource{URL: ts.URL}}.Prepare(t.Context())
 
 			require.ErrorContains(t, err, "incompatible")
 		})
@@ -121,7 +121,7 @@ func TestRequestArchivePreservesEmptyDeltaSelection(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	response, err := (HTTPSource{URL: server.URL, Client: server.Client()}).requestArchive(
+	response, err := (fixtureHTTPSource{URL: server.URL, Client: server.Client()}).requestArchive(
 		t.Context(), ArchiveRequest{DeltaFiles: []string{}},
 	)
 	require.NoError(t, err)
@@ -157,7 +157,7 @@ func TestHTTPSyncDownloadsArchiveAndImports(t *testing.T) {
 
 	stats, err := RemoteSync{
 		Host:   "devbox",
-		Source: HTTPSource{URL: ts.URL, Token: "remote-token"},
+		Source: fixtureHTTPSource{URL: ts.URL, Token: "remote-token"},
 		DB:     database,
 	}.Run(t.Context())
 
@@ -193,7 +193,7 @@ func TestHTTPSyncReportsDownloadAndImportProgress(t *testing.T) {
 
 	stats, err := RemoteSync{
 		Host:   "devbox",
-		Source: HTTPSource{URL: ts.URL, Token: "remote-token"},
+		Source: fixtureHTTPSource{URL: ts.URL, Token: "remote-token"},
 		DB:     database,
 		Progress: func(p syncpkg.Progress) {
 			progress = append(progress, p)
@@ -236,7 +236,7 @@ func TestHTTPSyncReportsCompressedTransferThenExtraction(t *testing.T) {
 	var progress []syncpkg.Progress
 	hs := RemoteSync{
 		Host:   "devbox",
-		Source: HTTPSource{URL: ts.URL, Client: ts.Client()},
+		Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()},
 		Progress: func(p syncpkg.Progress) {
 			progress = append(progress, p)
 		},
@@ -283,7 +283,7 @@ func TestHTTPSyncZstdArchivePreservesContentAndWireProgress(t *testing.T) {
 			var progress []syncpkg.Progress
 			hs := RemoteSync{
 				Host:   "host-a",
-				Source: HTTPSource{URL: ts.URL, Client: ts.Client()},
+				Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()},
 				Progress: func(p syncpkg.Progress) {
 					progress = append(progress, p)
 				},
@@ -322,7 +322,7 @@ func TestHTTPSyncFullArchiveExtractsOnlyManifestFetchSet(t *testing.T) {
 	t.Cleanup(ts.Close)
 	mirrorRoot := filepath.Join(t.TempDir(), "mirrors", "devbox")
 
-	err = (RemoteSync{Host: "devbox", Source: HTTPSource{URL: ts.URL, Client: ts.Client()}}).downloadIntoMirror(
+	err = (RemoteSync{Host: "devbox", Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()}}).downloadIntoMirror(
 		t.Context(), TargetSet{}, []string{wanted}, true, mirrorRoot,
 	)
 	require.NoError(t, err)
@@ -381,7 +381,7 @@ func TestHTTPSyncLegacyCompressedTransferPreservesWireProgress(t *testing.T) {
 	var progress []syncpkg.Progress
 	hs := RemoteSync{
 		Host:   "devbox",
-		Source: HTTPSource{URL: ts.URL, Client: ts.Client()},
+		Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()},
 		Progress: func(p syncpkg.Progress) {
 			progress = append(progress, p)
 		},
@@ -455,7 +455,7 @@ func TestHTTPSyncRemovesSpooledArchive(t *testing.T) {
 			parent := filepath.Join(t.TempDir(), "remote-mirrors")
 			mirrorRoot := filepath.Join(parent, "devbox")
 
-			err := (RemoteSync{Host: "devbox", Source: HTTPSource{URL: ts.URL, Client: ts.Client()}}).downloadIntoMirror(
+			err := (RemoteSync{Host: "devbox", Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()}}).downloadIntoMirror(
 				t.Context(), TargetSet{}, []string{"session.jsonl"},
 				false, mirrorRoot,
 			)
@@ -492,7 +492,7 @@ func TestHTTPSyncMirrorRetainsPostExtractionSpoolCleanup(t *testing.T) {
 	t.Cleanup(ts.Close)
 	removeErr := errors.New("spool removal failed")
 	removeCalls := 0
-	hs := RemoteSync{Host: "devbox", Source: HTTPSource{URL: ts.URL, Client: ts.Client()}, removeArchiveSpool: func(path string) error {
+	hs := RemoteSync{Host: "devbox", Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()}, removeArchiveSpool: func(path string) error {
 		removeCalls++
 		if removeCalls == 1 {
 			return removeErr
@@ -527,7 +527,7 @@ func TestHTTPSyncLegacyRetainsCleanupWithoutLeakingExtractedRoot(t *testing.T) {
 	setPortableTempDir(t, tempParent)
 	removeErr := errors.New("spool removal failed")
 	removeCalls := 0
-	hs := RemoteSync{Host: "devbox", Source: HTTPSource{URL: ts.URL, Client: ts.Client()}, removeArchiveSpool: func(path string) error {
+	hs := RemoteSync{Host: "devbox", Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()}, removeArchiveSpool: func(path string) error {
 		removeCalls++
 		if removeCalls == 1 {
 			return removeErr
@@ -568,7 +568,7 @@ func TestHTTPSyncLegacyRetainsSpoolWhenExtractionRootCreationFails(t *testing.T)
 	removeCalls := 0
 	hs := RemoteSync{
 		Host:   "devbox",
-		Source: HTTPSource{URL: ts.URL, Client: ts.Client()},
+		Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()},
 		Progress: func(p syncpkg.Progress) {
 			if p.BytesDone == int64(len(archive)) {
 				setPortableTempDir(t, invalidTemp)
@@ -814,7 +814,7 @@ func TestHTTPSyncLegacyCancellationCleansOwnedRoots(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	hs := RemoteSync{
 		Host:   "devbox",
-		Source: HTTPSource{URL: ts.URL, Client: ts.Client()},
+		Source: fixtureHTTPSource{URL: ts.URL, Client: ts.Client()},
 		Progress: func(p syncpkg.Progress) {
 			if strings.HasPrefix(p.Detail, "Extracting ") {
 				cancel()
@@ -1135,7 +1135,7 @@ func newMirrorSync(t *testing.T, remote *mirrorTestRemote, dataDir string) (*db.
 	t.Cleanup(func() { require.NoError(t, database.Close()) })
 	return database, RemoteSync{
 		Host:    "devbox",
-		Source:  HTTPSource{URL: remote.ts.URL, Token: "remote-token"},
+		Source:  fixtureHTTPSource{URL: remote.ts.URL, Token: "remote-token"},
 		DataDir: dataDir,
 		DB:      database,
 	}
@@ -3593,10 +3593,10 @@ func TestPrepareHTTPSyncsLegacySourcesDoNotCreateWorkingDirectoryLocks(t *testin
 	setPortableTempDir(t, t.TempDir())
 
 	syncA := RemoteSync{
-		Host: "host-a", Source: HTTPSource{URL: remoteA.ts.URL, Client: remoteA.ts.Client()},
+		Host: "host-a", Source: fixtureHTTPSource{URL: remoteA.ts.URL, Client: remoteA.ts.Client()},
 	}
 	syncB := RemoteSync{
-		Host: "host-b", Source: HTTPSource{URL: remoteB.ts.URL, Client: remoteB.ts.Client()},
+		Host: "host-b", Source: fixtureHTTPSource{URL: remoteB.ts.URL, Client: remoteB.ts.Client()},
 	}
 	syncs := []RemoteSync{syncB, syncA}
 
@@ -3658,15 +3658,15 @@ func TestPrepareHTTPSyncsOrdersConcurrentCallersByMirrorLockPath(t *testing.T) {
 	}
 
 	callerOne := []RemoteSync{syncB, syncA}
-	setHTTPSourceToken(t, &callerOne[0], "caller-one")
-	setHTTPSourceToken(t, &callerOne[1], "caller-one")
+	setfixtureHTTPSourceToken(t, &callerOne[0], "caller-one")
+	setfixtureHTTPSourceToken(t, &callerOne[1], "caller-one")
 	callerTwo := []RemoteSync{syncA, syncB}
-	setHTTPSourceToken(t, &callerTwo[0], "caller-two")
-	setHTTPSourceToken(t, &callerTwo[1], "caller-two")
+	setfixtureHTTPSourceToken(t, &callerTwo[0], "caller-two")
+	setfixtureHTTPSourceToken(t, &callerTwo[1], "caller-two")
 	for _, syncs := range [][]RemoteSync{callerOne, callerTwo} {
 		for i := range syncs {
 			hs := syncs[i]
-			token := hs.Source.(HTTPSource).Token
+			token := hs.Source.(fixtureHTTPSource).Token
 			syncs[i].acquireMirrorLock = func(ctx context.Context, root string) (*MirrorLockHandle, error) {
 				lock, err := AcquireMirrorLock(ctx, root)
 				if err == nil {
@@ -4601,15 +4601,15 @@ func assertMirrorUnlocked(t *testing.T, mirrorRoot string) {
 
 func setHTTPSourceURL(t *testing.T, hs *RemoteSync, url string) {
 	t.Helper()
-	source, ok := hs.Source.(HTTPSource)
+	source, ok := hs.Source.(fixtureHTTPSource)
 	require.True(t, ok, "expected an HTTP source")
 	source.URL = url
 	hs.Source = source
 }
 
-func setHTTPSourceToken(t *testing.T, hs *RemoteSync, token string) {
+func setfixtureHTTPSourceToken(t *testing.T, hs *RemoteSync, token string) {
 	t.Helper()
-	source, ok := hs.Source.(HTTPSource)
+	source, ok := hs.Source.(fixtureHTTPSource)
 	require.True(t, ok, "expected an HTTP source")
 	source.Token = token
 	hs.Source = source

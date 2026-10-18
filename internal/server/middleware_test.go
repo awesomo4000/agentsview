@@ -192,7 +192,7 @@ func TestCSPMiddlewareSetsHeaderOnNonAPIRoutes(t *testing.T) {
 			wantDirectives: map[string]string{
 				"default-src":     "'self' http://127.0.0.1:8081",
 				"script-src":      "'self' http://127.0.0.1:8081",
-				"connect-src":     "'self' http: https: ws: wss:",
+				"connect-src":     "'self' http://127.0.0.1:8081",
 				"img-src":         "'self' http://127.0.0.1:8081 data: blob:",
 				"style-src":       "'self' http://127.0.0.1:8081 'unsafe-inline'",
 				"font-src":        "'self' http://127.0.0.1:8081 data:",
@@ -209,7 +209,7 @@ func TestCSPMiddlewareSetsHeaderOnNonAPIRoutes(t *testing.T) {
 			wantCSP: true,
 			wantDirectives: map[string]string{
 				"script-src":  "'self' http://[::1]:9090",
-				"connect-src": "'self' http: https: ws: wss:",
+				"connect-src": "'self' http://[::1]:9090",
 			},
 		},
 		{
@@ -220,23 +220,23 @@ func TestCSPMiddlewareSetsHeaderOnNonAPIRoutes(t *testing.T) {
 			basePath: "/app",
 			wantCSP:  true,
 			wantDirectives: map[string]string{
-				"connect-src": "'self' http: https: ws: wss:",
+				"connect-src": "'self' http://127.0.0.1:8081",
 				"base-uri":    "'self'",
 			},
 		},
 		{
-			name:    "API route gets no CSP",
+			name:    "API route receives CSP",
 			path:    "/api/v1/sessions",
 			host:    "127.0.0.1",
 			port:    8081,
-			wantCSP: false,
+			wantCSP: true,
 		},
 		{
-			name:    "API subpath gets no CSP",
+			name:    "API subpath receives CSP",
 			path:    "/api/v1/stats",
 			host:    "127.0.0.1",
 			port:    8081,
-			wantCSP: false,
+			wantCSP: true,
 		},
 	}
 
@@ -273,85 +273,6 @@ func TestCSPMiddlewareSetsHeaderOnNonAPIRoutes(t *testing.T) {
 // client-side (frontend/src/lib/api/client.ts), so connect-src must
 // permit any http/https/ws/wss origin — while every directive that
 // gates code or resource loading stays pinned to the server origin.
-func TestBuildCSPPolicyWidensConnectSrcOnly(t *testing.T) {
-	t.Parallel()
-
-	directives := parseCSP(buildCSPPolicy("127.0.0.1", 8081, "", "", nil))
-
-	assert.Equal(t, "'self' http: https: ws: wss:", directives["connect-src"],
-		"connect-src should be widened to any http/https/ws/wss origin")
-
-	// Scheme-source wildcards must not leak into the directives that
-	// gate code/resource loading, or the widening would defeat the
-	// remaining CSP protection.
-	locked := []string{"default-src", "script-src", "img-src", "style-src", "font-src"}
-	schemeWildcards := map[string]bool{
-		"http:": true, "https:": true, "ws:": true, "wss:": true,
-	}
-	for _, name := range locked {
-		for field := range strings.FieldsSeq(directives[name]) {
-			assert.False(t, schemeWildcards[field],
-				"directive %s must stay pinned but allows %q (full: %q)",
-				name, field, directives[name])
-		}
-	}
-}
-
-func TestBuildCSPPolicyPinsPublicURLOrigin(t *testing.T) {
-	t.Parallel()
-
-	directives := parseCSP(buildCSPPolicy(
-		"0.0.0.0", 8080, "",
-		"https://agentsview.example.com/app",
-		nil,
-	))
-
-	assert.Equal(t, "'self' https://agentsview.example.com",
-		directives["default-src"],
-	)
-	assert.Equal(t, "'self' https://agentsview.example.com",
-		directives["script-src"],
-	)
-	assert.Equal(t, "'self' https://agentsview.example.com data: blob:",
-		directives["img-src"],
-	)
-	assert.NotContains(t, directives["default-src"], "0.0.0.0")
-}
-
-func TestBuildCSPPolicyKeepsLocalOriginWithPublicURL(t *testing.T) {
-	t.Parallel()
-
-	directives := parseCSP(buildCSPPolicy(
-		"127.0.0.1", 8080, "",
-		"https://agentsview.example.com/app",
-		nil,
-	))
-
-	assert.Equal(t,
-		"'self' https://agentsview.example.com http://127.0.0.1:8080",
-		directives["default-src"],
-	)
-	assert.Equal(t,
-		"'self' https://agentsview.example.com http://127.0.0.1:8080",
-		directives["script-src"],
-	)
-}
-
-func TestBuildCSPPolicyPinsPublicOriginWhenPublicURLUnset(t *testing.T) {
-	t.Parallel()
-
-	directives := parseCSP(buildCSPPolicy(
-		"0.0.0.0", 8080, "",
-		"",
-		[]string{"https://viewer.example.test"},
-	))
-
-	assert.Equal(t,
-		"'self' https://viewer.example.test",
-		directives["default-src"],
-	)
-	assert.NotContains(t, directives["default-src"], "0.0.0.0")
-}
 
 func TestCORSMiddlewareMergesVaryHeader(t *testing.T) {
 	t.Parallel()
@@ -379,4 +300,11 @@ func TestCORSMiddlewareMergesVaryHeader(t *testing.T) {
 	vary := w.Header().Get("Vary")
 	assert.Contains(t, vary, "Accept-Encoding")
 	assert.Contains(t, vary, "Origin")
+}
+
+func TestCSPRefusesRemoteOriginsAndForms(t *testing.T) {
+	directives := parseCSP(buildCSPPolicy("127.0.0.1", 47831, "", "https://example.invalid", []string{"https://other.invalid"}))
+	require.Equal(t, "'self' http://127.0.0.1:47831", directives["connect-src"])
+	require.Equal(t, "'none'", directives["form-action"])
+	require.Equal(t, "'none'", directives["frame-src"])
 }

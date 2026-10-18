@@ -264,7 +264,7 @@ func TestGenerateInsight_DefaultAgent(t *testing.T) {
 	stubGen := func(
 		_ context.Context, agent, _ string,
 	) (insight.Result, error) {
-		assert.Equal(t, "claude", agent, "expected default agent claude")
+		assert.Equal(t, "external", agent, "expected default agent external")
 		return insight.Result{}, errors.New("stub: no CLI")
 	}
 	te := setupWithServerOpts(t, []server.Option{
@@ -352,7 +352,7 @@ func TestGenerateInsight_SingleSessionUsesSessionPrompt(t *testing.T) {
 		server.WithGenerateFunc(func(
 			_ context.Context, agent, prompt string,
 		) (insight.Result, error) {
-			assert.Equal(t, "claude", agent)
+			assert.Equal(t, "external", agent)
 			assert.Contains(t, prompt, "## Session: session-1")
 			return insight.Result{
 				Agent:   "claude",
@@ -402,7 +402,7 @@ func TestGenerateInsight_PersistsWithReadOnlyStore(t *testing.T) {
 	srv := server.New(cfg, store, nil, server.WithGenerateFunc(func(
 		_ context.Context, agent, _ string,
 	) (insight.Result, error) {
-		assert.Equal(t, "claude", agent)
+		assert.Equal(t, "external", agent)
 		return insight.Result{
 			Agent:   "claude",
 			Content: "persisted from read-only wrapper",
@@ -2170,24 +2170,4 @@ func TestGenerateInsight_ToolEffectivenessRequiresSession(t *testing.T) {
 		`{"type":"tool_effectiveness","date_from":"2025-01-15","date_to":"2025-01-15"}`)
 	assertStatus(t, w, http.StatusBadRequest)
 	assertBodyContains(t, w, "session_id is required for tool_effectiveness")
-}
-
-func TestToolEffectivenessEndpointErrorDoesNotFallBack(t *testing.T) {
-	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "busy", http.StatusServiceUnavailable)
-	}))
-	t.Cleanup(endpoint.Close)
-	te := setup(t, func(c *config.Config) {
-		c.Insights.Endpoint = endpoint.URL + "/v1"
-		c.Insights.Model = "local"
-	})
-	dbtest.SeedToolSequencesExample(t, te.db, "te-session")
-
-	w := te.post(t, "/api/v1/insights/generate",
-		`{"type":"tool_effectiveness","session_id":"te-session","agent":"claude","date_from":"","date_to":""}`)
-	assertStatus(t, w, http.StatusOK)
-	assertBodyContains(t, w, "event: error")
-	assertBodyContains(t, w, "503")
-	list := decode[listInsightsResponse](t, te.get(t, "/api/v1/insights"))
-	assert.Empty(t, list.Insights)
 }

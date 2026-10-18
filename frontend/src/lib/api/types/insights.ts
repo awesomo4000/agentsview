@@ -11,9 +11,10 @@ export type CannedInsightKind =
   | "instruction_opportunity_review";
 
 /** Agent CLIs an insight request can name, mirroring the server set. */
-export const AGENT_NAMES = ["external", "claude", "codex", "copilot", "gemini", "kiro"] as const;
+export const AGENT_NAMES = ["external"] as const;
 
-export type AgentName = (typeof AGENT_NAMES)[number];
+// Legacy names remain readable in saved state; only external is selectable.
+export type AgentName = (typeof AGENT_NAMES)[number] | "claude" | "codex" | "copilot" | "gemini" | "kiro";
 
 export const TOOL_EFFECTIVENESS_SCHEMA_VERSION = "tool_effectiveness.v1";
 

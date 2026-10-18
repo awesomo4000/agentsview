@@ -2,15 +2,10 @@ package server
 
 import (
 	"context"
-	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"html"
 	"html/template"
-	"io"
-	"net/http"
-	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -22,41 +17,8 @@ import (
 // gistResponse represents the relevant fields from GitHub's
 // Create Gist API response.
 
-var ghAuthTokenOutput = func(ctx context.Context) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "gh", "auth", "token")
-	cmd.Stderr = io.Discard
-	return cmd.Output()
-}
-
-func githubHTTPClient(timeout time.Duration) *http.Client {
-	transport := http.DefaultTransport
-	if base, ok := http.DefaultTransport.(*http.Transport); ok {
-		transport = base.Clone()
-	}
-	return &http.Client{
-		Timeout:   timeout,
-		Transport: transport,
-	}
-}
-
 func resolveGitHubToken(ctx context.Context, configured string) string {
-	if token := strings.TrimSpace(configured); token != "" {
-		return token
-	}
-	if !isLocalhostContext(ctx) {
-		return ""
-	}
-	if token := strings.TrimSpace(os.Getenv("AGENTSVIEW_GITHUB_TOKEN")); token != "" {
-		return token
-	}
-
-	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	out, err := ghAuthTokenOutput(cctx)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	return ""
 }
 
 func validateGithubToken(ctx context.Context, token string) (string, error) {
@@ -69,35 +31,7 @@ func validateGithubTokenWithURL(
 	ctx context.Context,
 	apiURL, token string,
 ) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("creating validation request: %w", err)
-	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "agentsview")
-
-	client := githubHTTPClient(10 * time.Second)
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("validating token: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return "", errors.New("invalid GitHub token")
-	}
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("GitHub API error: %d", resp.StatusCode)
-	}
-
-	var user struct {
-		Login string `json:"login"`
-	}
-	if err := json.UnmarshalRead(resp.Body, &user); err != nil {
-		return "", fmt.Errorf("parsing user response: %w", err)
-	}
-	return user.Login, nil
+	return "", errors.New("GitHub network integration has been removed")
 }
 
 type exportData struct {

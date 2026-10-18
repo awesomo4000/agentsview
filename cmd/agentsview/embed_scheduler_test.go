@@ -992,27 +992,9 @@ func startTestServer(t *testing.T, ln net.Listener, handler http.Handler) *httpt
 func TestServeConstructionRegistersEmbeddingsRoutesWhenVectorEnabled(t *testing.T) {
 	dataDir := t.TempDir()
 	database := dbtest.OpenTestDBAt(t, filepath.Join(dataDir, "sessions.db"))
-
-	ln, port := listenLoopback(t)
 	cfg := vectorTestConfig(dataDir)
-	cfg.Host, cfg.Port = "127.0.0.1", port
-	vs, err := setupVectorServing(t.Context(), cfg, database, nil)
-	require.NoError(t, err)
-	require.NotNil(t, vs.Scheduler)
-	require.NotNil(t, vs.RecallScheduler)
-	require.NotNil(t, vs.Close)
-	defer func() { require.NoError(t, vs.Close()) }()
-
-	srv := server.New(cfg, database, nil, vs.ServerOpts...)
-	ts := startTestServer(t, ln, srv.Handler())
-
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.URL+"/api/v1/embeddings/status", nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "application/json", mediaType(t, resp.Header.Get("Content-Type")))
+	_, err := setupVectorServing(t.Context(), cfg, database, nil)
+	require.ErrorContains(t, err, "embedded embedding transport has been removed")
 }
 
 func TestRecallSchedulerBackstopRemovesArchivedEntryVectors(t *testing.T) {

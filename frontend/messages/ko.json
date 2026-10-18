@@ -1,4 +1,5 @@
 {
+  "privacy_network_disabled": "이 로컬 아카이브 버전에서는 네트워크 전송이 비활성화되어 있습니다.",
   "data_reclassify_session_preview_filtered_empty": "미리 볼 세션이 없습니다. 자동 세션은 숨겨져 있습니다. 포함하려면 필터 버튼을 사용하세요.",
   "data_batch_saving_progress": [
     {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json/v2"
 	"fmt"
 	"net/http"
@@ -121,30 +122,15 @@ func TestRecallExtractRunAndStatusEndToEnd(t *testing.T) {
 	server := extractModelStub(t)
 	writeExtractConfig(t, dataDir, server.URL)
 	seedExtractCLISession(t, dataDir)
-
-	out, err := executeCommand(newRootCommand(),
-		"recall", "extract", "run", "--format", "json")
-	require.NoError(t, err, "run output: %s", out)
-	var run struct {
-		Sessions int  `json:"sessions"`
-		Failed   int  `json:"failed"`
-		Entries  int  `json:"entries"`
-		Units    int  `json:"units"`
-		Active   bool `json:"activated"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(out), &run), "stdout: %q", out)
-	assert.Equal(t, 1, run.Sessions)
-	assert.Equal(t, 2, run.Entries)
-	assert.True(t, run.Active)
-
-	out, err = executeCommand(newRootCommand(),
-		"recall", "extract", "status", "--format", "json")
-	require.NoError(t, err, "status output: %s", out)
+	_, err := executeCommand(newRootCommand(), "recall", "extract", "run", "--format", "json")
+	require.ErrorContains(t, err, "removed")
+	out, err := executeCommand(newRootCommand(), "recall", "extract", "status", "--format", "json")
+	require.NoError(t, err)
 	var status extract.Status
-	require.NoError(t, json.Unmarshal([]byte(out), &status), "stdout: %q", out)
-	assert.Equal(t, 1, status.Stats.Done)
-	assert.Equal(t, 2, status.Stats.Entries)
-	assert.NotEmpty(t, status.Fingerprint)
+	require.NoError(t, json.Unmarshal([]byte(out), &status))
+	require.Zero(t, status.Stats.Done)
+	require.Zero(t, status.Stats.Entries)
+	require.NotEmpty(t, status.Fingerprint)
 }
 
 // TestSetupExtractReconcileOnlyWhenDisabled pins that retraction runs even
@@ -270,14 +256,20 @@ func TestRecallExtractRetireRequiresForceForActive(t *testing.T) {
 	writeExtractConfig(t, dataDir, server.URL)
 	seedExtractCLISession(t, dataDir)
 
-	_, err := executeCommand(newRootCommand(), "recall", "extract", "run")
-	require.NoError(t, err)
-
 	out, err := executeCommand(newRootCommand(),
 		"recall", "extract", "status", "--format", "json")
 	require.NoError(t, err)
 	var status extract.Status
 	require.NoError(t, json.Unmarshal([]byte(out), &status))
+	database, err := db.Open(t.Context(), filepath.Join(dataDir, "sessions.db"))
+	require.NoError(t, err)
+	_, err = database.EnsureExtractGeneration(t.Context(), db.ExtractGeneration{Fingerprint: status.Fingerprint, Model: "test-model", Segmenter: "turns-v1"})
+	require.NoError(t, err)
+	require.NoError(t, database.Update(t.Context(), func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(t.Context(), "UPDATE recall_extract_generations SET state='active' WHERE fingerprint=?", status.Fingerprint)
+		return err
+	}))
+	require.NoError(t, database.Close())
 
 	_, err = executeCommand(newRootCommand(),
 		"recall", "extract", "retire", status.Fingerprint)
@@ -295,12 +287,12 @@ func TestRecallExtractDoctorProbesTheModel(t *testing.T) {
 	writeExtractConfig(t, dataDir, server.URL)
 
 	out, err := executeCommand(newRootCommand(), "recall", "extract", "doctor")
-	require.NoError(t, err, "doctor output: %s", out)
+	require.ErrorContains(t, err, "removed")
 	assert.Contains(t, out, "Fingerprint:")
 	assert.Contains(t, out, "test-model")
 	assert.Contains(t, out, "Concurrency: 1",
 		"an unset concurrency resolves to one session at a time")
-	assert.Contains(t, out, "probe: ok")
+	assert.NotContains(t, out, "probe: ok")
 }
 
 // TestExtractProbeTimeoutExceedsConfiguredRequestTimeout pins that the
@@ -524,7 +516,7 @@ func TestRecallExtractDoctorRedactsEndpointCredentials(t *testing.T) {
 		"http://tester:hunter2@"+parsed.Host)
 
 	out, cmdErr := executeCommand(newRootCommand(), "recall", "extract", "doctor")
-	require.NoError(t, cmdErr, "doctor output: %s", out)
+	require.ErrorContains(t, cmdErr, "removed")
 	assert.Contains(t, out, parsed.Host,
 		"the endpoint host stays visible for diagnostics")
 	assert.NotContains(t, out, "hunter2",

@@ -1,3 +1,4 @@
+import { m } from "../i18n/index.js";
 export const SERVER_URL_KEY = "agentsview-server-url";
 export const SERVER_URL_REVISION_KEY = "agentsview-server-url-revision";
 /** Dispatched on window when this tab changes the selected server. */
@@ -15,10 +16,11 @@ export function getGeneratedBase(): string {
 }
 
 export function getServerUrl(): string {
-  return localStorage.getItem(SERVER_URL_KEY) ?? "";
+  return "";
 }
 
 export function setServerUrl(url: string): void {
+ if (url) throw new Error(m.privacy_network_disabled());
   const previous = getServerUrl();
   if (url) {
     localStorage.setItem(SERVER_URL_KEY, url);
@@ -112,7 +114,9 @@ export async function orvalRequest<T extends Response = Response>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const { baseUrl, ...init } = options;
-  const response = await fetch(`${baseUrl ?? getGeneratedBase()}${url}`, {
+  const target = new URL(`${baseUrl ?? getGeneratedBase()}${url}`, window.location.origin);
+ if (target.origin !== window.location.origin) throw new Error(m.privacy_network_disabled());
+ const response = await fetch(target.pathname + target.search, {
     ...init,
     headers: baseUrl === undefined ? generatedHeaders(init.headers) : init.headers,
   });

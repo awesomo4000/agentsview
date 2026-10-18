@@ -198,7 +198,7 @@ describe("SettingsPage", () => {
     expect(searchStatus?.textContent?.trim()).toBe("");
     expect(nav!.textContent).toContain("Preferences");
     expect(nav!.textContent).toContain("Data");
-    expect(nav!.textContent).toContain("Connections");
+    expect(nav!.textContent).not.toContain("Connections");
     expect(nav!.textContent).toContain("Session Providers");
     expect(nav!.textContent).not.toContain("Agent Directories");
 
@@ -287,7 +287,7 @@ describe("SettingsPage", () => {
     restoredSearch.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
 
-    expect(restoredNav.querySelectorAll("button")).toHaveLength(11);
+    expect(restoredNav.querySelectorAll("button")).toHaveLength(9);
     expect(
       document.body.querySelector(".settings-page")?.classList.contains("settings-no-results"),
     ).toBe(false);

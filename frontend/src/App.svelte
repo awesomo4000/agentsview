@@ -745,6 +745,27 @@
   });
 
   onMount(() => {
+    const blockExternalLink = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest("a");
+      if (!link) return;
+      const href = link.getAttribute("href") ?? link.getAttribute("xlink:href") ?? "";
+      try {
+        if (new URL(href, window.location.href).origin === window.location.origin) return;
+      } catch { /* malformed navigation is blocked */ }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    document.addEventListener("click", blockExternalLink, true);
+    document.addEventListener("auxclick", blockExternalLink, true);
+    return () => {
+      document.removeEventListener("click", blockExternalLink, true);
+      document.removeEventListener("auxclick", blockExternalLink, true);
+    };
+  });
+
+  onMount(() => {
     globalAuthToken = getAuthToken();
     settings.load();
     starred.load();

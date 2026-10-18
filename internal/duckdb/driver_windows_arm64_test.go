@@ -16,9 +16,9 @@ func TestOpenReportsUnsupportedPlatform(t *testing.T) {
 	assert.ErrorIs(t, err, errUnsupportedPlatform)
 }
 
-func TestNewQuackStoreReportsUnsupportedPlatform(t *testing.T) {
+func TestNewQuackStoreRefusesRemoteTransport(t *testing.T) {
 	store, err := NewQuackStore(t.Context(), "quack:localhost:8765", "token", false, 0)
 	require.Error(t, err)
 	assert.Nil(t, store)
-	assert.ErrorIs(t, err, errUnsupportedPlatform)
+	assert.ErrorContains(t, err, "removed")
 }

@@ -352,3 +352,17 @@ format/lint/type checks passed. The rebuilt executable served a synthetic
 archive on 47831, rejected a deliberately occupied default port, and served
 successfully with a custom `--port`. No live data or installed services changed.
 A high port alone does not restrict access from ordinary local browsers.
+
+## Runtime privacy enforcement, 10/18/2026
+
+Removed bundled model senders, vendor CLI fallbacks, SSH sync, remote HTTP/raw
+upload transport, GitHub aggregation, and UI session launch/resume actions.
+Browser requests stay on the current origin; CLI daemon requests stay on literal
+loopback addresses without proxies or redirects. DuckDB external access and
+Quack connections are disabled. Explicitly configured external harnesses retain
+their own network access.
+
+See [runtime network audit](x/runtime-network-audit.md) for retained capabilities,
+exceptions, and verification. The CLI executable was rebuilt; desktop code was
+tested but no native bundle was installed. Validation used synthetic data only.
+The full CLI suite still has daemon-discovery/autostart fixture failures.

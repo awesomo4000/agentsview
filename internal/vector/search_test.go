@@ -2,21 +2,14 @@ package vector
 
 import (
 	"context"
-	"encoding/json/v2"
-	"math"
-	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
-	"time"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.kenn.io/agentsview/internal/db"
-	"go.kenn.io/kit/embedconfig"
 	kitvec "go.kenn.io/kit/vector"
 	"go.kenn.io/kit/vector/sqlitevec"
 )
@@ -890,7 +883,7 @@ func TestDocAnchorOutOfRangeChunkIndexFallsBack(t *testing.T) {
 // 4-dimensional vectors and honors the OpenAI-compatible dimensions field by
 // slicing and renormalizing, the way Matryoshka-capable endpoints do.
 func TestSearchReducedDimensionsEndToEnd(t *testing.T) {
-	const nativeDim, reducedDim = 4, 3
+	const reducedDim = 3
 
 	nativeVector := func(text string) []float32 {
 		switch {
@@ -903,53 +896,13 @@ func TestSearchReducedDimensionsEndToEnd(t *testing.T) {
 		}
 	}
 
-	var mu sync.Mutex
-	var requestedDims []int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Input      []string `json:"input"`
-			Dimensions int      `json:"dimensions"`
+	enc := func(_ context.Context, texts []string) ([][]float32, error) {
+		vectors := make([][]float32, len(texts))
+		for i, text := range texts {
+			vectors[i] = nativeVector(text)[:reducedDim]
 		}
-		if !assert.NoError(t, json.UnmarshalRead(r.Body, &req)) {
-			return
-		}
-		mu.Lock()
-		requestedDims = append(requestedDims, req.Dimensions)
-		mu.Unlock()
-
-		dim := nativeDim
-		if req.Dimensions > 0 {
-			dim = req.Dimensions
-		}
-		data := make([]map[string]any, len(req.Input))
-		for i, text := range req.Input {
-			sliced := nativeVector(text)[:dim]
-			var norm float64
-			for _, v := range sliced {
-				norm += float64(v) * float64(v)
-			}
-			norm = math.Sqrt(norm)
-			vec := make([]float32, dim)
-			for j, v := range sliced {
-				vec[j] = float32(float64(v) / norm)
-			}
-			data[i] = map[string]any{"index": i, "embedding": vec}
-		}
-		w.Header().Set("Content-Type", "application/json")
-		assert.NoError(t, json.MarshalWrite(w, map[string]any{"data": data}))
-	}))
-	defer srv.Close()
-
-	enc, err := NewEncoder(EncoderConfig{
-		Model: embedconfig.Model{
-			Name: "matryoshka-model", Dimensions: reducedDim, RequestDimensions: true,
-			Metric: embedconfig.MetricCosine, Normalization: embedconfig.NormalizationNone,
-		},
-		Deployment: embedconfig.Deployment{BaseURL: srv.URL + "/v1"},
-		Transport:  embedconfig.Transport{Timeout: 5 * time.Second},
-		MaxRetries: 1,
-	}, embedconfig.RoleDocument)
-	require.NoError(t, err)
+		return vectors, nil
+	}
 
 	ix := openTestIndex(t)
 	ctx := t.Context()
@@ -977,12 +930,4 @@ func TestSearchReducedDimensionsEndToEnd(t *testing.T) {
 	assert.Equal(t, 0, hits[0].Ordinal)
 	assert.Contains(t, hits[0].Snippet, "alpha")
 
-	mu.Lock()
-	defer mu.Unlock()
-	require.GreaterOrEqual(t, len(requestedDims), 2,
-		"at least one build request and the query request reached the server")
-	for i, d := range requestedDims {
-		assert.Equal(t, reducedDim, d,
-			"request %d must ask for the reduced dimension", i)
-	}
 }

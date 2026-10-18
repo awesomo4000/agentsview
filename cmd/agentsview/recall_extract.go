@@ -143,33 +143,13 @@ func buildExtractManager(
 	})
 }
 
-// setupRecallExtraction wires the daemon's extraction scheduler. When the
-// section is disabled it returns a reconcile-only scheduler if a generation
-// exists, and nil when none does.
+// setupRecallExtraction only maintains existing local recall eligibility.
+// It never schedules inference, including when old configuration enables it.
 func setupRecallExtraction(
 	cfg config.Config, database *db.DB, idle *server.IdleTracker,
 ) (*extractScheduler, error) {
-	if !cfg.Recall.Extract.Enabled {
-		database.SetExtractCandidateFindingsAllowed(
-			cfg.Recall.Extract.AllowCandidateFindings())
-		return setupExtractReconcileOnly(database, idle)
-	}
-	dist, err := resolveExtractDistillation(cfg.Recall.Extract)
-	if err != nil {
-		return nil, err
-	}
-	mgr, err := buildExtractManager(cfg.Recall.Extract, database)
-	if err != nil {
-		return nil, err
-	}
-	backstop := max(dist.Backstop, 0)
-	// With the backstop disabled, catchup ticks (paced by the quiet period,
-	// never faster than once a minute) keep scanning so a session whose
-	// quiet period elapses after the last sync still gets extracted.
-	catchup := max(dist.Quiet, time.Minute)
-	return newExtractScheduler(
-		mgr, extractDebounceInterval, backstop, catchup, idle,
-	), nil
+	database.SetExtractCandidateFindingsAllowed(cfg.Recall.Extract.AllowCandidateFindings())
+	return setupExtractReconcileOnly(database, idle)
 }
 
 // setupExtractReconcileOnly wires a scheduler that only retracts the
@@ -306,45 +286,7 @@ func newRecallExtractRunCommand() *cobra.Command {
 					"--limit must not be negative (0 means all): got %d",
 					limit)
 			}
-			cfg, err := loadExtractConfig(cmd)
-			if err != nil {
-				return err
-			}
-			database, lock, err := openWritableExtractDB(cmd.Context(), cfg)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = lock.Close() }()
-			defer database.Close()
-			mgr, err := buildExtractManager(cfg.Recall.Extract, database)
-			if err != nil {
-				return err
-			}
-			result, err := mgr.RunPass(cmd.Context(), extract.PassOptions{
-				SessionID: strings.TrimSpace(sessionID),
-				Full:      full,
-				Limit:     limit,
-			})
-			if err != nil {
-				return err
-			}
-			if outputFormat(cmd) == "json" {
-				return json.MarshalEncode(jsontext.NewEncoder(cmd.OutOrStdout()),
-					extractRunResult{
-						Sessions:  result.Sessions,
-						Failed:    result.Failed,
-						Units:     result.Units,
-						Entries:   result.Entries,
-						Activated: result.Activated,
-					})
-			}
-			fmt.Fprintf(cmd.OutOrStdout(),
-				"Sessions: %d done, %d failed\nUnits: %d\nEntries: %d new\n",
-				result.Sessions, result.Failed, result.Units, result.Entries)
-			if result.Activated {
-				fmt.Fprintln(cmd.OutOrStdout(), "Generation activated")
-			}
-			return nil
+			return errors.New("recall.extract model generation has been removed")
 		},
 	}
 	cmd.Flags().StringVar(&sessionID, "session", "",

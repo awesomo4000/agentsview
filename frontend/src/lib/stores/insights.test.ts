@@ -843,17 +843,12 @@ describe("setAgent", () => {
 });
 
 describe("applyDefaultAgent", () => {
-  it("adopts the configured default until the picker chooses an agent", () => {
-    insights.applyDefaultAgent("codex");
-    expect(insights.agent).toBe("codex");
-
-    insights.applyDefaultAgent("gemini");
-    expect(insights.agent).toBe("gemini");
-
-    insights.setAgent("kiro");
-    insights.applyDefaultAgent("codex");
-    expect(insights.agent).toBe("kiro");
-  });
+  it("accepts the external default and ignores removed vendor defaults", () => {
+insights.applyDefaultAgent("external");
+ expect(insights.agent).toBe("external");
+ insights.applyDefaultAgent("codex");
+ expect(insights.agent).toBe("external");
+});
 
   it("keeps the current agent for unknown or absent values", () => {
     insights.applyDefaultAgent("claude-code");

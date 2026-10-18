@@ -287,7 +287,7 @@ func TestIsHostUnavailableWhenHTTPServerClosesBeforeHeaders(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := (HTTPSource{URL: server.URL, Client: server.Client()}).Targets(
+	_, err := (fixtureHTTPSource{URL: server.URL, Client: server.Client()}).Targets(
 		t.Context(),
 	)
 	require.NoError(t, <-serverResult)
@@ -306,7 +306,7 @@ func TestIsHostUnavailableWhenHTTPArchiveBodyIsTruncated(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	root, err := (RemoteSync{
-		Source: HTTPSource{URL: server.URL, Client: server.Client()},
+		Source: fixtureHTTPSource{URL: server.URL, Client: server.Client()},
 	}).downloadAndExtract(t.Context(), TargetSet{})
 	assert.Empty(t, root)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
@@ -316,18 +316,18 @@ func TestIsHostUnavailableWhenHTTPArchiveBodyIsTruncated(t *testing.T) {
 func TestIsHostUnavailableWhenHTTPJSONBodyIsTruncated(t *testing.T) {
 	tests := []struct {
 		name  string
-		fetch func(context.Context, HTTPSource) error
+		fetch func(context.Context, fixtureHTTPSource) error
 	}{
 		{
 			name: "targets",
-			fetch: func(ctx context.Context, source HTTPSource) error {
+			fetch: func(ctx context.Context, source fixtureHTTPSource) error {
 				_, err := source.Targets(ctx)
 				return err
 			},
 		},
 		{
 			name: "manifest",
-			fetch: func(ctx context.Context, source HTTPSource) error {
+			fetch: func(ctx context.Context, source fixtureHTTPSource) error {
 				_, _, err := source.Manifest(ctx, TargetSet{})
 				return err
 			},
@@ -346,7 +346,7 @@ func TestIsHostUnavailableWhenHTTPJSONBodyIsTruncated(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			err := tt.fetch(
-				t.Context(), HTTPSource{URL: server.URL, Client: server.Client()},
+				t.Context(), fixtureHTTPSource{URL: server.URL, Client: server.Client()},
 			)
 			require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 			assert.True(t, IsHostUnavailable(err))
@@ -363,7 +363,7 @@ func TestIsHostUnavailableKeepsCompleteMalformedJSONActionable(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := (HTTPSource{URL: server.URL, Client: server.Client()}).Targets(
+	_, err := (fixtureHTTPSource{URL: server.URL, Client: server.Client()}).Targets(
 		t.Context(),
 	)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
@@ -381,7 +381,7 @@ func TestIsHostUnavailableWhenHTTPManifestGzipHeaderIsTruncated(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, _, err := (HTTPSource{URL: server.URL, Client: server.Client()}).Manifest(
+	_, _, err := (fixtureHTTPSource{URL: server.URL, Client: server.Client()}).Manifest(
 		t.Context(), TargetSet{},
 	)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)

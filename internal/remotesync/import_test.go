@@ -100,7 +100,7 @@ func TestPreparedHTTPSyncRebuildContributor(t *testing.T) {
 		remoteFile: mtime.UnixNano(),
 	}))
 	hs := RemoteSync{
-		Host: "devbox", Source: HTTPSource{URL: server.URL}, DataDir: t.TempDir(), DB: database,
+		Host: "devbox", Source: fixtureHTTPSource{URL: server.URL}, DataDir: t.TempDir(), DB: database,
 	}
 	prepared, err := hs.Prepare(t.Context())
 	require.NoError(t, err)

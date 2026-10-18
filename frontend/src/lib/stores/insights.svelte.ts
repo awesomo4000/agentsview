@@ -19,7 +19,7 @@ import { localDateStr } from "../utils/dates.js";
 import { LatestRead } from "../utils/latest-read.js";
 
 /** Agent used until the server reports a configured default. */
-const BUILT_IN_AGENT: AgentName = "claude";
+const BUILT_IN_AGENT: AgentName = "external";
 
 function isAgentName(value: string | undefined): value is AgentName {
   return value !== undefined && (AGENT_NAMES as readonly string[]).includes(value);

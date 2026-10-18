@@ -91,5 +91,5 @@ func TestHumaGetSessionStatsUsesServerGitHubToken(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "server-token", spy.got.GHToken)
+	assert.Empty(t, spy.got.GHToken)
 }

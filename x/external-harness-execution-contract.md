@@ -181,5 +181,6 @@ add usage; summarizing a source session leaves its original accounting unchanged
 provider identity cannot be overwritten by requested aliases; saved records can
 be reopened and exported with their provenance intact.
 
-This contract does not claim that the app is network-isolated. Other transports
-and existing generation paths remain pending the previously requested removal.
+Bundled model and remote archive transports have now been removed. See the
+[runtime network audit](runtime-network-audit.md) for enforcement and remaining
+explicit external-executable trust. This is not an operating-system sandbox.

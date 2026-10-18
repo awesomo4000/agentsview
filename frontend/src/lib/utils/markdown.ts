@@ -977,7 +977,19 @@ export function renderMarkdown(text: string, options: MarkdownRenderOptions = {}
   const markdownParser = renderUnknownXmlBlocksAsPreformatted ? preformattedParser : parser;
   const resolved = escapeCustomXmlTags(resolvedText, markdownParser);
   const html = markdownParser.parser(resolved) as string;
-  const safe = DOMPurify.sanitize(html);
+  const fragment = DOMPurify.sanitize(html, { RETURN_DOM_FRAGMENT: true });
+  for (const link of fragment.querySelectorAll("a")) {
+    const href = link.getAttribute("href");
+    if (!href) continue;
+    try {
+      if (new URL(href, window.location.href).origin === window.location.origin) continue;
+    } catch { /* malformed URL */ }
+    link.removeAttribute("href");
+    link.removeAttribute("target");
+  }
+  const container = document.createElement("div");
+  container.append(fragment);
+  const safe = container.innerHTML;
 
   const entry: RenderCacheEntry = cache.get(text) ?? [undefined, undefined];
   entry[modeIndex] = safe;

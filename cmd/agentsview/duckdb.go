@@ -688,54 +688,7 @@ func serveQuackOnce(
 	cfg DuckDBQuackServeConfig,
 	token string,
 ) (quackServeSession, error) {
-	if err := probeDuckDBMirrorForServe(ctx, duckCfg.Path); err != nil {
-		return quackServeSession{}, err
-	}
-	info, err := os.Stat(duckCfg.Path)
-	if err != nil {
-		return quackServeSession{}, fmt.Errorf("statting duckdb mirror: %w", err)
-	}
-	duckdbsync.PrimeFileIdentity(info)
-	conn, err := duckdbsync.OpenReadOnly(ctx, duckCfg.Path)
-	if err != nil {
-		return quackServeSession{}, err
-	}
-	if err := duckdbsync.CheckSchemaCompat(ctx, conn); err != nil {
-		_ = conn.Close()
-		return quackServeSession{}, fmt.Errorf("schema incompatible: %w", err)
-	}
-	if _, err := conn.ExecContext(ctx, "INSTALL quack"); err != nil {
-		_ = conn.Close()
-		return quackServeSession{}, fmt.Errorf("installing quack: %w", err)
-	}
-	if _, err := conn.ExecContext(ctx, "LOAD quack"); err != nil {
-		_ = conn.Close()
-		return quackServeSession{}, fmt.Errorf("loading quack: %w", err)
-	}
-	identifyQuackNode(ctx, conn, duckCfg.MachineName)
-
-	quackInfo, err := startQuackServer(ctx, conn, cfg.Bind, token, duckCfg.AllowInsecure)
-	if err != nil {
-		_ = conn.Close()
-		return quackServeSession{}, fmt.Errorf("starting quack server: %w", err)
-	}
-	writeDuckDBQuackServeStartup(os.Stdout, duckDBQuackServeStartup{
-		Path: duckCfg.Path,
-		Bind: cfg.Bind,
-		Info: quackInfo,
-	})
-
-	stop := func() {
-		if _, stopErr := conn.ExecContext(
-			context.Background(), `CALL quack_stop(?)`, cfg.Bind,
-		); stopErr != nil {
-			log.Printf("warning: could not stop Quack server: %v", stopErr)
-		}
-		if closeErr := conn.Close(); closeErr != nil {
-			log.Printf("warning: could not close duckdb quack mirror: %v", closeErr)
-		}
-	}
-	return quackServeSession{info: info, stop: stop}, nil
+	return quackServeSession{}, errors.New("Quack serving and extension downloads have been removed")
 }
 
 // waitForReplacementOrShutdown polls path every interval until either ctx

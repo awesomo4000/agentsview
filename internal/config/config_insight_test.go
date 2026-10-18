@@ -15,13 +15,13 @@ func TestInsightsConfigValidation(t *testing.T) {
 		wantErr string
 	}{
 		{name: "absent"},
-		{name: "loopback", config: InsightsConfig{Endpoint: "http://127.0.0.1:30000/v1", Model: "local"}},
-		{name: "https", config: InsightsConfig{Endpoint: "https://models.example/v1", Model: "remote"}},
-		{name: "remote http opt in", config: InsightsConfig{Endpoint: "http://models.example/v1", Model: "remote", AllowHTTP: true}},
-		{name: "partial endpoint", config: InsightsConfig{Endpoint: "http://127.0.0.1:30000/v1"}, wantErr: "required together"},
-		{name: "partial model", config: InsightsConfig{Model: "local"}, wantErr: "required together"},
-		{name: "userinfo", config: InsightsConfig{Endpoint: "https://user:secret@models.example/v1", Model: "remote"}, wantErr: "credentials"},
-		{name: "remote http", config: InsightsConfig{Endpoint: "http://models.example/v1", Model: "remote"}, wantErr: "plaintext"},
+		{name: "loopback", wantErr: "removed", config: InsightsConfig{Endpoint: "http://127.0.0.1:30000/v1", Model: "local"}},
+		{name: "https", wantErr: "removed", config: InsightsConfig{Endpoint: "https://models.example/v1", Model: "remote"}},
+		{name: "remote http opt in", wantErr: "removed", config: InsightsConfig{Endpoint: "http://models.example/v1", Model: "remote", AllowHTTP: true}},
+		{name: "partial endpoint", config: InsightsConfig{Endpoint: "http://127.0.0.1:30000/v1"}, wantErr: "removed"},
+		{name: "partial model", config: InsightsConfig{Model: "local"}, wantErr: "removed"},
+		{name: "userinfo", config: InsightsConfig{Endpoint: "https://user:secret@models.example/v1", Model: "remote"}, wantErr: "removed"},
+		{name: "remote http", config: InsightsConfig{Endpoint: "http://models.example/v1", Model: "remote"}, wantErr: "removed"},
 		{name: "default agent", config: InsightsConfig{DefaultAgent: "codex"}},
 		{name: "default agent ignores case", config: InsightsConfig{DefaultAgent: " Codex "}},
 		{name: "unknown default agent", config: InsightsConfig{DefaultAgent: "gpt"}, wantErr: "insight agent must be one of"},
@@ -49,35 +49,9 @@ func TestInsightsConfigAPIKey(t *testing.T) {
 }
 
 func TestInsightsConfigTOMLLoadAndFinalize(t *testing.T) {
-	cfg := loadMinimalWithConfig(t, map[string]any{
-		"insights": map[string]any{
-			"endpoint":      " http://127.0.0.1:11434/v1 ",
-			"model":         " llama3.1 ",
-			"api_key_env":   " AGENTSVIEW_INSIGHTS_KEY ",
-			"allow_http":    true,
-			"default_agent": " Codex ",
-		},
-	})
-	assert.Equal(t, "http://127.0.0.1:11434/v1", cfg.Insights.Endpoint)
-	assert.Equal(t, "llama3.1", cfg.Insights.Model)
-	assert.Equal(t, "AGENTSVIEW_INSIGHTS_KEY", cfg.Insights.APIKeyEnv)
-	assert.True(t, cfg.Insights.AllowHTTP)
-	assert.Equal(t, "codex", cfg.Insights.DefaultAgent)
-
-	err := loadMinimalErrWithConfig(t, map[string]any{
-		"insights": map[string]any{
-			"endpoint": "http://models.example/v1",
-			"model":    "remote",
-		},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "plaintext")
-
-	err = loadMinimalErrWithConfig(t, map[string]any{
-		"insights": map[string]any{
-			"default_agent": "gpt",
-		},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "insight agent must be one of")
+	err := loadMinimalErrWithConfig(t, map[string]any{"insights": map[string]any{"endpoint": "http://127.0.0.1:11434/v1", "model": "test"}})
+	require.ErrorContains(t, err, "removed")
+	cfg := loadMinimalWithConfig(t, map[string]any{"insights": map[string]any{"default_agent": "external", "external": map[string]any{"id": "approved", "binary": "/tmp/approved-harness", "format": "text"}}})
+	require.Equal(t, "external", cfg.Insights.DefaultAgent)
+	require.Equal(t, "approved", cfg.Insights.External.ID)
 }

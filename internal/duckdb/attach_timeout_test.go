@@ -126,28 +126,6 @@ func unresponsiveListener(t *testing.T) net.Listener {
 	return ln
 }
 
-func TestPreflightQuackDial(t *testing.T) {
-	t.Run("closed port fails fast", func(t *testing.T) {
-		addr := closedLoopbackPort(t)
-		start := time.Now()
-		err := preflightQuackDial(t.Context(), "quack:"+addr, time.Second)
-		require.Error(t, err)
-		assert.Less(t, time.Since(start), time.Second)
-		assert.Contains(t, err.Error(), "connecting to quack endpoint")
-	})
-
-	t.Run("listening port passes", func(t *testing.T) {
-		ln := unresponsiveListener(t)
-		err := preflightQuackDial(t.Context(), "quack:"+ln.Addr().String(), time.Second)
-		assert.NoError(t, err)
-	})
-
-	t.Run("undeterminable address skips check", func(t *testing.T) {
-		// No port: no dial target can be derived, so preflight is a no-op.
-		assert.NoError(t, preflightQuackDial(t.Context(), "quack:example.com", time.Second))
-	})
-}
-
 func TestRunWithAttachTimeout(t *testing.T) {
 	t.Run("times out on unresponsive server", func(t *testing.T) {
 		ln := unresponsiveListener(t)
@@ -194,19 +172,4 @@ func TestRunWithAttachTimeout(t *testing.T) {
 		})
 		assert.ErrorIs(t, err, sentinel)
 	})
-}
-
-func TestOpenQuackClientPreflightFailsFast(t *testing.T) {
-	// A closed loopback port makes the TCP preflight fail before the quack
-	// extension is even loaded, so an unreachable endpoint returns promptly
-	// instead of hanging.
-	addr := closedLoopbackPort(t)
-	start := time.Now()
-	client, err := openQuackClient(t.Context(),
-		"quack:"+addr, "token", false, 2*time.Second,
-	)
-	require.Error(t, err)
-	assert.Nil(t, client)
-	assert.Less(t, time.Since(start), 2*time.Second)
-	assert.Contains(t, err.Error(), "connecting to quack endpoint")
 }

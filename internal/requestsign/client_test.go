@@ -113,45 +113,14 @@ func TestSignerPinsDestinationAndRejectsAmbiguity(t *testing.T) {
 }
 
 func TestClientFromEnvironmentSelectsSigningByOrigin(t *testing.T) {
-	file := filepath.Join(t.TempDir(), "key")
-	require.NoError(t, GenerateSecretFile(file))
-	t.Setenv("AGENTSVIEW_SIGNING_URL", "https://history.example.com/native")
-	t.Setenv("AGENTSVIEW_SIGNING_KEY_ID", "reader-key")
-	t.Setenv("AGENTSVIEW_SIGNING_KEY_FILE", file)
-
-	// Equivalent spellings of the signing origin are signed.
-	for _, target := range []string{"https://history.example.com/native/", "https://History.Example.COM/native", "https://history.example.com:443/native"} {
-		original := &http.Client{}
-		got, err := ClientFromEnvironment(target, original)
-		require.NoError(t, err, target)
-		assert.NotSame(t, original, got, target)
-		assert.IsType(t, signedTransport{}, got.Transport, target)
-		assert.True(t, SignsFromEnvironment(target), target)
+	for _, target := range []string{"https://history.example.invalid/native", "http://localhost:47831", "https://peer.example.invalid"} {
+		client, err := ClientFromEnvironment(target, &http.Client{})
+		require.ErrorContains(t, err, "outbound network access is disabled")
+		require.Nil(t, client)
 	}
-	// A local daemon, a remote-sync peer and another port on the signing host
-	// are different origins and keep their own transport.
-	for _, target := range []string{"http://127.0.0.2:8080/api", "https://peer.example.com:8443", "https://history.example.com:8443/native"} {
-		original := &http.Client{}
-		got, err := ClientFromEnvironment(target, original)
-		require.NoError(t, err, target)
-		assert.Same(t, original, got, target)
-		assert.False(t, SignsFromEnvironment(target), target)
-	}
-	// The signing host never receives credentials over plain HTTP, on any port
-	// or spelling, or outside its configured prefix.
-	for target, want := range map[string]string{
-		"http://history.example.com/native":      "downgrade",
-		"http://HISTORY.example.com/native":      "downgrade",
-		"http://history.example.com:80/native":   "downgrade",
-		"http://history.example.com:8080/native": "downgrade",
-		"https://history.example.com/other":      "prefix",
-		"https://History.example.com:443/other":  "prefix",
-	} {
-		got, err := ClientFromEnvironment(target, &http.Client{})
-		require.ErrorContains(t, err, want, target)
-		assert.Nil(t, got, target)
-		assert.False(t, SignsFromEnvironment(target), target)
-	}
+	client, err := ClientFromEnvironment("http://127.0.0.1:47831", &http.Client{})
+	require.NoError(t, err)
+	require.NotNil(t, client)
 }
 
 func TestSignerCanonicalizesOriginSpelling(t *testing.T) {

@@ -18,20 +18,12 @@ describe("orvalFetch", () => {
     vi.useRealTimers();
   });
 
-  it("notifies this tab only when the selected server changes", () => {
-    const servers: string[] = [];
-    const listener = () => servers.push(getServerUrl());
-    window.addEventListener(SERVER_URL_CHANGE_EVENT, listener);
-    try {
-      setServerUrl("https://example.com/remote");
-      setServerUrl("https://example.com/remote");
-      setServerUrl("");
-      setServerUrl("");
-      expect(servers).toEqual(["https://example.com/remote", ""]);
-    } finally {
-      window.removeEventListener(SERVER_URL_CHANGE_EVENT, listener);
-    }
-  });
+  it("ignores stale remote selection and rejects new remote servers", () => {
+localStorage.setItem("agentsview-server-url", "https://example.invalid");
+ expect(getServerUrl()).toBe("");
+ expect(() => setServerUrl("https://example.invalid")).toThrow();
+ expect(getServerUrl()).toBe("");
+});
 
   it("records when a JSON response was sent, answered, and read", async () => {
     vi.useFakeTimers({ toFake: ["performance"] });
@@ -61,7 +53,7 @@ describe("orvalFetch", () => {
     });
   });
 
-  it("sends the selected server token with generated requests", async () => {
+  it("keeps generated requests local despite a saved remote URL", async () => {
     localStorage.setItem("agentsview-server-url", "https://example.test");
     setAuthToken("secret");
     const fetchMock = vi.fn(
@@ -75,31 +67,14 @@ describe("orvalFetch", () => {
     await orvalFetch("/api/v1/usage/summary", {});
 
     const [input, init] = fetchMock.mock.calls[0]!;
-    expect(requestUrl(input)).toBe("https://example.test/api/v1/usage/summary");
+    expect(requestUrl(input)).toBe("/api/v1/usage/summary");
     expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer secret");
   });
-  it("tests a candidate server with only the supplied credentials", async () => {
-    localStorage.setItem("agentsview-server-url", "https://selected.example.test");
-    setAuthToken("selected-token");
-    const fetchMock = vi.fn(
-      async (_input: RequestInfo | URL, _init?: RequestInit) =>
-        new Response('{"version":"test"}', { headers: { "Content-Type": "application/json" } }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-    await getApiV1Version({ baseUrl: "https://candidate.example.test" });
-    await getApiV1Version({
-      baseUrl: "https://candidate.example.test",
-      headers: { Authorization: "Bearer candidate-token" },
-    });
-    expect(fetchMock.mock.calls.map(([input]) => input)).toEqual([
-      "https://candidate.example.test/api/v1/version",
-      "https://candidate.example.test/api/v1/version",
-    ]);
-    expect(new Headers(fetchMock.mock.calls[0]![1]?.headers).get("Authorization")).toBeNull();
-    expect(new Headers(fetchMock.mock.calls[1]![1]?.headers).get("Authorization")).toBe(
-      "Bearer candidate-token",
-    );
-  });
+  it("refuses remote candidate requests before fetch", async () => {
+const fetchMock = vi.fn(); vi.stubGlobal("fetch",fetchMock);
+ await expect(getApiV1Version({baseUrl:"https://candidate.example.invalid",headers:{Authorization:"Bearer synthetic"}})).rejects.toThrow();
+ expect(fetchMock).not.toHaveBeenCalled();
+});
 });
 
 describe("API errors", () => {

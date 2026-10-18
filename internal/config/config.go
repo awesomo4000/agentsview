@@ -574,7 +574,7 @@ type InsightsConfig struct {
 
 // DefaultInsightAgent is the insight agent used when neither the request nor
 // [insights] default_agent selects one.
-const DefaultInsightAgent = "claude"
+const DefaultInsightAgent = "external"
 
 // insightAgentNames lists the agent CLIs that can generate stored insights,
 // in display order. internal/insight re-exports the same names so config
@@ -634,25 +634,9 @@ func (c InsightsConfig) Validate() error {
 			return fmt.Errorf("[insights] %w", err)
 		}
 	}
-	endpoint := strings.TrimSpace(c.Endpoint)
-	model := strings.TrimSpace(c.Model)
-	configured := endpoint != "" || model != "" ||
-		strings.TrimSpace(c.APIKeyEnv) != "" || c.AllowHTTP
-	if !configured {
-		return nil
-	}
-	if endpoint == "" || model == "" {
-		return errors.New("[insights] endpoint and model are required together")
-	}
-	u, err := url.Parse(endpoint)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return fmt.Errorf("[insights] endpoint %q must be an http(s) URL", RedactedEndpoint(endpoint))
-	}
-	if u.User != nil {
-		return fmt.Errorf("[insights] endpoint must not contain URL credentials: %q", RedactedEndpoint(endpoint))
-	}
-	if err := ValidateExtractTransport(u, c.AllowHTTP); err != nil {
-		return fmt.Errorf("[insights] %w", err)
+
+	if c.Endpoint != "" || c.Model != "" || c.APIKeyEnv != "" || c.AllowHTTP {
+		return errors.New("embedded insight endpoints have been removed; configure [insights.external]")
 	}
 	return nil
 }

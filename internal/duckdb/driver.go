@@ -5,6 +5,8 @@ package duckdb
 import (
 	"database/sql"
 	"errors"
+	"net/url"
+	"strings"
 
 	// Registers the "duckdb" database/sql driver, which statically links
 	// the prebuilt DuckDB library from duckdb-go-bindings.
@@ -12,7 +14,15 @@ import (
 )
 
 func openDuckDB(dsn string) (*sql.DB, error) {
-	return sql.Open("duckdb", dsn)
+	path, query, _ := strings.Cut(dsn, "?")
+	options, err := url.ParseQuery(query)
+	if err != nil {
+		return nil, err
+	}
+	options.Set("enable_external_access", "false")
+	options.Set("autoload_known_extensions", "false")
+	options.Set("autoinstall_known_extensions", "false")
+	return sql.Open("duckdb", path+"?"+options.Encode())
 }
 
 func isMirrorOpenInSameProcessError(err error) bool {

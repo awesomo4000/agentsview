@@ -1,17 +1,10 @@
 package rawclient
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
-	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,88 +110,4 @@ func TestAsAPIErrorRejectsForeignErrors(t *testing.T) {
 	t.Parallel()
 	var got APIError
 	assert.False(t, AsAPIError(errors.New("boom"), &got))
-}
-
-func TestClientRefusesCredentialRedirects(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name       string
-		httpClient func() *http.Client
-	}{
-		{name: "default client"},
-		{
-			name: "supplied client without redirect policy",
-			httpClient: func() *http.Client {
-				return &http.Client{Timeout: time.Second}
-			},
-		},
-		{
-			name: "supplied client with permissive redirect policy",
-			httpClient: func() *http.Client {
-				return &http.Client{
-					Timeout: time.Second,
-					CheckRedirect: func(*http.Request, []*http.Request) error {
-						return nil
-					},
-				}
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var redirected atomic.Int32
-			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				redirected.Add(1)
-				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprintf(w, `{"token":"avdt_redirected","device_id":"dev_test",`+
-					`"scopes":["negotiate","upload","commit"],"expires_at":%q}`,
-					time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano))
-			}))
-			t.Cleanup(target.Close)
-			endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
-			}))
-			t.Cleanup(endpoint.Close)
-
-			var supplied *http.Client
-			if tt.httpClient != nil {
-				supplied = tt.httpClient()
-			}
-			client, err := NewClient(Config{
-				BaseURL: endpoint.URL, DeviceID: "dev_test",
-				Credential: "avdc_test", HTTPClient: supplied,
-			})
-			require.NoError(t, err)
-			_, err = client.tokens.token(t.Context())
-			require.Error(t, err)
-			assert.EqualValues(t, 0, redirected.Load(),
-				"redirect target must not receive the device credential")
-		})
-	}
-}
-
-func TestTokenExchangeBoundsErrorBody(t *testing.T) {
-	release := make(chan struct{})
-	endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = io.WriteString(w, strings.Repeat("x", 64<<10))
-		w.(http.Flusher).Flush()
-		select {
-		case <-r.Context().Done():
-		case <-release:
-		}
-	}))
-	defer endpoint.Close()
-	defer close(release)
-	client := newTestClient(t, endpoint.URL, time.Minute)
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-
-	_, err := client.tokens.token(ctx)
-
-	var apiErr *APIError
-	require.ErrorAs(t, err, &apiErr)
-	assert.Equal(t, http.StatusServiceUnavailable, apiErr.Status)
-	assert.NoError(t, ctx.Err(), "error handling must finish without waiting for the rest of the body")
 }

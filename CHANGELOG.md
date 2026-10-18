@@ -2,6 +2,13 @@
 
 ## 10/18/2026
 
+- Keep archive browsing local: remove built-in model senders, vendor CLI
+  generation, remote sync/uploads, GitHub lookups, and session launch actions.
+  Restrict browser API calls and navigation, and confine daemon HTTP to literal
+  loopback without proxies or redirects. Disable remote DuckDB Quack and external
+  extension access. Explicitly configured external insight executables remain
+  available and retain their own network permissions.
+
 - Run insights through a configured external executable with a strict JSON
   result envelope or explicit plain-text compatibility mode. Record each
   invocation in separate SQLite storage, preserving usage and deployment

@@ -22,7 +22,7 @@ baseline. It describes upstream, including features this fork is removing.
 The [removal checklist](REMOVALS.md) tracks completed work and upcoming cuts.
 Targets include telemetry, update services, online pricing, external UI assets,
 S3, PostgreSQL, ClickHouse, web imports, and publishing. DuckDB, vectors, MCP,
-SSH/HTTP sync, and internal-model integration remain under review.
+and internal-model integration remain under review. SSH/HTTP sync is removed.
 Local log-to-SQLite ingestion stays.
 
 Removed so far: application telemetry, UI tracking, the artifact vault and
@@ -37,8 +37,18 @@ are removed. SQLite analytics and the optional DuckDB mirror remain.
 Live Claude.ai account sync, browser relay/authentication, Cursor Admin API,
 GitHub Gist publishing, and managed Caddy/public hosting are removed. Local
 chat-archive file imports and exports remain. Fonts are bundled locally.
-Other external integrations remain. This is a development fork, not yet an
-Internet-independent or privacy-approved release.
+Embedded model HTTP clients, automatic vendor-CLI generation, SSH/HTTP sync,
+raw uploads, GitHub lookups, and session resume/open launchers are removed.
+The browser API stays on its own origin; daemon HTTP clients accept only literal
+loopback addresses. DuckDB remote Quack connections and extension downloads are
+removed; the local mirror remains.
+
+An external insight executable runs only when explicitly configured. It inherits
+credentials and can use its own network connections, so configure only a harness
+and backend approved for the data. No harness is configured by default.
+See the [runtime network audit](x/runtime-network-audit.md) for the enforced
+boundaries, retained local operations, and limits. This is application-level
+restriction, not an operating-system network sandbox.
 
 ## Build
 

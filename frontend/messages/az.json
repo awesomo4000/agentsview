@@ -1,4 +1,5 @@
 {
+  "privacy_network_disabled": "Bu yerli arxiv versiyasında şəbəkə göndərişi söndürülüb.",
   "data_reclassify_session_preview_filtered_empty": "Önbaxış üçün sessiya yoxdur. Avtomatlaşdırılmış sessiyalar gizlədilib; onları daxil etmək üçün süzgəc düyməsindən istifadə edin.",
   "data_batch_saving_progress": [
     {

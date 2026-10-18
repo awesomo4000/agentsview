@@ -382,6 +382,7 @@ func newManager(
 		QuietPeriod: 10 * time.Minute,
 		MaxAttempts: 2,
 	}
+	cfg.Client.distiller = cfg.Client.fixtureDistill
 	if mutate != nil {
 		mutate(&cfg)
 	}

@@ -1,4 +1,5 @@
 {
+  "privacy_network_disabled": "El envío por red está desactivado en esta versión de archivo local.",
   "data_reclassify_session_preview_filtered_empty": "No hay sesiones para previsualizar. Las sesiones automatizadas están ocultas; usa el botón de filtro para incluirlas.",
   "data_batch_saving_progress": [
     {

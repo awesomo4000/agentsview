@@ -937,7 +937,7 @@ func archiveWriteRequest(r *http.Request) bool {
 	return !strings.HasPrefix(path, "/api/v1/sessions/") || (!strings.HasSuffix(path, "/resume") && !strings.HasSuffix(path, "/open"))
 }
 
-// cspMiddleware sets a Content-Security-Policy header on non-API
+// cspMiddleware sets a Content-Security-Policy header on all
 // responses. The policy pins the exact host:port origin so that
 // even if Tauri's compile-time CSP uses a wildcard port, the
 // intersection narrows to the actual runtime port.
@@ -951,10 +951,9 @@ func cspMiddleware(
 ) http.Handler {
 	policy := buildCSPPolicy(host, port, basePath, publicURL, publicOrigins)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/") {
-			w.Header().Set("Content-Security-Policy", policy)
-			w.Header().Set("X-Frame-Options", "DENY")
-		}
+		w.Header().Set("Content-Security-Policy", policy)
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -966,17 +965,7 @@ func cspMiddleware(
 // Tauri webview may not resolve 'self' to the Go server origin after
 // navigating from tauri://localhost.
 //
-// connect-src is intentionally widened to any http/https/ws/wss
-// origin. The "Connect to Remote Server" feature (see
-// frontend/src/lib/api/client.ts) lets the user point the SPA at an
-// arbitrary remote agentsview API origin stored client-side, which
-// this server cannot know when the policy is built. This mirrors the
-// backend, where authenticated remote requests already bypass the
-// host-check and CORS restrictions (see isRemoteAuth in auth.go and
-// corsMiddleware). Security tradeoff: a broad connect-src means that
-// if an XSS ever executed in the app, exfiltration would be easier;
-// the other directives stay pinned so script execution remains gated
-// to 'self'.
+// Connections are restricted to the local application origin.
 func buildCSPPolicy(
 	host string,
 	port int,
@@ -989,7 +978,7 @@ func buildCSPPolicy(
 	// webview resolves 'self'. Public origins are included for
 	// reverse-proxy deployments; concrete local origins are preserved
 	// for desktop webviews that need the backend socket pinned.
-	serverOrigins := cspPinnedOrigins(host, port, publicURL, publicOrigins)
+	serverOrigins := cspPinnedOrigins(host, port, "", nil)
 	resourceSrc := "'self' " + strings.Join(serverOrigins, " ")
 
 	baseURI := "'none'"
@@ -1000,11 +989,13 @@ func buildCSPPolicy(
 	return fmt.Sprintf(
 		"default-src %[1]s; "+
 			"script-src %[1]s; "+
-			"connect-src 'self' http: https: ws: wss:; "+
+			"connect-src %[1]s; "+
 			"img-src %[1]s data: blob:; "+
 			"style-src %[1]s 'unsafe-inline'; "+
 			"font-src %[1]s data:; "+
 			"object-src 'none'; "+
+			"form-action 'none'; "+
+			"frame-src 'none'; "+
 			"base-uri %[2]s; "+
 			"frame-ancestors 'none'",
 		resourceSrc, baseURI,

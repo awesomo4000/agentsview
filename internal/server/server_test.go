@@ -3546,16 +3546,6 @@ func TestMarkdownSessionExport_DepthAllRecurses(t *testing.T) {
 	assertBodyContains(t, w, `<subagent_session id="child-b" parent_session_id="child-a" relationship="subagent"`)
 }
 
-func TestGetGithubConfig_UsesGitHubCLIAuthTokenFallback(t *testing.T) {
-	useGitHubCLIAuthTokenStub(t)
-	te := setup(t)
-
-	w := te.get(t, "/api/v1/config/github")
-
-	assertStatus(t, w, http.StatusOK)
-	assert.JSONEq(t, `{"configured":true}`, w.Body.String())
-}
-
 func TestGetGithubConfig_DoesNotUseGitHubCLIAuthTokenFallbackForForwardedRequest(t *testing.T) {
 	useGitHubCLIAuthTokenStub(t)
 	te := setup(t)
@@ -3565,29 +3555,6 @@ func TestGetGithubConfig_DoesNotUseGitHubCLIAuthTokenFallbackForForwardedRequest
 
 	assertStatus(t, w, http.StatusOK)
 	assert.JSONEq(t, `{"configured":false}`, w.Body.String())
-}
-
-func TestGetGithubConfig_UsesSavedGitHubTokenForForwardedRequest(t *testing.T) {
-	useGitHubCLIAuthTokenStub(t)
-	te := setup(t)
-	te.srv.SetGithubToken("saved-token")
-
-	w := te.wrappedRequest(http.MethodGet, "/api/v1/config/github",
-		withHeader("X-Forwarded-For", "203.0.113.10"))
-
-	assertStatus(t, w, http.StatusOK)
-	assert.JSONEq(t, `{"configured":true}`, w.Body.String())
-}
-
-func TestGetSettings_UsesGitHubCLIAuthTokenFallback(t *testing.T) {
-	useGitHubCLIAuthTokenStub(t)
-	te := setup(t)
-
-	w := te.get(t, "/api/v1/settings")
-
-	assertStatus(t, w, http.StatusOK)
-	resp := decode[settingsConfigResponse](t, w)
-	assert.True(t, resp.GithubConfigured)
 }
 
 func TestSettingsChartPaletteRoundTrip(t *testing.T) {
@@ -3805,7 +3772,7 @@ func TestSettingsInsightDefaultAgent(t *testing.T) {
 		return body.InsightDefaultAgent
 	}
 
-	assert.Equal(t, "claude", readDefaultAgent(t, setup(t)))
+	assert.Equal(t, "external", readDefaultAgent(t, setup(t)))
 
 	configured := setup(t, func(c *config.Config) {
 		c.Insights.DefaultAgent = "codex"

@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"go.kenn.io/agentsview/internal/localnet"
 )
 
 type Signer struct {
@@ -126,10 +128,13 @@ func (s *Signer) Client(client *http.Client) (*http.Client, error) {
 }
 
 // ClientFromEnvironment signs requests to the origin configured by
-// AGENTSVIEW_SIGNING_URL and leaves every other origin unchanged, so local
-// daemons and other remote hosts keep their existing transport. Plain HTTP to
-// the signing host and a different prefix on the signing origin fail closed.
+// AGENTSVIEW_SIGNING_URL after enforcing literal-loopback transport.
+// Remote origins, proxies, and redirects are unavailable in this fork.
 func ClientFromEnvironment(baseURL string, client *http.Client) (*http.Client, error) {
+	client, err := localnet.Client(baseURL, client)
+	if err != nil {
+		return nil, err
+	}
 	target, signed, err := environmentTarget(baseURL)
 	if err != nil {
 		return nil, err

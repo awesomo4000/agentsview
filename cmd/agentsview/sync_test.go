@@ -31,7 +31,6 @@ import (
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/remotesync"
 	"go.kenn.io/agentsview/internal/server"
-	"go.kenn.io/agentsview/internal/sshremote"
 	agentsync "go.kenn.io/agentsview/internal/sync"
 	"go.kenn.io/agentsview/internal/testjsonl"
 	"go.kenn.io/kit/daemon"
@@ -1060,53 +1059,6 @@ func TestRunRemoteSyncTransportRejectsUnknownTransportBeforeSync(t *testing.T) {
 	)
 
 	require.EqualError(t, err, `invalid remote transport "sftp"; use http or ssh`)
-}
-
-func TestPrepareConfiguredRemoteHostsBuildsSSHSourceWithoutToken(t *testing.T) {
-	var prepared []remotesync.RemoteSync
-	originalPrepare := prepareHTTPRebuildCLI
-	prepareHTTPRebuildCLI = func(
-		_ context.Context, syncs []remotesync.RemoteSync,
-	) (preparedHTTPRebuildCLI, error) {
-		prepared = syncs
-		return nil, nil
-	}
-	t.Cleanup(func() { prepareHTTPRebuildCLI = originalPrepare })
-
-	_, err := prepareConfiguredRemoteHosts(
-		t.Context(), config.Config{DataDir: t.TempDir()}, nil,
-		[]config.RemoteHost{{Host: "ssh-box", Transport: config.RemoteTransportSSH}},
-		remotesync.FullImportExplicit, nil,
-	)
-
-	require.NoError(t, err)
-	require.Len(t, prepared, 1)
-	assert.Equal(t, "ssh-box", prepared[0].Host)
-	assert.IsType(t, &sshremote.Source{}, prepared[0].Source)
-}
-
-func TestRunRemoteHostSyncHTTPRequiresExplicitHTTPToken(t *testing.T) {
-	called := false
-	ts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		called = true
-	}))
-	t.Cleanup(ts.Close)
-
-	_, err := runRemoteHostSync(
-		t.Context(),
-		config.Config{AuthToken: "collector-token"},
-		nil,
-		config.RemoteHost{
-			Host:      "devbox",
-			Transport: config.RemoteTransportHTTP,
-			URL:       ts.URL,
-		},
-		false,
-	)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "token is required")
-	assert.False(t, called, "collector auth_token must not be sent to remote")
 }
 
 func stubRemoteHostSyncForTest(

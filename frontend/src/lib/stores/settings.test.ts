@@ -79,47 +79,18 @@ describe("SettingsStore.load mode handling", () => {
       read_only: false,
       require_auth: false,
       terminal: { mode: "auto" },
-      insight_default_agent: "codex",
+      insight_default_agent: "external",
     });
 
     await settings.load();
 
-    expect(insights.agent).toBe("codex");
+    expect(insights.agent).toBe("external");
   });
 
-  it("clears the insight agent choice before loading a different server", async () => {
-    const { insights } = await import("./insights.svelte.js");
-    settingsService.getApiV1Settings.mockResolvedValue({
-      agent_dirs: {},
-      chart_palette: "agentsview",
-      terminal: { mode: "auto" },
-      insight_default_agent: "codex",
-    });
-    setServerUrl("https://example.com");
-    await settings.load();
-    insights.setAgent("kiro");
-    await settings.load();
-    expect(insights.agent).toBe("kiro");
-
-    let finishLoad!: (value: unknown) => void;
-    settingsService.getApiV1Settings.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finishLoad = resolve;
-      }),
-    );
-    setServerUrl("");
-    const load = settings.load();
-    expect(insights.agent).toBe("claude");
-    expect(insights.agentChosen).toBe(false);
-    finishLoad({
-      agent_dirs: {},
-      chart_palette: "agentsview",
-      terminal: { mode: "auto" },
-      insight_default_agent: "gemini",
-    });
-    await load;
-    expect(insights.agent).toBe("gemini");
-  });
+  it("rejects switching to a remote server", async () => {
+expect(() => setServerUrl("https://example.invalid")).toThrow();
+ expect(settingsService.getApiV1Settings).not.toHaveBeenCalled();
+});
 
   it("keeps current metadata when a stale settings load succeeds", async () => {
     let finishFirst!: (value: Record<string, unknown>) => void;

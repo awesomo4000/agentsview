@@ -119,7 +119,7 @@ describe("renderMarkdown", () => {
       const a = dom.querySelector("p > a");
       expect(a).not.toBeNull();
       expect(a!.textContent).toBe("text");
-      expect(a!.getAttribute("href")).toBe("https://example.com");
+      expect(a!.getAttribute("href")).toBeNull();
     });
   });
 
@@ -385,7 +385,7 @@ describe("renderMarkdown", () => {
       const link = dom.querySelector("p > a");
       expect(link).not.toBeNull();
       expect(link!.textContent).toBe("https://example.com");
-      expect(link!.getAttribute("href")).toBe("https://example.com");
+      expect(link!.getAttribute("href")).toBeNull();
     });
 
     it("keeps native protected constructs inside a complete unknown block", () => {
@@ -475,11 +475,11 @@ describe("renderMarkdown", () => {
       expect(p!.textContent).toContain("<foo:bar>keep tags</foo:bar>");
     });
 
-    it("keeps markdown links with custom-tag labels clickable", () => {
+    it("keeps labels while disabling external markdown links", () => {
       const dom = parseHTML(renderMarkdown("[<policy>read</policy>](https://example.com)"));
       const link = dom.querySelector("p > a");
       expect(link).not.toBeNull();
-      expect(link!.getAttribute("href")).toBe("https://example.com");
+      expect(link!.getAttribute("href")).toBeNull();
       expect(link!.textContent).toBe("<policy>read</policy>");
     });
 
@@ -1100,7 +1100,7 @@ describe("renderMarkdown", () => {
   });
 
   describe("edge cases", () => {
-    it("loads remote asset images with the configured origin and bearer token", async () => {
+    it("loads archived assets locally despite a stale remote setting", async () => {
       localStorage.setItem("agentsview-server-url", "https://remote.example.test/agentsview");
       setAuthToken("secret");
 
@@ -1121,7 +1121,7 @@ describe("renderMarkdown", () => {
         await vi.waitFor(() => expect(image.src).toBe("blob:asset"));
 
         const [requestURL, requestInit] = fetchMock.mock.calls[0]!;
-        expect(requestURL).toBe("https://remote.example.test/agentsview/api/v1/assets/abc.png");
+        expect(requestURL).toBe("/api/v1/assets/abc.png");
         expect(new Headers(requestInit?.headers).get("Authorization")).toBe("Bearer secret");
         handle.destroy();
         expect(createObjectURL).toHaveBeenCalledTimes(1);
