@@ -1,5 +1,11 @@
 # Changelog
 
+## 10/20/2026
+
+- Set the search direction to SQLite FTS5, optional approved session summaries,
+  and user tags. Queue DuckDB and embedding machinery for removal; record
+  searchable summaries and convenient tag editing as unfinished work.
+
 ## 10/18/2026
 
 - Keep archive browsing local: remove built-in model senders, vendor CLI

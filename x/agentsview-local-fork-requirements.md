@@ -1,7 +1,7 @@
 # Local AgentsView fork requirements
 
 Status: approved direction, implementation in progress.
-Updated: 10/17/2026.
+Updated: 10/20/2026.
 Working name: `avlocal`.
 Upstream: `kenn-io/agentsview`, commit
 `a22d9d1e33006b157746043e84ca5da0b75bcb48`.
@@ -40,7 +40,31 @@ This document replaces it.
 Trace dependencies before removing packages. In particular, `internal/db`,
 `internal/ingest`, `internal/sync`, `internal/server`, `frontend`, and `desktop`
 are not blanket deletion targets. Local log-to-SQLite sync is core functionality;
-remaining SSH/HTTP sync and internal upload options require a separate decision.
+outbound SSH/HTTP sync has been removed. Future internal uploads require a separate
+explicit design and approval.
+
+## Session discovery and organization
+
+Users need to understand what sessions were about and organize a tractable
+personal archive. Use SQLite FTS5 and the existing UI; embeddings and semantic
+search are not requirements. This decision supersedes the earlier vector-search
+exploration.
+
+- Search conversation text and, when available, approved summaries and titles.
+  Keep summaries separate from original transcript and usage facts.
+- Show readable result snippets and session context, with filters for project,
+  harness, date, and user tags. Users should not need to learn FTS query syntax.
+- Let users add and remove session tags directly in the UI. Preserve tags through
+  reingestion and keep user choices separate from summarizer suggestions.
+- Make approved summaries optional. Keyword search and manual tagging must work
+  without running a model or configuring an external executable.
+- Keep SQLite as the archive and analytics engine. Consider a separate DuckDB
+  analysis tool only if measured queries justify it later.
+
+Current implementation already has conversation FTS indexes, session-label
+storage and mutation API, label display, and label filters. Searchable summaries
+and convenient in-UI tag editing still need implementation/verification. This
+section defines the target, not a claim that those workflows are finished.
 
 ## Local server
 
@@ -65,11 +89,11 @@ update checks, self-update, desktop auto-update, online pricing refresh,
 cloud/web imports, publishing, S3, and PostgreSQL. Updates and pricing will be
 maintained internally.
 
-S3 and ClickHouse are removed. Keep DuckDB pending review of
-analytics needs. Keep SQLite vector support and semantic search, MCP assistant
-access, SSH/HTTP sync for possible internal uploads, and model clients pending
-review of approved internal models. These are undecided features, not authorized
-blanket removals. Review dependent UI controls as each removal is selected.
+S3, PostgreSQL, ClickHouse, outbound SSH/HTTP sync, and embedded model senders
+are removed. Remove DuckDB from the main application and remove vector/embedding
+search machinery. These cuts are approved but not yet implemented. Retain MCP
+for now. Approved summarization uses only an explicitly configured external
+executable. Review dependent UI controls as each removal is implemented.
 
 The application must work without Internet access. Bundle fonts and other UI
 assets locally. Constrain webview navigation and resource requests to approved

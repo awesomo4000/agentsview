@@ -37,8 +37,8 @@ identity. Any later migration must preserve existing attribution.
       Reject legacy PostgreSQL configuration; preserve the SQLite archive.
 - [x] Remove ClickHouse replication, serving, service installation, configuration,
       client dependencies, and integration-test service. Preserve SQLite analytics.
-- [ ] Retain DuckDB for local analytics while evaluating an optional build or
-      separate analysis tool.
+- [ ] Remove DuckDB from the main app; keep SQLite analytics. Reconsider a
+      separate analysis tool only after measuring a real need.
 - [x] Remove artifact-folder exchange, raw archive vault, and docbank services.
       Preserve the SQLite conversation-export interface.
 - [x] Remove hosted raw PostgreSQL provisioning, serving, and reparse entry points.
@@ -54,13 +54,14 @@ with remote sync.
 - [x] Remove live Claude.ai account sync and browser relay/authentication plumbing.
       Retain local Claude.ai, ChatGPT, and Gemini archive file imports.
 - [x] Remove unused remote SQL replica orchestration and vector-push adapters.
-      Keep DuckDB push/watch and local vector build/search.
+      DuckDB and vector machinery remain pending their separately approved cuts.
 - [x] Remove Cursor Admin API integration.
 - [x] Remove GitHub Gist publishing and related UI actions.
 - [x] Remove embedded insight, recall, and embedding HTTP senders and built-in
       vendor CLI launchers. Use only an explicitly configured external harness.
-- [ ] Add an approved replacement encoder. SQLite vector storage remains, but
-      semantic query encoding and new embedding generation are unavailable.
+- [ ] Remove vector/embedding search machinery and its controls. Use SQLite
+      FTS5, optional approved summaries, and user tags instead. Preserve archived
+      conversations and user annotations during the cut.
 - [ ] Evaluate MCP for assistant access; retain it for now.
 - [ ] Remove configuration, UI controls, generated API clients, and tests owned
       exclusively by each deleted feature.
@@ -121,3 +122,10 @@ removing them would disturb saved data or API decoding. Their outbound transport
 implementations are unavailable. Test-only HTTP fixtures preserve archive-import
 and recall bookkeeping coverage; those fixtures are not built into the app.
 See [the network audit](x/runtime-network-audit.md).
+
+## Search direction (10/20/2026)
+
+Use SQLite FTS5 for the personal session archive. Keep model-free keyword search
+and manual tags; add searchable approved summaries and convenient tag editing.
+Embeddings are no longer a requirement. See the
+[session discovery requirements](x/agentsview-local-fork-requirements.md#session-discovery-and-organization).
