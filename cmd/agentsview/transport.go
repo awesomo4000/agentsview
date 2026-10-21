@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/url"
 	"os"
@@ -531,15 +530,8 @@ func newService(ctx context.Context,
 				"opening db: %w", err,
 			)
 		}
-		closeVectorSearcher := installDirectVectorSearcher(cfg, d)
-		cleanup := func() {
-			if closeVectorSearcher != nil {
-				if cerr := closeVectorSearcher(); cerr != nil {
-					log.Printf("close vectors.db: %v", cerr)
-				}
-			}
-			d.Close()
-		}
+		cleanup := func() { d.Close() }
+
 		// engine is nil — CLI reads don't need it, and Sync
 		// is handled via the HTTP daemon when one is running.
 		return service.NewDirectBackend(d, nil), cleanup, nil

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"go.kenn.io/agentsview/internal/parser"
 	"log"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"go.kenn.io/agentsview/internal/parser"
 )
 
 func restoreTestLogger(t *testing.T) {

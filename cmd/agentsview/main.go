@@ -309,30 +309,13 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 
 	broadcaster := server.NewBroadcaster(cfg.EventsCoalesceInterval)
 
-	vectorServe, err := setupVectorServing(ctx, cfg, database, idleTracker)
-	if err != nil {
-		fatal("setting up vector index: %v", err)
-	}
-	if vectorServe.Close != nil {
-		defer func() {
-			if cerr := vectorServe.Close(); cerr != nil {
-				log.Printf("close vectors.db: %v", cerr)
-			}
-		}()
-	}
-
-	emitter := wrapEmbeddingSyncEmitter(
-		broadcaster, vectorServe, cfg.Vector.Embed.RunAfterSyncEnabled(),
-	)
+	var emitter sync.Emitter = broadcaster
 
 	extractSched, err := setupRecallExtraction(cfg, database, idleTracker)
 	if err != nil {
 		fatal("setting up recall extraction: %v", err)
 	}
 	if extractSched != nil {
-		if vectorServe.RecallMutationNotify != nil {
-			extractSched.onPassFinished = vectorServe.RecallMutationNotify
-		}
 		emitter = extractTeeEmitter{primary: emitter, scheduler: extractSched}
 	}
 
@@ -545,8 +528,6 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 	if rtOpts.BasePath != "" {
 		srvOpts = append(srvOpts, server.WithBasePath(rtOpts.BasePath))
 	}
-	srvOpts = append(srvOpts, pushBackendOptions()...)
-	srvOpts = append(srvOpts, vectorServe.ServerOpts...)
 
 	if extractSched != nil {
 		// Trash, restore, and permanent-delete routes change extraction
@@ -674,18 +655,6 @@ func runServe(ctx context.Context, cfg config.Config, opts serveOptions, restart
 		)
 	}
 	fmt.Printf("Database: %s\n", cfg.DBPath)
-
-	if vectorServe.Scheduler != nil {
-		go vectorServe.Scheduler.Run(ctx)
-		// Registered after the vectors.db Close defer above, so LIFO
-		// unwind order runs Stop (which waits for any in-flight
-		// TryBuild to return) before vectors.db is closed.
-		defer vectorServe.Scheduler.Stop()
-	}
-	if vectorServe.RecallScheduler != nil {
-		go vectorServe.RecallScheduler.Run(ctx)
-		defer vectorServe.RecallScheduler.Stop()
-	}
 
 	if extractSched != nil {
 		go extractSched.Run(ctx)
@@ -1459,9 +1428,6 @@ func openDB(ctx context.Context, cfg config.Config) (*db.DB, error) {
 }
 
 func openDBWithProgress(ctx context.Context, cfg config.Config, progress db.OpenProgressFunc) (*db.DB, error) {
-	if err := clearUsageOnlyVectors(ctx, cfg); err != nil {
-		return nil, err
-	}
 	applyClassifierConfig(cfg)
 	database, err := db.OpenWithProgress(ctx, cfg.DBPath, cfg.ArchiveContent, progress)
 	if err != nil {

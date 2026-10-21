@@ -8,7 +8,6 @@ export type SettingsPanelId =
   | "agent-directories"
   | "tool-result-images"
   | "worktree-mappings"
-  | "embeddings"
   | "archive-content"
   | "github"
   | "remote-access";
@@ -84,14 +83,7 @@ export function settingsPanels(): SettingsPanelMeta[] {
       group: data,
       keywords: m.settings_search_keywords_worktree_mappings(),
     },
-    {
-      id: "embeddings",
-      label: m.settings_embeddings_title(),
-      title: m.settings_embeddings_title(),
-      description: m.settings_embeddings_description(),
-      group: data,
-      keywords: m.settings_search_keywords_embeddings(),
-    },
+
     {
       id: "archive-content",
       label: m.settings_archive_content_title(),

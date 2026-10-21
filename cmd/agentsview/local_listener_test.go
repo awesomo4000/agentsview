@@ -1,9 +1,10 @@
 package main
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/require"
 	"go.kenn.io/agentsview/internal/config"
-	"testing"
 )
 
 func TestValidateServeConfigLoopbackOnly(t *testing.T) {

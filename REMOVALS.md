@@ -37,7 +37,7 @@ identity. Any later migration must preserve existing attribution.
       Reject legacy PostgreSQL configuration; preserve the SQLite archive.
 - [x] Remove ClickHouse replication, serving, service installation, configuration,
       client dependencies, and integration-test service. Preserve SQLite analytics.
-- [ ] Remove DuckDB from the main app; keep SQLite analytics. Reconsider a
+- [x] Remove DuckDB from the main app; keep SQLite analytics. Reconsider a
       separate analysis tool only after measuring a real need.
 - [x] Remove artifact-folder exchange, raw archive vault, and docbank services.
       Preserve the SQLite conversation-export interface.
@@ -54,12 +54,12 @@ with remote sync.
 - [x] Remove live Claude.ai account sync and browser relay/authentication plumbing.
       Retain local Claude.ai, ChatGPT, and Gemini archive file imports.
 - [x] Remove unused remote SQL replica orchestration and vector-push adapters.
-      DuckDB and vector machinery remain pending their separately approved cuts.
+      DuckDB and vector engines are now removed too.
 - [x] Remove Cursor Admin API integration.
 - [x] Remove GitHub Gist publishing and related UI actions.
 - [x] Remove embedded insight, recall, and embedding HTTP senders and built-in
       vendor CLI launchers. Use only an explicitly configured external harness.
-- [ ] Remove vector/embedding search machinery and its controls. Use SQLite
+- [x] Remove vector/embedding engines and their controls. Use SQLite
       FTS5, optional approved summaries, and user tags instead. Preserve archived
       conversations and user annotations during the cut.
 - [ ] Evaluate MCP for assistant access; retain it for now.
@@ -129,3 +129,16 @@ Use SQLite FTS5 for the personal session archive. Keep model-free keyword search
 and manual tags; add searchable approved summaries and convenient tag editing.
 Embeddings are no longer a requirement. See the
 [session discovery requirements](x/agentsview-local-fork-requirements.md#session-discovery-and-organization).
+
+## SQLite-only implementation (10/21/2026)
+
+Removed DuckDB and sqlite-vec implementation packages, native bindings, mirror
+commands/push routes, embedding commands/schedulers/routes, and their generated
+API clients. Removed the semantic mode selector and embedding settings panel.
+Old browser semantic/hybrid preferences use FTS automatically. Go dependency
+cleanup also removes Arrow and the DuckDB platform libraries.
+
+Existing archive, mirror, and vector files are not deleted or migrated. Legacy
+configuration fields and semantic response/interfaces remain for compatibility;
+no production embedding searcher is installed. Searchable summaries and an
+in-UI tag editor remain separate unfinished work.

@@ -3,8 +3,6 @@
   import {
     Button,
     KbdBadge,
-    SegmentedControl,
-    type SegmentedControlOption,
   } from "@kenn-io/kit-ui";
   import { SearchIcon } from "../../icons.js";
   import { tick, onDestroy, untrack } from "svelte";
@@ -21,24 +19,18 @@
   import { copyToClipboard } from "../../utils/clipboard.js";
   import { stripIdPrefix } from "../../utils/resume.js";
   import { normalizeMessagePreview } from "../../utils/messages.js";
-  import SemanticSetupHelp from "./SemanticSetupHelp.svelte";
   import ProjectTypeahead from "../layout/ProjectTypeahead.svelte";
   import RangePicker from "../shared/RangePicker.svelte";
   import type { Session } from "../../api/types.js";
   import type {
     PaletteSearchResult,
-    SearchMode,
   } from "../../stores/search.svelte.js";
 
   let inputRef: HTMLInputElement | undefined = $state(undefined);
   let project = $state(sessions.filters.project);
   let selectedIndex: number = $state(0);
   let inputValue: string = $state(searchStore.query ?? "");
-  let searchModeOptions = $derived<SegmentedControlOption[]>([
-    { value: "fulltext", label: m.command_palette_mode_fulltext() },
-    { value: "semantic", label: m.command_palette_mode_semantic() },
-    { value: "hybrid", label: m.command_palette_mode_hybrid() },
-  ]);
+
 
   // Clear state and reset sort whenever the palette is unmounted, regardless
   // of close path (Escape key, overlay click, command-palette toggle, or any other
@@ -278,15 +270,7 @@
       onclick={handleControlClick}
       onkeydown={handleControlKeydown}
     >
-      <SegmentedControl
-        options={searchModeOptions}
-        value={searchStore.mode}
-        onchange={(value) => {
-          searchStore.setMode(value as SearchMode);
-          selectedIndex = 0;
-        }}
-        ariaLabel={m.command_palette_search_mode_label()}
-      />
+
       {#if showSearchResults}
         <ProjectTypeahead
           projects={sessions.projects}
@@ -328,11 +312,6 @@
       {#if showSearchResults}
         {#if searchStore.isSearching}
           <div class="palette-empty">{m.command_palette_searching()}</div>
-        {:else if searchStore.error?.kind === "semantic-unavailable"}
-          <SemanticSetupHelp
-            onResolved={() => searchStore.retry()}
-            searchDetail={searchStore.error.detail}
-          />
         {:else if searchStore.error}
           <div class="palette-error" role="alert">
             {#if searchStore.error.kind === "timeout"}

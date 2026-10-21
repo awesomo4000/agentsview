@@ -17,25 +17,13 @@ export GOLANGCI_LINT_CACHE
 CUSTOM_GCL := ./custom-gcl
 GOEXE := $(shell go env GOEXE)
 
-# sqlite-vec's cgo bindings #include "sqlite3.h". Without an override the
-# compiler falls back to the system header (the macOS SDK one marks
-# sqlite3_auto_extension deprecated, warning on every build) which can also
-# drift from the amalgamation mattn/go-sqlite3 statically links. Compile
-# against the bundled amalgamation's own header instead.
-# Setting CGO_CFLAGS replaces Go's built-in default of "-O2 -g", so restate
-# it explicitly or the SQLite amalgamation compiles unoptimized (2-3x slower
-# queries, caught by the bench gate). Caller-provided flags stay last so
-# they can still override.
-SQLITE_INCLUDE_DIR := .sqlite-include
-export CGO_CFLAGS := -O2 -g -I$(CURDIR)/$(SQLITE_INCLUDE_DIR) $(CGO_CFLAGS)
-
 GOPATH_FIRST := $(shell go env GOPATH | cut -d: -f1)
 AIR_BIN := $(shell if command -v air >/dev/null 2>&1; then command -v air; \
 	elif [ -n "$$(go env GOBIN)" ] && [ -x "$$(go env GOBIN)/air" ]; then printf "%s" "$$(go env GOBIN)/air"; \
 	elif [ -x "$(GOPATH_FIRST)/bin/air" ]; then printf "%s" "$(GOPATH_FIRST)/bin/air"; \
 	fi)
 
-.PHONY: build build-release install install-cjk-fts simple-fts frontend frontend-dev dev check-air air-install desktop-dev desktop-build desktop-macos-app desktop-macos-dmg desktop-windows-installer desktop-linux-appimage desktop-app docs-install docs-build docs-serve docs-check docs-screenshots docs-assets-branch docs-generated-assets-branch docs-deploy-staging docs-deploy test test-short test-evalingest bench-backends bench-gate bench-gate-config e2e e2e-duckdb memory-e2e vet lint lint-ci lint-golangci lint-golangci-ci nilaway nilaway-golangci-build lint-tools tidy clean release release-darwin-arm64 release-darwin-amd64 release-linux-amd64 install-hooks ensure-embed-dir pricing-snapshot sqlite-vec-header dev-snapshot help
+.PHONY: build build-release install install-cjk-fts simple-fts frontend frontend-dev dev check-air air-install desktop-dev desktop-build desktop-macos-app desktop-macos-dmg desktop-windows-installer desktop-linux-appimage desktop-app docs-install docs-build docs-serve docs-check docs-screenshots docs-assets-branch docs-generated-assets-branch docs-deploy-staging docs-deploy test test-short test-evalingest bench-backends bench-gate bench-gate-config e2e memory-e2e vet lint lint-ci lint-golangci lint-golangci-ci nilaway nilaway-golangci-build lint-tools tidy clean release release-darwin-arm64 release-darwin-amd64 release-linux-amd64 install-hooks ensure-embed-dir pricing-snapshot dev-snapshot help
 
 # Ensure go:embed has at least one file (no-op if frontend is built)
 ensure-embed-dir:
@@ -45,19 +33,9 @@ ensure-embed-dir:
 			'keep embed dir for generated frontend assets' \
 			> internal/web/dist/.keep
 
-# Copy the go-sqlite3 amalgamation header where CGO_CFLAGS points.
-# Chained from pricing-snapshot so every Go-compiling target stages it
-# without lengthening each prerequisite list.
-sqlite-vec-header:
-	@go mod download github.com/mattn/go-sqlite3
-	@mkdir -p $(SQLITE_INCLUDE_DIR)
-	@install -m 0644 \
-		"$$(go list -m -f '{{.Dir}}' github.com/mattn/go-sqlite3)/sqlite3-binding.h" \
-		$(SQLITE_INCLUDE_DIR)/sqlite3.h
-
 # Restore the generated LiteLLM fallback snapshot from its artifact branch.
 # Pricing snapshots are bundled in the repository.
-pricing-snapshot: sqlite-vec-header
+pricing-snapshot:
 	@test -s internal/pricing/snapshot/litellm_snapshot.json.gz
 
 # Build the binary (debug, with embedded pricing snapshot and frontend)
@@ -331,7 +309,7 @@ test-evalingest: pricing-snapshot ensure-embed-dir
 	CGO_ENABLED=1 go test -tags "fts5,evalingest" \
 		./internal/server -v -count=1
 
-# Compare db.Store read-query performance across SQLite and DuckDB.
+# Compare db.Store read-query performance across SQLite.
 BENCH_BACKENDS_FLAGS ?= -bench . -run '^$$' -benchmem
 BENCH_BACKENDS_SESSIONS ?= 1000
 BENCH_BACKENDS_MESSAGES_PER_SESSION ?= 64
@@ -396,13 +374,7 @@ e2e:
 		PROJECT_MAPPING_WORKSPACE_E2E_ENABLED="$(PROJECT_MAPPING_WORKSPACE_E2E_ENABLED)" \
 		npx playwright test
 
-# Run focused Playwright smoke tests against duckdb serve.
-e2e-duckdb:
-	cd frontend && AGENTSVIEW_E2E_BACKEND=duckdb \
-		PROJECT_MAPPING_WORKSPACE_E2E_ENABLED="$(PROJECT_MAPPING_WORKSPACE_E2E_ENABLED)" \
-		npx playwright test \
-		e2e/duckdb-backend.spec.ts e2e/data-mode.spec.ts \
-		e2e/session-list.spec.ts --project=chromium
+
 
 # Run the opt-in native-client conversation-memory release gate. This uses the
 # caller's authenticated Claude Code and Codex installations and writes traces
@@ -637,10 +609,9 @@ help:
 	@echo ""
 	@echo "  test           - Run all tests"
 	@echo "  test-short     - Run fast tests only"
-	@echo "  bench-backends - Benchmark SQLite and DuckDB stores"
+	@echo "  bench-backends - Benchmark SQLite stores"
 	@echo "  bench-gate     - Run hot-path benchmarks for local comparison"
 	@echo "  e2e            - Run Playwright E2E tests"
-	@echo "  e2e-duckdb     - Run DuckDB-backed Playwright smoke tests"
 	@echo "  memory-e2e     - Run opt-in Claude Code and Codex memory recall gate"
 	@echo "  vet            - Run go vet"
 	@echo "  lint           - Run golangci-lint and NilAway (auto-fix golangci issues)"

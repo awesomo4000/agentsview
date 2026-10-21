@@ -25,23 +25,12 @@ export interface SearchFailure {
   kind: "generic" | "timeout" | "semantic-unavailable";
 }
 
-interface ContentSearchMatch {
-  session_id: string;
-  project: string;
-  agent: string;
-  ordinal: number;
-  timestamp: string;
-  snippet: string;
-  score?: number;
-}
-
 type SearchModeStorage = Pick<Storage, "getItem" | "setItem">;
 
 export const SEARCH_MODE_STORAGE_KEY = "agentsview-search-mode";
 const SEARCH_DEBOUNCE_MS = 300;
 const PALETTE_RESULT_LIMIT = 30;
-const CONTENT_SEARCH_LIMIT = 120;
-const SEARCH_MODES: readonly SearchMode[] = ["fulltext", "semantic", "hybrid"];
+const SEARCH_MODES: readonly SearchMode[] = ["fulltext"];
 
 function availableStorage(): SearchModeStorage | null {
   try {
@@ -72,29 +61,6 @@ function normalizeFullText(results: SearchResult[]): PaletteSearchResult[] {
     rank: result.rank,
     snippetFormat: "highlighted-html",
   }));
-}
-
-function normalizeContent(matches: ContentSearchMatch[]): PaletteSearchResult[] {
-  const seenSessions = new Set<string>();
-  const results: PaletteSearchResult[] = [];
-
-  for (const [index, match] of matches.entries()) {
-    if (seenSessions.has(match.session_id)) continue;
-    seenSessions.add(match.session_id);
-    results.push({
-      session_id: match.session_id,
-      project: match.project,
-      agent: match.agent,
-      ordinal: match.ordinal,
-      timestamp: match.timestamp,
-      snippet: match.snippet,
-      rank: match.score ?? index,
-      snippetFormat: "plain-text",
-    });
-    if (results.length === PALETTE_RESULT_LIMIT) break;
-  }
-
-  return results;
 }
 
 function errorDetail(error: unknown): string | null {
@@ -163,7 +129,8 @@ export class SearchStore {
     this.debouncedSearch(query, this.project);
   }
 
-  setMode(mode: SearchMode) {
+  setMode(_mode: SearchMode) {
+    const mode: SearchMode = "fulltext";
     if (mode === this.mode) return;
     this.mode = mode;
     try {
@@ -244,37 +211,17 @@ export class SearchStore {
 
     try {
       let results: PaletteSearchResult[];
-      if (mode === "fulltext") {
-        const response = await SearchService.getApiV1Search(
-          {
-            q: query,
-            project: project || undefined,
-            limit: PALETTE_RESULT_LIMIT,
-            sort: this.sort,
-            ...dates,
-          },
-          { signal },
-        );
-        results = normalizeFullText(response.results ?? []);
-      } else {
-        const response = await SearchService.getApiV1SearchContent(
-          {
-            pattern: query.trim(),
-            mode,
-            project: project || undefined,
-            limit: CONTENT_SEARCH_LIMIT,
-            include_one_shot: true,
-            include_automated: true,
-            ...dates,
-            ...(range ? { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } : {}),
-          },
-          {
-            signal,
-            headers: { "X-AgentsView-Search-Intent": "semantic" },
-          },
-        );
-        results = normalizeContent(response.matches ?? []);
-      }
+      const response = await SearchService.getApiV1Search(
+        {
+          q: query,
+          project: project || undefined,
+          limit: PALETTE_RESULT_LIMIT,
+          sort: this.sort,
+          ...dates,
+        },
+        { signal },
+      );
+      results = normalizeFullText(response.results ?? []);
 
       if (requestVersion !== this.requestVersion || signal.aborted) return;
       this.results = results;

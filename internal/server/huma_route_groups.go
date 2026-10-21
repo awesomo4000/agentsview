@@ -25,7 +25,6 @@ func (s *Server) registerTypedAPIRoutes() {
 	s.registerSyncRoutes()
 	s.registerRemoteSyncRoutes()
 	s.registerRawSyncRoutes()
-	s.registerPushRoutes()
 	s.registerConfigRoutes()
 	s.registerSettingsRoutes()
 	s.registerStarredRoutes()
@@ -33,7 +32,6 @@ func (s *Server) registerTypedAPIRoutes() {
 	s.registerImportRoutes()
 	s.registerConversationExportRoutes()
 	s.registerAssetRoutes()
-	s.registerEmbeddingsRoutes()
 }
 
 func configureRouteGroup(group *huma.Group, tag string) {

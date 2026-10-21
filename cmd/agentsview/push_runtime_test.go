@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.kenn.io/agentsview/internal/config"
 )
 
 // projectResolutionCase is a shared table-test row for the PG and DuckDB push
@@ -69,12 +68,3 @@ func writeTestJSON[T any](t *testing.T, w http.ResponseWriter, value T) {
 
 // newDaemonArchiveWriteBackendForTest builds a daemon-backed archive write
 // backend that talks HTTP to url.
-func newDaemonArchiveWriteBackendForTest(
-	appCfg config.Config,
-	url string,
-) daemonArchiveWriteBackend {
-	return daemonArchiveWriteBackend{
-		appCfg: appCfg,
-		tr:     transport{Mode: transportHTTP, URL: url},
-	}
-}

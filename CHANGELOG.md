@@ -1,5 +1,12 @@
 # Changelog
 
+## 10/21/2026
+
+- Use SQLite FTS for session search, including browsers with old semantic-search
+  preferences. Remove DuckDB, embedding engines, their commands and settings,
+  and their native dependencies. Preserve the SQLite archive, user labels, and
+  existing mirror/vector files.
+
 ## 10/20/2026
 
 - Set the search direction to SQLite FTS5, optional approved session summaries,

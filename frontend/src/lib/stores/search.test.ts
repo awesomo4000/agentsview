@@ -2,8 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { SearchService } from "../api/generated/index.js";
 import { ApiError } from "../api/runtime.js";
 import type { SearchResponse } from "../api/generated/index.js";
-import type { DbContentMatch, ServiceContentSearchResult } from "../api/generated/index.js";
-import { SEARCH_MODE_STORAGE_KEY, createSearchStore, type SearchMode } from "./search.svelte.js";
+import { SEARCH_MODE_STORAGE_KEY, createSearchStore } from "./search.svelte.js";
 
 vi.mock("../api/generated/index.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api/generated/index.js")>();
@@ -18,19 +17,6 @@ vi.mock("../api/generated/index.js", async (importOriginal) => {
 
 const searchService = vi.mocked(SearchService);
 const DEBOUNCE_MS = 300;
-
-function contentResult(matches: DbContentMatch[]): ServiceContentSearchResult {
-  return {
-    matches,
-    active_filter_applied: false,
-    revision_bound: false,
-    coverage: {
-      status: "ready",
-      lexical: { status: "ready" },
-      semantic: { status: "ready" },
-    },
-  };
-}
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -56,23 +42,6 @@ function fullTextResponse(query: string, count = 1): SearchResponse {
       snippet: `before <mark>result ${index}</mark> after`,
       rank: index + 0.25,
     })),
-  };
-}
-
-function contentMatch(sessionId: string, ordinal: number, score: number): DbContentMatch {
-  return {
-    session_id: sessionId,
-    project: "semantic-project",
-    machine: "node-a",
-    display_name: null,
-    agent: "claude",
-    location: "message",
-    role: "user",
-    ordinal,
-    ordinal_range: [ordinal, ordinal],
-    timestamp: `2026-06-${String(ordinal).padStart(2, "0")}T10:00:00Z`,
-    snippet: `semantic snippet ${ordinal}`,
-    score,
   };
 }
 
@@ -112,8 +81,8 @@ describe("SearchStore", () => {
   it.each([
     [undefined, "fulltext"],
     ["not-a-mode", "fulltext"],
-    ["semantic", "semantic"],
-    ["hybrid", "hybrid"],
+    ["semantic", "fulltext"],
+    ["hybrid", "fulltext"],
   ] as const)("loads persisted mode %s as %s", (stored, expected) => {
     const storage = memoryStorage(
       stored === undefined ? {} : { [SEARCH_MODE_STORAGE_KEY]: stored },
@@ -135,20 +104,24 @@ describe("SearchStore", () => {
 
     expect(store.mode).toBe("fulltext");
     expect(() => store.setMode("semantic")).not.toThrow();
-    expect(store.mode).toBe("semantic");
+    expect(store.mode).toBe("fulltext");
   });
 
-  it("persists mode and clear preserves mode and sort", () => {
-    const storage = memoryStorage();
-    const store = createSearchStore(storage);
-
-    store.setMode("hybrid");
-    store.setSort("recency");
-    store.clear();
-
-    expect(storage.setItem).toHaveBeenCalledWith(SEARCH_MODE_STORAGE_KEY, "hybrid");
-    expect(store.mode).toBe("hybrid");
-    expect(store.sort).toBe("recency");
+  it("searches with FTS despite a saved semantic preference", async () => {
+    const store = createSearchStore(memoryStorage({ [SEARCH_MODE_STORAGE_KEY]: "semantic" }));
+    searchService.getApiV1Search.mockResolvedValue({
+      results: [],
+      count: 0,
+      next: 0,
+      query: "authentication timeout",
+    });
+    store.search("authentication timeout");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(searchService.getApiV1Search).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "authentication timeout", sort: "relevance" }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(searchService.getApiV1SearchContent).not.toHaveBeenCalled();
   });
 
   it("calls full-text search with the exact request and normalizes its result", async () => {
@@ -183,162 +156,6 @@ describe("SearchStore", () => {
     ]);
   });
 
-  it.each(["semantic", "hybrid"] as const)(
-    "calls content search with exact %s request and trimmed pattern",
-    async (mode: SearchMode) => {
-      const store = createSearchStore(memoryStorage());
-      store.setMode(mode);
-      searchService.getApiV1SearchContent.mockResolvedValueOnce(
-        contentResult([contentMatch("semantic-1", 4, 0.9)]),
-      );
-
-      store.search("  padded query  ", "semantic-project");
-      await runDebounce();
-
-      expect(searchService.getApiV1SearchContent).toHaveBeenCalledWith(
-        {
-          pattern: "padded query",
-          mode,
-          project: "semantic-project",
-          limit: 120,
-          include_one_shot: true,
-          include_automated: true,
-        },
-        expect.objectContaining({
-          signal: expect.anything(),
-          headers: { "X-AgentsView-Search-Intent": "semantic" },
-        }),
-      );
-      expect(searchService.getApiV1Search).not.toHaveBeenCalled();
-      expect(store.results[0]).toEqual({
-        session_id: "semantic-1",
-        project: "semantic-project",
-        agent: "claude",
-        ordinal: 4,
-        timestamp: "2026-06-04T10:00:00Z",
-        snippet: "semantic snippet 4",
-        rank: 0.9,
-        snippetFormat: "plain-text",
-      });
-    },
-  );
-
-  it.each(["fulltext", "semantic", "hybrid"] as const)(
-    "reruns %s with the selected dates and removes bounds for All time",
-    async (mode) => {
-      const store = createSearchStore(memoryStorage());
-      store.setMode(mode);
-      searchService.getApiV1Search.mockResolvedValue(fullTextResponse("needle"));
-      searchService.getApiV1SearchContent.mockResolvedValue(contentResult([]));
-      const request =
-        mode === "fulltext" ? searchService.getApiV1Search : searchService.getApiV1SearchContent;
-
-      store.search("needle", "alpha");
-      await runDebounce();
-      store.setRange({ mode: "custom", from: "2026-07-01", to: "2026-07-14" });
-      await flushMicrotasks();
-
-      expect(request).toHaveBeenCalledTimes(2);
-      expect(request).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          project: "alpha",
-          date_from: "2026-07-01",
-          date_to: "2026-07-14",
-          ...(mode === "fulltext"
-            ? {}
-            : {
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              }),
-        }),
-        expect.anything(),
-      );
-
-      store.setRange({ mode: "relative", days: 0 });
-      await flushMicrotasks();
-      const params = request.mock.calls.at(-1)![0];
-      expect(params).not.toHaveProperty("date_from");
-      expect(params).not.toHaveProperty("date_to");
-      expect(request).toHaveBeenCalledTimes(3);
-    },
-  );
-
-  it("cancels the previous range request and keeps the range across retries and mode changes", async () => {
-    const store = createSearchStore(memoryStorage());
-    store.setMode("semantic");
-    const old = deferred<ServiceContentSearchResult>();
-    searchService.getApiV1SearchContent.mockReturnValueOnce(old.promise);
-    searchService.getApiV1SearchContent.mockRejectedValueOnce(new Error("timeout"));
-    store.search("needle");
-    await runDebounce();
-    const oldSignal = searchService.getApiV1SearchContent.mock.calls[0]![1]!.signal!;
-
-    store.setRange({ mode: "calendar", unit: "day", anchor: "2026-07-04" });
-    await flushMicrotasks();
-    expect(oldSignal.aborted).toBe(true);
-    old.resolve(contentResult([contentMatch("out-of-range", 1, 0.9)]));
-    await flushMicrotasks();
-    expect(store.results).toEqual([]);
-    expect(store.error?.kind).toBe("timeout");
-
-    searchService.getApiV1SearchContent.mockResolvedValue(
-      contentResult([contentMatch("in-range", 4, 0.8)]),
-    );
-    store.retry();
-    await flushMicrotasks();
-    store.setMode("hybrid");
-    await flushMicrotasks();
-    expect(searchService.getApiV1SearchContent).toHaveBeenLastCalledWith(
-      expect.objectContaining({ mode: "hybrid", date_from: "2026-07-04", date_to: "2026-07-04" }),
-      expect.anything(),
-    );
-    expect(store.results[0]?.session_id).toBe("in-range");
-  });
-
-  it("deduplicates ranked content results in response order and truncates to 30", async () => {
-    const store = createSearchStore(memoryStorage({ [SEARCH_MODE_STORAGE_KEY]: "semantic" }));
-    const matches = [
-      contentMatch("first", 1, 0.1),
-      contentMatch("duplicate", 2, 0.99),
-      contentMatch("duplicate", 3, 1),
-      ...Array.from({ length: 35 }, (_, index) =>
-        contentMatch(`session-${index}`, index + 4, 100 - index),
-      ),
-    ];
-    searchService.getApiV1SearchContent.mockResolvedValueOnce(contentResult(matches));
-
-    store.search("ranked");
-    await runDebounce();
-
-    expect(store.results).toHaveLength(30);
-    expect(store.results.map((result) => result.session_id).slice(0, 4)).toEqual([
-      "first",
-      "duplicate",
-      "session-0",
-      "session-1",
-    ]);
-    expect(store.results.find((result) => result.session_id === "duplicate")?.ordinal).toBe(2);
-    expect(store.results.at(-1)?.session_id).toBe("session-27");
-  });
-
-  it.each([
-    [
-      501,
-      "Semantic search is unavailable: run agentsview embeddings build",
-      "semantic-unavailable",
-    ],
-    [503, "Embedding provider is temporarily unavailable; retry shortly", "generic"],
-  ] as const)("preserves actionable backend detail for HTTP %i", async (status, detail, kind) => {
-    const store = createSearchStore(memoryStorage({ [SEARCH_MODE_STORAGE_KEY]: "semantic" }));
-    searchService.getApiV1SearchContent.mockRejectedValueOnce(generatedApiError(status, detail));
-
-    store.search("failure");
-    await runDebounce();
-
-    expect(store.error).toEqual({ detail, kind });
-    expect(store.results).toEqual([]);
-    expect(store.isSearching).toBe(false);
-  });
-
   it("keeps a full-text 501 generic: setup guidance only applies to semantic modes", async () => {
     const store = createSearchStore(memoryStorage());
     searchService.getApiV1Search.mockRejectedValueOnce(generatedApiError(501, "not implemented"));
@@ -371,85 +188,6 @@ describe("SearchStore", () => {
     expect(store.isSearching).toBe(false);
   });
 
-  it("mode changes cancel queued work and immediately rerun the active query", async () => {
-    const storage = memoryStorage();
-    const store = createSearchStore(storage);
-    store.search("  rerun me  ", "alpha");
-    searchService.getApiV1SearchContent.mockResolvedValueOnce(contentResult([]));
-
-    store.setMode("semantic");
-    await flushMicrotasks();
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS + 10);
-
-    expect(searchService.getApiV1Search).not.toHaveBeenCalled();
-    expect(searchService.getApiV1SearchContent).toHaveBeenCalledOnce();
-    expect(searchService.getApiV1SearchContent).toHaveBeenCalledWith(
-      {
-        pattern: "rerun me",
-        mode: "semantic",
-        project: "alpha",
-        limit: 120,
-        include_one_shot: true,
-        include_automated: true,
-      },
-      expect.objectContaining({
-        signal: expect.anything(),
-        headers: { "X-AgentsView-Search-Intent": "semantic" },
-      }),
-    );
-  });
-
-  it("retry immediately reruns the active semantic query exactly once", async () => {
-    const store = createSearchStore(memoryStorage({ [SEARCH_MODE_STORAGE_KEY]: "semantic" }));
-    searchService.getApiV1SearchContent.mockRejectedValueOnce(
-      generatedApiError(503, "Embedding provider is temporarily unavailable"),
-    );
-    store.search("  try again  ", "alpha");
-    await runDebounce();
-    expect(store.error).not.toBeNull();
-
-    vi.clearAllMocks();
-    searchService.getApiV1SearchContent.mockResolvedValueOnce(contentResult([]));
-    store.retry();
-    await flushMicrotasks();
-    await vi.advanceTimersByTimeAsync(DEBOUNCE_MS + 10);
-
-    expect(searchService.getApiV1SearchContent).toHaveBeenCalledOnce();
-    expect(searchService.getApiV1SearchContent).toHaveBeenCalledWith(
-      {
-        pattern: "try again",
-        mode: "semantic",
-        project: "alpha",
-        limit: 120,
-        include_one_shot: true,
-        include_automated: true,
-      },
-      expect.objectContaining({
-        signal: expect.anything(),
-        headers: { "X-AgentsView-Search-Intent": "semantic" },
-      }),
-    );
-    expect(searchService.getApiV1Search).not.toHaveBeenCalled();
-  });
-
-  it.each(["semantic", "hybrid"] as const)(
-    "classifies a %s request timeout for friendly presentation",
-    async (mode) => {
-      const store = createSearchStore(memoryStorage({ [SEARCH_MODE_STORAGE_KEY]: mode }));
-      searchService.getApiV1SearchContent.mockRejectedValueOnce(
-        generatedApiError(503, "request timed out"),
-      );
-
-      store.search("slow first query");
-      await runDebounce();
-
-      expect(store.error).toEqual({
-        detail: "request timed out",
-        kind: "timeout",
-      });
-    },
-  );
-
   it("keeps unknown failures detail-less for localized presentation", async () => {
     const store = createSearchStore(memoryStorage());
     searchService.getApiV1Search.mockRejectedValueOnce({ reason: "offline" });
@@ -458,27 +196,6 @@ describe("SearchStore", () => {
     await runDebounce();
 
     expect(store.error).toEqual({ detail: null, kind: "generic" });
-    expect(store.isSearching).toBe(false);
-  });
-
-  it("stale requests cannot overwrite newer results, loading, or error", async () => {
-    const store = createSearchStore(memoryStorage());
-    const stale = deferred<SearchResponse>();
-    searchService.getApiV1Search.mockReturnValueOnce(stale.promise as never);
-    store.search("stale");
-    await runDebounce();
-
-    searchService.getApiV1SearchContent.mockResolvedValueOnce(
-      contentResult([contentMatch("newer", 8, 0.8)]),
-    );
-    store.setMode("semantic");
-    await flushMicrotasks();
-
-    stale.reject(new Error("late stale failure"));
-    await flushMicrotasks();
-
-    expect(store.results.map((result) => result.session_id)).toEqual(["newer"]);
-    expect(store.error).toBeNull();
     expect(store.isSearching).toBe(false);
   });
 

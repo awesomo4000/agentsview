@@ -1,7 +1,7 @@
 # Local AgentsView fork requirements
 
 Status: approved direction, implementation in progress.
-Updated: 10/20/2026.
+Updated: 10/21/2026.
 Working name: `avlocal`.
 Upstream: `kenn-io/agentsview`, commit
 `a22d9d1e33006b157746043e84ca5da0b75bcb48`.
@@ -90,8 +90,8 @@ cloud/web imports, publishing, S3, and PostgreSQL. Updates and pricing will be
 maintained internally.
 
 S3, PostgreSQL, ClickHouse, outbound SSH/HTTP sync, and embedded model senders
-are removed. Remove DuckDB from the main application and remove vector/embedding
-search machinery. These cuts are approved but not yet implemented. Retain MCP
+are removed. DuckDB and vector/embedding engines, launch paths, and UI controls
+are also removed. Retain MCP
 for now. Approved summarization uses only an explicitly configured external
 executable. Review dependent UI controls as each removal is implemented.
 

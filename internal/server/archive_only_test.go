@@ -32,14 +32,11 @@ func TestVersionReportsArchiveOnly(t *testing.T) {
 func TestArchiveOnlyRejectsManualSync(t *testing.T) {
 	f := newSyncRouteFixture(t)
 	require.NoError(t, f.db.EnableArchiveOnly(t.Context()))
-	for _, path := range []string{"/api/v1/sync", "/api/v1/sync/remotes", "/api/v1/sessions/sync", "/api/v1/push/duckdb"} {
+	for _, path := range []string{"/api/v1/sync", "/api/v1/sync/remotes", "/api/v1/sessions/sync"} {
 		t.Run(path, func(t *testing.T) {
 			var body any = map[string]string{"id": "archived"}
 			if path == "/api/v1/sync/remotes" {
 				body = remoteSyncRequest{}
-			}
-			if path == "/api/v1/push/duckdb" {
-				body = daemonPushRequest{}
 			}
 			response := serveJSON(t, f.handler, http.MethodPost, path, body)
 			assert.Equal(t, http.StatusForbidden, response.Code, response.Body.String())

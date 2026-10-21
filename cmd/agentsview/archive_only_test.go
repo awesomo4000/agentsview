@@ -21,7 +21,6 @@ import (
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/rawcheckpoint"
-	syncpkg "go.kenn.io/agentsview/internal/sync"
 	"go.kenn.io/agentsview/internal/testjsonl"
 )
 
@@ -247,46 +246,6 @@ func TestArchiveOnlyRefusesOrdinaryImports(t *testing.T) {
 			afterSessions, afterAssets := archiveImportState(t, preserved)
 			assert.Equal(t, beforeSessions, afterSessions, "a preserved archive does not gain or change sessions")
 			assert.Equal(t, beforeAssets, afterAssets, "a preserved archive does not gain or change assets")
-		})
-	}
-}
-
-func TestArchiveOnlyRefusesDaemonPushWatch(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "sessions.db")
-	database, err := db.Open(t.Context(), dbPath)
-	require.NoError(t, err)
-	require.NoError(t, database.EnableArchiveOnly(t.Context()))
-	require.NoError(t, database.Close())
-	for _, tt := range []struct {
-		name string
-		run  func(context.Context, daemonArchiveWriteBackend) error
-	}{
-		{name: "duckdb", run: func(ctx context.Context, b daemonArchiveWriteBackend) error {
-			return b.DuckDBPushWatch(ctx, config.DuckDBConfig{}, DuckDBPushConfig{}, nil, nil, time.Hour, time.Hour)
-		}},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			// A watch that starts anyway stops at once instead of running forever.
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			h := newPushWatchOwnerHarness()
-			hooks := h.hooks()
-			startWatcher := hooks.startWatcher
-			hooks.startWatcher = func(
-				cfg config.Config, engine *syncpkg.Engine, callback syncpkg.WatchCallback,
-				options syncpkg.WatcherOptions,
-			) (func(), func(), []string) {
-				cancel()
-				return startWatcher(cfg, engine, callback, options)
-			}
-			err := tt.run(ctx, daemonArchiveWriteBackend{
-				appCfg: config.Config{DBPath: dbPath}, watchHooks: hooks,
-			})
-			require.ErrorIs(t, err, db.ErrArchiveOnly)
-			h.mu.Lock()
-			defer h.mu.Unlock()
-			assert.Empty(t, h.events, "the watch must not collect source roots or push")
-			assert.Empty(t, h.attempts)
 		})
 	}
 }

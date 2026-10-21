@@ -34,7 +34,6 @@ import (
 	"go.kenn.io/agentsview/internal/recall/extract"
 	"go.kenn.io/agentsview/internal/remotesync"
 	"go.kenn.io/agentsview/internal/service"
-	"go.kenn.io/agentsview/internal/storage"
 	"go.kenn.io/agentsview/internal/sync"
 	"go.kenn.io/agentsview/internal/web"
 	"go.kenn.io/kit/daemon"
@@ -150,25 +149,6 @@ type Server struct {
 	// /debug/pprof/ so a running daemon can be profiled. Off by
 	// default; enabled by the hidden serve --pprof flag.
 	pprofEnabled bool
-
-	// embeddingsManager, when set, backs the /api/v1/embeddings/...
-	// build lifecycle routes. Nil (the default) leaves those routes
-	// unregistered, e.g. when semantic search is not configured.
-	embeddingsManager EmbeddingsManager
-	embeddingsStores  map[string]EmbeddingsManager
-
-	// embeddingsUnavailableReason, when non-empty, replaces the generic
-	// "embeddings manager not available" 501 message on the embeddings
-	// routes with a cause-specific one (e.g. vector serving disabled at
-	// startup because vectors.write.lock was held).
-	embeddingsUnavailableReason string
-
-	// embeddingsIncludeAutomatedDefault is the daemon's configured
-	// [vector].include_automated scope, applied to HTTP build requests
-	// that leave include_automated unset.
-	embeddingsIncludeAutomatedDefault bool
-
-	mirror storage.Mirror
 
 	// localSyncRunner, when set, backs the foreground local-sync HTTP handler
 	// with the worker-backed pass instead of running SyncThenRun in process.

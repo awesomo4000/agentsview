@@ -37,23 +37,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Prepare SQLite header
-        if: runner.os == 'Linux'
-        run: |
-          make sqlite-vec-header
-          echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
-      - name: Prepare SQLite header
-        if: runner.os == 'Linux'
-        run: |
-          make sqlite-vec-header
-          echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
-      - name: Prepare SQLite header
-        if: runner.os == 'Linux'
-        run: |
-          make sqlite-vec-header
-          echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
       - name: Install lint tools
         run: |
@@ -89,11 +74,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Prepare SQLite header
-        if: runner.os == 'Linux'
-        run: |
-          make sqlite-vec-header
-          echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
       - name: Install frontend dependencies
         run: npm ci
@@ -204,11 +184,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Prepare SQLite header
-        if: runner.os == 'Linux'
-        run: |
-          make sqlite-vec-header
-          echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
       - name: Setup MinGW (Windows)
         if: runner.os == 'Windows'
@@ -250,7 +225,6 @@ jobs:
             'go.kenn.io/agentsview/cmd/agentsview'
             'go.kenn.io/agentsview/internal/capture'
             'go.kenn.io/agentsview/internal/db'
-            'go.kenn.io/agentsview/internal/duckdb'
             'go.kenn.io/agentsview/internal/parser'
             'go.kenn.io/agentsview/internal/sync'
           )
@@ -496,45 +470,6 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-  # Keep the derived-mirror suite concurrent with the main Windows package set.
-  test-duckdb-windows:
-    name: Go Test (windows-latest, DuckDB)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - *windows-go-paths
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - name: Setup MinGW
-        id: setup_mingw
-        continue-on-error: true
-        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e  # v2
-        with:
-          msystem: MINGW64
-          update: false
-          install: mingw-w64-x86_64-gcc
-          path-type: inherit
-
-      - name: Setup MinGW (retry on transient failure)
-        if: steps.setup_mingw.outcome == 'failure'
-        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e  # v2
-        with:
-          msystem: MINGW64
-          update: false
-          install: mingw-w64-x86_64-gcc
-          path-type: inherit
-
-      - name: Run DuckDB tests
-        run: go test -tags "fts5" ./internal/duckdb -count=1 -timeout=20m
-        env:
-          CGO_ENABLED: "1"
 
   test-race:
     name: Go Test (race detector, ${{ matrix.name }})
@@ -564,19 +499,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Prepare SQLite header
-        if: runner.os == 'Linux'
-        run: |
-          make sqlite-vec-header
-          echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
-      # internal/duckdb is excluded from -race (CGo-heavy, race-insensitive,
-      # and 7+ minutes on its own); it is still covered without -race by the
-      # main test job's ./... run. Limit package fan-out because the race
-      # detector makes highly parallel runs slow enough to exhaust deadlines.
       - name: Run Go tests (race detector)
         if: matrix.testSet == 'other'
-        run: go list ./... | grep -vE '/internal/(duckdb|sync)$' | xargs go test -p 4 -tags "fts5" -race -count=1 -timeout=20m
+        run: go list ./... | grep -vE '/internal/sync$' | xargs go test -p 4 -tags "fts5" -race -count=1 -timeout=20m
         env:
           CGO_ENABLED: "1"
 
@@ -640,11 +566,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Prepare SQLite header
-        if: runner.os == 'Linux'
-        run: |
-          make sqlite-vec-header
-          echo "CGO_CFLAGS=-O2 -g -I$GITHUB_WORKSPACE/.sqlite-include" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
@@ -687,13 +608,6 @@ jobs:
       - name: Run E2E tests
         run: npx playwright test --reporter=list
         working-directory: frontend
-        env:
-          E2E_PREBUILT_FIXTURE: /tmp/testfixture
-          E2E_PREBUILT_SERVER: /tmp/agentsview
-          PROJECT_MAPPING_WORKSPACE_E2E_ENABLED: "true"
-
-      - name: Run DuckDB E2E tests
-        run: make e2e-duckdb
         env:
           E2E_PREBUILT_FIXTURE: /tmp/testfixture
           E2E_PREBUILT_SERVER: /tmp/agentsview

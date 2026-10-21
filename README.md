@@ -21,9 +21,9 @@ baseline. It describes upstream, including features this fork is removing.
 
 The [removal checklist](REMOVALS.md) tracks completed work and upcoming cuts.
 Targets include telemetry, update services, online pricing, external UI assets,
-S3, PostgreSQL, ClickHouse, web imports, and publishing. DuckDB and vector search
-are queued for removal. Search will use SQLite FTS5, optional approved summaries,
-and user tags. MCP remains for now. SSH/HTTP sync is removed.
+S3, PostgreSQL, ClickHouse, web imports, and publishing. DuckDB and embedding engines
+are removed. Search uses SQLite FTS5; searchable approved summaries and easier
+tag editing remain planned. MCP remains for now. SSH/HTTP sync is removed.
 Local log-to-SQLite ingestion stays.
 
 Removed so far: application telemetry, UI tracking, the artifact vault and
@@ -34,15 +34,15 @@ PostgreSQL replication, serving, direct reads, and the pgx driver are removed.
 Automatic updates, self-update installers, and public pricing refreshes are
 also removed. Bundled rates and local custom pricing remain.
 ClickHouse replication, serving, service installation, and its client dependencies
-are removed. SQLite analytics and the optional DuckDB mirror remain.
+are removed. SQLite analytics remain.
 Live Claude.ai account sync, browser relay/authentication, Cursor Admin API,
 GitHub Gist publishing, and managed Caddy/public hosting are removed. Local
 chat-archive file imports and exports remain. Fonts are bundled locally.
 Embedded model HTTP clients, automatic vendor-CLI generation, SSH/HTTP sync,
 raw uploads, GitHub lookups, and session resume/open launchers are removed.
 The browser API stays on its own origin; daemon HTTP clients accept only literal
-loopback addresses. DuckDB remote Quack connections and extension downloads are
-removed; the local mirror remains.
+loopback addresses. DuckDB mirroring, Quack, embedding generation, and the
+semantic-search UI are removed. Existing mirror/vector files are left untouched.
 
 An external insight executable runs only when explicitly configured. It inherits
 credentials and can use its own network connections, so configure only a harness

@@ -11,36 +11,15 @@ import (
 	"github.com/doordash-oss/oapi-codegen-dd/v3/pkg/runtime"
 
 	"go.kenn.io/agentsview/internal/apiclient"
-	"go.kenn.io/agentsview/internal/server"
 )
 
-// daemonPushOperation invokes one generated streaming daemon operation and
-// returns its raw response parts so postDaemonPush can decode them
-// uniformly. Every daemon push route has one; the generated client has no
-// path parameter for the backend name, so each registered replica maps its
-// Name() to its generated operation in replicaPushOperations.
+// daemonPushOperation invokes a streaming local daemon operation.
 type daemonPushOperation func(
-	ctx context.Context, api *apiclient.Client, body *apiclient.DaemonPushRequest,
+	ctx context.Context, api *apiclient.Client,
 ) (*http.Response, []byte, *runtime.Stream[[]byte], error)
 
-// replicaPushOperations maps a replica's Name() to its generated daemon push
-// operation. Adding a replica means regenerating the API client and adding
-// its entry here.
-
-func mirrorPushOperation(
-	ctx context.Context, api *apiclient.Client, body *apiclient.DaemonPushRequest,
-) (*http.Response, []byte, *runtime.Stream[[]byte], error) {
-	response, err := api.PostAPIV1PushDuckdbStreamWithResponse(
-		ctx, &apiclient.PostAPIV1PushDuckdbRequestOptions{Body: body},
-	)
-	if response == nil {
-		return nil, nil, nil, err
-	}
-	return response.HTTPResponse, response.Body, response.Stream200, nil
-}
-
 func startupSyncOperation(
-	ctx context.Context, api *apiclient.Client, _ *apiclient.DaemonPushRequest,
+	ctx context.Context, api *apiclient.Client,
 ) (*http.Response, []byte, *runtime.Stream[[]byte], error) {
 	response, err := api.PostAPIV1SyncStreamWithResponse(
 		ctx, &apiclient.PostAPIV1SyncRequestOptions{
@@ -63,31 +42,22 @@ func postDaemonPush[T, P any](
 	tr transport,
 	authToken string,
 	operation daemonPushOperation,
-	body apiclient.DaemonPushRequest,
 	onProgress func(P),
 ) (T, error) {
 	var zero T
-	body = daemonPushRequestForCapabilities(tr, body)
-	fallbackAttempted := false
 	for {
 		api, err := apiclient.NewHTTPClient(tr.URL, authToken, &http.Client{Timeout: 0})
 		if err != nil {
 			return zero, err
 		}
-		resp, payload, stream, err := operation(ctx, api, &body)
+		resp, payload, stream, err := operation(ctx, api)
 		if resp == nil {
 			return zero, err
 		}
 		if resp.StatusCode != http.StatusOK {
 			msg := payload
 			_ = resp.Body.Close()
-			if !fallbackAttempted && body.WatchBatch != nil &&
-				daemonRejectsWatchScope(resp.StatusCode, msg) {
-				body.WatchBatch = nil
-				body.WatchRecovery = nil
-				fallbackAttempted = true
-				continue
-			}
+
 			return zero, errors.New(daemonErrorMessage(resp.StatusCode, msg))
 		}
 		defer resp.Body.Close()
@@ -102,32 +72,6 @@ func postDaemonPush[T, P any](
 		}
 		return out, nil
 	}
-}
-
-func daemonPushRequestForCapabilities(
-	tr transport, body apiclient.DaemonPushRequest,
-) apiclient.DaemonPushRequest {
-	if body.WatchBatch != nil && tr.Runtime != nil && tr.Runtime.API > 0 &&
-		tr.Runtime.API < server.ScopedWatchPushAPIVersion {
-		body.WatchBatch = nil
-		body.WatchRecovery = nil
-	}
-	return body
-}
-
-func daemonRejectsWatchScope(status int, body []byte) bool {
-	if status != http.StatusBadRequest && status != http.StatusUnprocessableEntity {
-		return false
-	}
-	message := strings.ToLower(string(body))
-	if !strings.Contains(message, "watch_batch") &&
-		!strings.Contains(message, "watch_recovery") {
-		return false
-	}
-	return strings.Contains(message, "unexpected") ||
-		strings.Contains(message, "unknown") ||
-		strings.Contains(message, "additional") ||
-		strings.Contains(message, "not allowed")
 }
 
 // consumeDaemonPushEvents applies daemon progress and terminal events decoded

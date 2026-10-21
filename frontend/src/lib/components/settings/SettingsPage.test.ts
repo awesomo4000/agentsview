@@ -252,12 +252,12 @@ describe("SettingsPage", () => {
     );
     expect(search).not.toBeNull();
 
-    search!.value = "vectors";
+    search!.value = "zoom";
     search!.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
 
     expect(nav.querySelectorAll("button")).toHaveLength(1);
-    expect(nav.textContent).toContain("Embeddings");
+    expect(nav.textContent).toContain("Appearance");
 
     search!.value = "no such setting";
     search!.dispatchEvent(new Event("input", { bubbles: true }));
@@ -287,7 +287,7 @@ describe("SettingsPage", () => {
     restoredSearch.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
 
-    expect(restoredNav.querySelectorAll("button")).toHaveLength(9);
+    expect(restoredNav.querySelectorAll("button")).toHaveLength(8);
     expect(
       document.body.querySelector(".settings-page")?.classList.contains("settings-no-results"),
     ).toBe(false);
@@ -384,22 +384,22 @@ describe("SettingsPage", () => {
     const search = document.body.querySelector<HTMLInputElement>(
       'input[type="search"][aria-label="搜索设置"]',
     )!;
-    search.value = "向量";
+    search.value = "缩放";
     search.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
 
     const nav = document.body.querySelector('nav[aria-label="设置"]')!;
     expect(nav.querySelectorAll("button")).toHaveLength(1);
-    expect(nav.textContent).toContain("语义嵌入");
+    expect(nav.textContent).toContain("外观");
     expect(document.body.querySelector('button[aria-label="清除搜索"]')).not.toBeNull();
 
-    search.value = "vectors";
+    search.value = "zoom";
     search.dispatchEvent(new Event("input", { bubbles: true }));
     await tick();
 
     expect(nav.querySelectorAll("button")).toHaveLength(1);
-    expect(nav.textContent).toContain("语义嵌入");
-    expect(document.body.querySelector('[role="status"]')?.textContent).toContain("显示：语义嵌入");
+    expect(nav.textContent).toContain("外观");
+    expect(document.body.querySelector('[role="status"]')?.textContent).toContain("显示：外观");
 
     unmount(component);
   });

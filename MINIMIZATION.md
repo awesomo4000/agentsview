@@ -366,3 +366,28 @@ See [runtime network audit](x/runtime-network-audit.md) for retained capabilitie
 exceptions, and verification. The CLI executable was rebuilt; desktop code was
 tested but no native bundle was installed. Validation used synthetic data only.
 The full CLI suite still has daemon-discovery/autostart fixture failures.
+
+## SQLite FTS and optional engine removal, 10/21/2026
+
+Removed DuckDB and vector engine packages, native dependencies, mirror commands
+and push routes, embedding schedulers/commands/routes, and the corresponding
+frontend controls. Regenerated Go and TypeScript clients. The search palette now
+uses FTS even when an older browser preference selects semantic or hybrid search.
+Existing archive, label, mirror, and vector files are preserved. Legacy semantic
+interfaces/configuration remain inert compatibility code, not a live encoder.
+
+The stripped macOS ARM64 executable dropped from 106,484,338 bytes to roughly
+55.6 MB, about 53 MiB. The resolved application package graph contains no DuckDB,
+Arrow, or sqlite-vec packages. Dependency cleanup also removed their platform
+libraries and ancillary packages.
+
+Validation: full server tests, focused SQLite search/label/archive-preservation
+tests, focused CLI help/sync/scheduler/archive-only tests, frontend type checks
+and 45 unit tests passed. Three synthetic browser checks passed for FTS result
+navigation, local fonts, and privacy restrictions. CI YAML parses successfully.
+The broad CLI selection still encounters the existing daemon-autostart fixture
+failure in TestSessionListJSONIncludesMachineLabelCatalog; the full CLI suite is
+not claimed green. No live archive or installed service was changed.
+
+Convenient manual tag editing and searchable approved summaries remain the next
+product work. This removal does not claim to implement either workflow.

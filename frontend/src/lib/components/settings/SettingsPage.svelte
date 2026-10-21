@@ -19,7 +19,6 @@
   import DateRangeSettings from "./DateRangeSettings.svelte";
   import TerminalSettings from "./TerminalSettings.svelte";
   import ArchiveContentSettings from "./ArchiveContentSettings.svelte";
-  import EmbeddingsSettings from "./EmbeddingsSettings.svelte";
   import ToolImageCleanup from "./ToolImageCleanup.svelte";
   import GithubSettings from "./GithubSettings.svelte";
   import LanguageSettings from "./LanguageSettings.svelte";
@@ -214,8 +213,6 @@
                   label={m.settings_worktree_moved_link()}
                   onclick={() => router.navigate("data", { view: "rules" })}
                 />
-              {:else if meta.id === "embeddings"}
-                <EmbeddingsSettings />
               {:else if meta.id === "archive-content"}
                 <ArchiveContentSettings />
               {:else if meta.id === "github"}

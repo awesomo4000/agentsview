@@ -31,8 +31,6 @@ jobs:
             skip: '^Test[A-P]'
           - name: Capture, Database, Parser
             package: ./internal/capture ./internal/db ./internal/parser
-          - name: DuckDB
-            package: ./internal/duckdb
           # Match normal Windows CI; complementary filters cover every sync test.
           - name: Sync A-R
             package: ./internal/sync
@@ -90,7 +88,6 @@ jobs:
               'go.kenn.io/agentsview/cmd/agentsview'
               'go.kenn.io/agentsview/internal/capture'
               'go.kenn.io/agentsview/internal/db'
-              'go.kenn.io/agentsview/internal/duckdb'
               'go.kenn.io/agentsview/internal/parser'
               'go.kenn.io/agentsview/internal/sync'
             )

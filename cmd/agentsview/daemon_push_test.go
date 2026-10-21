@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json/jsontext"
-	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,8 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.kenn.io/agentsview/internal/apiclient"
-	"go.kenn.io/agentsview/internal/server"
 	"go.kenn.io/agentsview/internal/storage"
 )
 
@@ -79,7 +75,7 @@ func TestParseDaemonPushSSE(t *testing.T) {
 func TestPostDaemonPushConsumesSSE(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/api/v1/push/duckdb", r.URL.Path)
+			assert.Equal(t, "/api/v1/sync", r.URL.Path)
 			assert.Contains(t, r.Header.Get("Accept"), "text/event-stream")
 			w.Header().Set("Content-Type", "text/event-stream")
 			_, _ = w.Write([]byte(
@@ -90,8 +86,7 @@ func TestPostDaemonPushConsumesSSE(t *testing.T) {
 
 	var progress []storage.PushProgress
 	result, err := postDaemonPush[storage.PushResult](
-		t.Context(), transport{URL: ts.URL}, "", mirrorPushOperation,
-		apiclient.DaemonPushRequest{},
+		t.Context(), transport{URL: ts.URL}, "", startupSyncOperation,
 		func(p storage.PushProgress) { progress = append(progress, p) },
 	)
 	require.NoError(t, err)
@@ -111,79 +106,11 @@ func TestPostDaemonPushJSONFallback(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	result, err := postDaemonPush[storage.PushResult, storage.PushProgress](
-		t.Context(), transport{URL: ts.URL}, "", mirrorPushOperation,
-		apiclient.DaemonPushRequest{}, nil,
+		t.Context(), transport{URL: ts.URL}, "", startupSyncOperation,
+		nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 7, result.SessionsPushed)
-}
-
-func TestDaemonPushWatchTransportRetriesWithoutScopeForOlderSchema(t *testing.T) {
-	attempts := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		var body map[string]jsontext.Value
-		if !assert.NoError(t, json.UnmarshalRead(r.Body, &body)) {
-			return
-		}
-		if attempts == 1 {
-			assert.Contains(t, body, "watch_batch")
-			assert.Contains(t, body, "watch_recovery")
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = w.Write([]byte(
-				`{"errors":[{"location":"body.watch_batch","message":"unexpected property"}]}`,
-			))
-			return
-		}
-		assert.NotContains(t, body, "watch_batch")
-		assert.NotContains(t, body, "watch_recovery")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"SessionsPushed":1}`))
-	}))
-	t.Cleanup(ts.Close)
-
-	batch := apiclient.SyncWatchBatch{Paths: []string{"/sessions/changed.jsonl"}}
-	recovery := apiclient.SyncWatchRecoveryScope{
-		AvailableRoots: []string{"/sessions"},
-		DeferredRoots:  []string{"/offline"},
-	}
-	result, err := postDaemonPush[storage.PushResult, storage.PushProgress](
-		t.Context(), transport{URL: ts.URL}, "", mirrorPushOperation,
-		apiclient.DaemonPushRequest{WatchBatch: &batch, WatchRecovery: &recovery}, nil,
-	)
-	require.NoError(t, err)
-	assert.Equal(t, 1, result.SessionsPushed)
-	assert.Equal(t, 2, attempts)
-}
-
-func TestDaemonPushWatchTransportOmitsScopeForKnownOlderDaemon(t *testing.T) {
-	attempts := 0
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		var body map[string]jsontext.Value
-		if !assert.NoError(t, json.UnmarshalRead(r.Body, &body)) {
-			return
-		}
-		assert.NotContains(t, body, "watch_batch")
-		assert.NotContains(t, body, "watch_recovery")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"SessionsPushed":1}`))
-	}))
-	t.Cleanup(ts.Close)
-
-	batch := apiclient.SyncWatchBatch{Paths: []string{"/sessions/changed.jsonl"}}
-	result, err := postDaemonPush[storage.PushResult, storage.PushProgress](
-		t.Context(), transport{
-			URL: ts.URL,
-			Runtime: &DaemonRuntime{
-				API: server.ScopedWatchPushAPIVersion - 1,
-			},
-		}, "", mirrorPushOperation,
-		apiclient.DaemonPushRequest{WatchBatch: &batch}, nil,
-	)
-	require.NoError(t, err)
-	assert.Equal(t, 1, result.SessionsPushed)
-	assert.Equal(t, 1, attempts)
 }
 
 func daemonEventStream(body io.Reader) *runtime.Stream[[]byte] {

@@ -235,23 +235,7 @@ func TestUnwatchedPollFolderRelease(t *testing.T) {
 					}
 					add := coordinator.AddObligation
 					releaseObligation := coordinator.RemoveObligation
-					if tc.mirrorWatch {
-						options := archivePushWatchWatcherOptions(nil, coordinator)
-						add = func(obligation pollingObligation) error {
-							return options.OnPollingRequired(agentsync.PollingObligation{
-								Key: obligation.Key, Probe: obligation.Probe,
-								Scopes: []agentsync.PollingScope{
-									{Agent: "claude", Root: obligation.Probe},
-									{Agent: "codex", Root: root},
-								},
-								ReleaseScopes: []agentsync.PollingScope{
-									{Agent: "claude", Root: root},
-									{Agent: "codex", Root: root},
-								},
-							})
-						}
-						releaseObligation = options.OnPollingReleased
-					}
+
 					var folders []string
 					var obligation pollingObligation
 					for i := range tc.folders {

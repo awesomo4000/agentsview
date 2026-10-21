@@ -24,7 +24,7 @@ import (
 	"go.kenn.io/agentsview/internal/config"
 	"go.kenn.io/agentsview/internal/db"
 	"go.kenn.io/agentsview/internal/dbtest"
-	"go.kenn.io/agentsview/internal/duckdb"
+
 	"go.kenn.io/agentsview/internal/parser"
 	"go.kenn.io/agentsview/internal/remotesync"
 	"go.kenn.io/agentsview/internal/service"
@@ -161,9 +161,7 @@ func newSyncRouteFixture(
 	for agent, dirs := range cfg.extraAgentDirs {
 		serverConfig.AgentDirs[agent] = append([]string(nil), dirs...)
 	}
-	serverOptions := []Option{
-		WithMirror(duckdb.Mirror{}),
-	}
+	serverOptions := []Option{}
 	if cfg.broadcaster != nil {
 		serverOptions = append(serverOptions, WithBroadcaster(cfg.broadcaster))
 	}

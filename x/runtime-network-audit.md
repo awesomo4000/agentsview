@@ -11,8 +11,8 @@ code enforcement, not an operating-system network sandbox.
   Built-in vendor CLI fallbacks and embedded model HTTP clients are removed.
 - Recall model extraction and embedding HTTP generation are disabled, including
   when an old configuration enables them. Recall background work only reconciles
-  eligibility against the local archive. Saved recall data and vector storage
-  remain available; new embeddings and semantic queries need a replacement encoder.
+  eligibility against the local archive. Saved recall data remains available. The embedding engine and semantic-search
+  controls were removed on 10/21/2026; retained search uses SQLite FTS.
 - SSH sync is removed. Remote HTTP archive sync and raw uploads refuse execution
   before opening a connection. Archive import and protocol bookkeeping remain.
 - GitHub PR aggregation and server token discovery/validation are disabled.
@@ -23,8 +23,8 @@ code enforcement, not an operating-system network sandbox.
   blocks external link clicks. Tauri refuses external URL handoff requests.
 - CLI daemon clients accept literal loopback IP addresses only. They ignore proxy
   environment variables and refuse redirects, DNS names, and remote addresses.
-- DuckDB retains local mirror queries but disables external access and automatic
-  extension loading/installation. Quack remote connections are removed.
+- DuckDB and Quack are removed, including the local mirror engine and native
+  libraries. Existing mirror and vector files are left untouched.
 
 Old configuration fields and response types may remain for compatibility. They
 cannot restore removed senders. HTTP fixtures retained in Go test files are not

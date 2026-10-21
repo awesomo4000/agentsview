@@ -147,18 +147,6 @@ actions:
       x-go-type-import:
         path: go.kenn.io/agentsview/internal/service
         name: service
-  - target: $.components.schemas.VectorBuildStatus
-    update:
-      x-go-type: vector.BuildStatus
-      x-go-type-import:
-        path: go.kenn.io/agentsview/internal/vector
-        name: vector
-  - target: $.components.schemas.VectorGenerationInfo
-    update:
-      x-go-type: vector.GenerationInfo
-      x-go-type-import:
-        path: go.kenn.io/agentsview/internal/vector
-        name: vector
   - target: $.components.schemas.AgentTotal
     update:
       x-go-type: service.AgentTotal
