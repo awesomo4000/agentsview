@@ -2770,5 +2770,14 @@
   "usage_all_projects": "すべてのプロジェクト",
   "usage_clear_selection": "選択をクリア",
   "usage_open_project": "開く",
-  "usage_loading": "読み込み中..."
+  "usage_loading": "読み込み中...",
+  "session_annotations_title": "セッションの注釈",
+  "session_annotations_tag": "新しいタグ",
+  "session_annotations_add": "タグを追加",
+  "session_annotations_remove": "{tag} を削除",
+  "session_annotations_summary": "セッションの要約",
+  "session_annotations_save": "要約を保存",
+  "session_annotations_load_failed": "要約を読み込めませんでした。セッションを開き直してください。",
+  "session_annotations_save_failed": "変更を保存できませんでした。下書きは保持されています。",
+  "session_annotations_saved": "要約を保存しました。"
 }

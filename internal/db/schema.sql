@@ -745,6 +745,13 @@ CREATE TABLE IF NOT EXISTS starred_sessions (
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- Operator summaries are independent of parser-owned session data.
+CREATE TABLE IF NOT EXISTS session_summaries (
+    session_id TEXT NOT NULL UNIQUE,
+    content TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
 -- Session labels: user- or tool-supplied tags. Like project assignments,
 -- rows are keyed by session id without a foreign key so a launcher can
 -- label a session before sync imports it, and parser writes never touch

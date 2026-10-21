@@ -389,5 +389,23 @@ The broad CLI selection still encounters the existing daemon-autostart fixture
 failure in TestSessionListJSONIncludesMachineLabelCatalog; the full CLI suite is
 not claimed green. No live archive or installed service was changed.
 
-Convenient manual tag editing and searchable approved summaries remain the next
-product work. This removal does not claim to implement either workflow.
+Manual tag editing and searchable summaries were added in the follow-up below.
+
+
+## Session tags and searchable summaries, 10/21/2026
+
+The session analysis panel now supports adding and removing tags and saving an
+editable summary. SQLite FTS searches saved summaries alongside transcripts.
+Summaries remain separate from transcript messages and usage accounting, survive
+reimports and archive rebuilds, and disappear with permanent session deletion.
+Read-only archives show annotations without editing controls.
+
+Summary editing does not invoke a model or make an external request. Users can
+type or paste a summary; connecting approved external harness output remains
+separate work.
+
+Validation: focused SQLite search, annotation, preservation, and read-only tests;
+the full server suite; Go formatting and vet; frontend type checks and 35 unit
+tests passed. All three browser checks passed for annotation persistence, FTS
+navigation, and local privacy restrictions using synthetic archives only. No live
+archive or installed service was changed.

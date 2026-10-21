@@ -2,6 +2,10 @@
 
 ## 10/21/2026
 
+- Add and remove session tags and edit a local summary in the Analysis panel.
+  Find saved summaries through SQLite FTS. Preserve annotations through
+  transcript reimports and archive rebuilds, separately from usage accounting.
+
 - Use SQLite FTS for session search, including browsers with old semantic-search
   preferences. Remove DuckDB, embedding engines, their commands and settings,
   and their native dependencies. Preserve the SQLite archive, user labels, and

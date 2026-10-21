@@ -1,7 +1,7 @@
 <!-- ABOUTME: Session Vital Signs panel — replaces ActivityMinimap on the right column. -->
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { Chip, CopyButton, Tooltip } from "@kenn-io/kit-ui";
+  import { CopyButton, Tooltip } from "@kenn-io/kit-ui";
   import { sessionTiming } from "../../stores/sessionTiming.svelte.js";
   import { liveTick } from "../../stores/liveTick.svelte.js";
   import { getApiV1SessionsByIdTiming as fetchSessionTiming } from "../../api/generated/sessions/sessions.js";
@@ -21,6 +21,7 @@
     DbTurnTiming as TurnTiming,
   } from "../../api/generated/index.js";
   import ActivityLane from "./ActivityLane.svelte";
+  import SessionAnnotations from "./SessionAnnotations.svelte";
   import RecallPanel from "./RecallPanel.svelte";
   import CallRow from "./CallRow.svelte";
   import CallGroup from "./CallGroup.svelte";
@@ -408,36 +409,9 @@
               </div>
             </div>
           {/if}
-          {#if labels.length > 0}
-            <div class="context-row">
-              <div class="context-text">
-                <div class="context-label">
-                  {m.session_vitals_labels()}
-                </div>
-                <div class="context-chips">
-                  {#each labels as label (label)}
-                    {#if onFilterLabel}
-                      <Chip
-                        size="xs"
-                        tone="neutral"
-                        uppercase={false}
-                        interactive
-                        title={m.session_vitals_filter_by_label({ label })}
-                        onclick={() => onFilterLabel(label)}
-                      >{label}</Chip>
-                    {:else}
-                      <Chip
-                        size="xs"
-                        tone="neutral"
-                        uppercase={false}
-                        title={label}
-                      >{label}</Chip>
-                    {/if}
-                  {/each}
-                </div>
-              </div>
-            </div>
-          {/if}
+          {#key sessionId}
+            <SessionAnnotations {sessionId} {labels} {onFilterLabel} />
+          {/key}
         </div>
       {/if}
       {#if timing}
@@ -928,17 +902,6 @@
   .context-link:hover,
   .context-link:focus-visible {
     text-decoration: underline;
-  }
-
-  .context-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    min-width: 0;
-  }
-
-  .context-chips :global(.kit-chip) {
-    max-width: 100%;
   }
 
   .context-tooltip :global(.kit-tooltip-trigger) {

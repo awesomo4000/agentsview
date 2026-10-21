@@ -2784,5 +2784,14 @@
   "usage_all_projects": "Bütün layihələr",
   "usage_clear_selection": "Seçimi təmizlə",
   "usage_open_project": "Aç",
-  "usage_loading": "Yüklənir..."
+  "usage_loading": "Yüklənir...",
+  "session_annotations_title": "Sessiya qeydləri",
+  "session_annotations_tag": "Yeni etiket",
+  "session_annotations_add": "Etiket əlavə et",
+  "session_annotations_remove": "{tag} sil",
+  "session_annotations_summary": "Sessiya xülasəsi",
+  "session_annotations_save": "Xülasəni saxla",
+  "session_annotations_load_failed": "Xülasə yüklənmədi. Sessiyanı yenidən açın.",
+  "session_annotations_save_failed": "Dəyişikliklər saxlanmadı. Qaralamanız qorunur.",
+  "session_annotations_saved": "Xülasə saxlanıldı."
 }

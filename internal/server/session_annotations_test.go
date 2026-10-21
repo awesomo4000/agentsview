@@ -119,3 +119,18 @@ func TestSessionAnnotationWatchWithFutureSyncMarker(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionSummaryAPI(t *testing.T) {
+	te := setup(t)
+	seedAnnotatedSession(t, te, "worker", nil)
+	w := te.put(t, "/api/v1/sessions/worker/summary", `{"content":"Investigated login retries"}`)
+	assertStatus(t, w, http.StatusOK)
+	w = te.get(t, "/api/v1/sessions/worker/summary")
+	assertStatus(t, w, http.StatusOK)
+	assert.Contains(t, w.Body.String(), "Investigated login retries")
+	w = te.put(t, "/api/v1/sessions/worker/summary", `{"content":""}`)
+	assertStatus(t, w, http.StatusOK)
+	summary, err := te.db.GetSessionSummary(t.Context(), "worker")
+	require.NoError(t, err)
+	assert.Empty(t, summary.Content)
+}

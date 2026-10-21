@@ -9,4 +9,8 @@ settings panel are removed. Saved browser mode preferences fall back to FTS.
 Existing vector files are not deleted. Legacy semantic API requests report
 unavailable; use lexical search instead.
 
-Searchable approved summaries and convenient manual tag editing are planned.
+Open a session and choose Show session analysis to add or remove tags and edit
+its summary. Save summary stores the text locally; it does not invoke a model.
+The search palette also matches saved summaries. Click a tag to filter sessions.
+These annotations survive transcript reimports. Automatic approved-harness
+summary generation is not connected to this panel yet.

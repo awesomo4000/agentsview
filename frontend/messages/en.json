@@ -2782,5 +2782,14 @@
   "usage_all_projects": "All projects",
   "usage_clear_selection": "Clear selection",
   "usage_open_project": "Open",
-  "usage_loading": "Loading..."
+  "usage_loading": "Loading...",
+  "session_annotations_title": "Session annotations",
+  "session_annotations_tag": "New tag",
+  "session_annotations_add": "Add tag",
+  "session_annotations_remove": "Remove {tag}",
+  "session_annotations_summary": "Session summary",
+  "session_annotations_save": "Save summary",
+  "session_annotations_load_failed": "Could not load the summary. Reopen the session to retry.",
+  "session_annotations_save_failed": "Could not save changes. Your draft is still here.",
+  "session_annotations_saved": "Summary saved."
 }

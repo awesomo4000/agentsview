@@ -59,6 +59,9 @@ const traceSession: Session = {
 
 vi.mock("../../api/generated/sessions/sessions.js", () => ({
   getApiV1SessionsByIdTiming: mocks.fetchSessionTiming,
+  getApiV1SessionsByIdSummary: vi
+    .fn()
+    .mockResolvedValue({ session_id: "sess-1", content: "", updated_at: "" }),
 }));
 
 import { ui } from "../../stores/ui.svelte.js";

@@ -2806,5 +2806,14 @@
   "usage_all_projects": "Todos los proyectos",
   "usage_clear_selection": "Borrar selección",
   "usage_open_project": "Abrir",
-  "usage_loading": "Cargando..."
+  "usage_loading": "Cargando...",
+  "session_annotations_title": "Anotaciones de la sesión",
+  "session_annotations_tag": "Nueva etiqueta",
+  "session_annotations_add": "Añadir etiqueta",
+  "session_annotations_remove": "Quitar {tag}",
+  "session_annotations_summary": "Resumen de la sesión",
+  "session_annotations_save": "Guardar resumen",
+  "session_annotations_load_failed": "No se pudo cargar el resumen. Vuelve a abrir la sesión.",
+  "session_annotations_save_failed": "No se pudieron guardar los cambios. Tu borrador se conserva.",
+  "session_annotations_saved": "Resumen guardado."
 }

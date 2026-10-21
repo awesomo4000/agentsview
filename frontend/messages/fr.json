@@ -2806,5 +2806,14 @@
   "usage_all_projects": "Tous les projets",
   "usage_clear_selection": "Effacer la sélection",
   "usage_open_project": "Ouvrir",
-  "usage_loading": "Chargement..."
+  "usage_loading": "Chargement...",
+  "session_annotations_title": "Annotations de la session",
+  "session_annotations_tag": "Nouvelle étiquette",
+  "session_annotations_add": "Ajouter",
+  "session_annotations_remove": "Retirer {tag}",
+  "session_annotations_summary": "Résumé de la session",
+  "session_annotations_save": "Enregistrer le résumé",
+  "session_annotations_load_failed": "Impossible de charger le résumé. Rouvrez la session.",
+  "session_annotations_save_failed": "Impossible d’enregistrer les modifications. Votre brouillon est conservé.",
+  "session_annotations_saved": "Résumé enregistré."
 }

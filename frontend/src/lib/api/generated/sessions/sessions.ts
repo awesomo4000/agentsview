@@ -7,6 +7,7 @@ import type {
   DbSessionActivityResponse,
   DbSessionExternalParent,
   DbSessionLabels,
+  DbSessionSummary,
   DbSessionTiming,
   DbSidebarSessionIndex,
   DeleteApiV1SessionsByIdPathParameters,
@@ -24,6 +25,7 @@ import type {
   GetApiV1SessionsByIdPathParameters,
   GetApiV1SessionsByIdSearchParams,
   GetApiV1SessionsByIdSearchPathParameters,
+  GetApiV1SessionsByIdSummaryPathParameters,
   GetApiV1SessionsByIdTimingPathParameters,
   GetApiV1SessionsByIdToolCallsPathParameters,
   GetApiV1SessionsByIdToolSequencesPathParameters,
@@ -43,6 +45,7 @@ import type {
   PostApiV1SessionsUploadBody,
   PostApiV1SessionsUploadParams,
   PutApiV1SessionsByIdParentPathParameters,
+  PutApiV1SessionsByIdSummaryPathParameters,
   RenameRequest,
   ResolveSessionIDsResponse,
   ResumeRequest,
@@ -55,6 +58,7 @@ import type {
   SessionToolSequencesResponse,
   SessionUsageResponse,
   SetSessionParentInputBody,
+  SetSessionSummaryInputBody,
   TrashResponse,
   UpdateSessionLabelsInputBody,
   UploadSessionResponse,
@@ -707,6 +711,66 @@ export const getApiV1SessionsByIdSearch = async (
   return orvalFetch<OrdinalsResponse>(getGetApiV1SessionsByIdSearchUrl({ id }, params), {
     ...options,
     method: "GET",
+  });
+};
+
+export const getGetApiV1SessionsByIdSummaryUrl = ({
+  id,
+}: GetApiV1SessionsByIdSummaryPathParameters) => {
+  return `/api/v1/sessions/${encodeURIComponent(String(id))}/summary`;
+};
+
+/**
+ * @summary Read session summary
+ */
+export const getApiV1SessionsByIdSummary = async (
+  { id }: GetApiV1SessionsByIdSummaryPathParameters,
+  options?: Parameters<typeof orvalFetch>[1],
+): Promise<DbSessionSummary> => {
+  return orvalFetch<DbSessionSummary>(getGetApiV1SessionsByIdSummaryUrl({ id }), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getPutApiV1SessionsByIdSummaryUrl = ({
+  id,
+}: PutApiV1SessionsByIdSummaryPathParameters) => {
+  return `/api/v1/sessions/${encodeURIComponent(String(id))}/summary`;
+};
+
+/**
+ * @summary Save session summary
+ */
+export const putApiV1SessionsByIdSummary = async (
+  { id }: PutApiV1SessionsByIdSummaryPathParameters,
+  setSessionSummaryInputBody: SetSessionSummaryInputBody,
+  options?: Parameters<typeof orvalFetch>[1],
+): Promise<DbSessionSummary> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return orvalFetch<DbSessionSummary>(getPutApiV1SessionsByIdSummaryUrl({ id }), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(setSessionSummaryInputBody),
   });
 };
 

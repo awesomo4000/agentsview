@@ -2701,5 +2701,14 @@
   "usage_all_projects": "모든 프로젝트",
   "usage_clear_selection": "선택 해제",
   "usage_open_project": "열기",
-  "usage_loading": "불러오는 중..."
+  "usage_loading": "불러오는 중...",
+  "session_annotations_title": "세션 주석",
+  "session_annotations_tag": "새 태그",
+  "session_annotations_add": "태그 추가",
+  "session_annotations_remove": "{tag} 삭제",
+  "session_annotations_summary": "세션 요약",
+  "session_annotations_save": "요약 저장",
+  "session_annotations_load_failed": "요약을 불러오지 못했습니다. 세션을 다시 열어 주세요.",
+  "session_annotations_save_failed": "변경 사항을 저장하지 못했습니다. 초안은 유지됩니다.",
+  "session_annotations_saved": "요약을 저장했습니다."
 }

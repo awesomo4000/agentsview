@@ -334,7 +334,7 @@ type SearchPage struct {
 }
 
 // Search performs FTS5 full-text search across messages, grouped by session,
-// plus a LIKE-based search on session display names and first messages.
+// plus saved-summary FTS matches and session names/first messages.
 //
 // Results come from two branches joined with UNION ALL:
 //
@@ -424,6 +424,7 @@ func (db *DB) Search(
 	//   2  | WHERE messages_fts MATCH ? (outer JOIN)     | f.Query
 	//   3  | WHEN COALESCE(display_name,session_name) LIKE ? (CASE) | likePattern
 	//   4  | WHEN s.first_message LIKE ? (CASE)          | likePattern
+	//      | summary FTS subquery MATCH ?               | f.Query
 	//   5  | WHERE COALESCE(display_name,session_name) LIKE ? (name WHERE) | likePattern
 	//   6  | WHERE s.first_message LIKE ? (name WHERE)   | likePattern
 	//  [7] | AND s.project = ? (name branch, optional)   | f.Project
@@ -435,6 +436,7 @@ func (db *DB) Search(
 	args = append(args, f.Query)             // (2) outer MATCH re-filter
 	args = append(args, likePattern)         // (3) CASE COALESCE(display_name,session_name) LIKE
 	args = append(args, likePattern)         // (4) CASE first_message LIKE
+	args = append(args, f.Query)             // summary FTS match
 	args = append(args, likePattern)         // (5) name WHERE COALESCE(display_name,session_name) LIKE
 	args = append(args, likePattern)         // (6) name WHERE first_message LIKE
 	args = append(args, nameProjectArgs...)  // (7) optional name branch project
@@ -488,6 +490,7 @@ func (db *DB) Search(
 				COALESCE(s.ended_at, s.started_at, '') AS session_ended_at,
 				-1 AS ordinal,
 				CASE
+					WHEN ss.content IS NOT NULL THEN replace(replace(replace(substr(ss.content,1,300),'&','&amp;'),'<','&lt;'),'>','&gt;')
 					WHEN COALESCE(s.display_name, s.session_name) LIKE ? ESCAPE '\'
 						THEN COALESCE(s.display_name, s.session_name, '')
 					WHEN s.first_message LIKE ? ESCAPE '\'
@@ -497,15 +500,17 @@ func (db *DB) Search(
 				0.0 AS rank,
 				0 AS match_pos
 			FROM sessions s
-			WHERE (COALESCE(s.display_name, s.session_name) LIKE ? ESCAPE '\'
+			LEFT JOIN session_summaries ss ON ss.session_id = s.id AND ss.rowid IN
+				(SELECT rowid FROM session_summaries_fts WHERE session_summaries_fts MATCH ?)
+			WHERE (ss.content IS NOT NULL OR COALESCE(s.display_name, s.session_name) LIKE ? ESCAPE '\'
 				OR s.first_message LIKE ? ESCAPE '\')
 				AND s.deleted_at IS NULL
-				AND EXISTS (
+				AND (ss.content IS NOT NULL OR EXISTS (
 					SELECT 1 FROM messages mx
 					WHERE mx.session_id = s.id
 					  AND mx.is_system = 0
 					  AND `+SystemPrefixSQL("mx.content", "mx.role")+`
-				)
+				))
 				%s
 				AND s.id NOT IN (
 					SELECT m2.session_id

@@ -5765,7 +5765,7 @@ func deleteSessionsTx(ctx context.Context, tx *sql.Tx, where string, args ...any
 }
 
 func deleteSessionAnnotationsTx(ctx context.Context, tx *sql.Tx, where string, args ...any) error {
-	for _, table := range []string{"session_labels", "session_external_parents"} {
+	for _, table := range []string{"session_labels", "session_summaries", "session_external_parents"} {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE session_id IN (SELECT id FROM sessions WHERE "+where+")", args...); err != nil {
 			return fmt.Errorf("deleting %s: %w", table, err)
 		}

@@ -2698,5 +2698,14 @@
   "usage_all_projects": "所有專案",
   "usage_clear_selection": "清除選擇",
   "usage_open_project": "開啟",
-  "usage_loading": "正在載入..."
+  "usage_loading": "正在載入...",
+  "session_annotations_title": "工作階段註記",
+  "session_annotations_tag": "新標籤",
+  "session_annotations_add": "新增標籤",
+  "session_annotations_remove": "移除 {tag}",
+  "session_annotations_summary": "工作階段摘要",
+  "session_annotations_save": "儲存摘要",
+  "session_annotations_load_failed": "無法載入摘要。請重新開啟工作階段。",
+  "session_annotations_save_failed": "無法儲存變更。草稿仍然保留。",
+  "session_annotations_saved": "摘要已儲存。"
 }

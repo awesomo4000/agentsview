@@ -1380,6 +1380,12 @@ func (d *DB) CopySessionMetadataFrom(
 
 	// Labels and launcher-supplied parents are user-owned and may name a
 	// session that has not synced yet, so every row is kept.
+	if oldDBHasTable(ctx, tx, "session_summaries") {
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO main.session_summaries(session_id,content,updated_at)
+        SELECT COALESCE(`+retiredCodexTargetSQL("session_id")+`,session_id),content,updated_at FROM old_db.session_summaries`); err != nil {
+			return fmt.Errorf("copying session summaries: %w", err)
+		}
+	}
 	if oldDBHasTable(ctx, tx, "session_labels") {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT OR IGNORE INTO main.session_labels

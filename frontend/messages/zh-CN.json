@@ -2695,5 +2695,14 @@
   "usage_all_projects": "所有项目",
   "usage_clear_selection": "清除选择",
   "usage_open_project": "打开",
-  "usage_loading": "正在加载..."
+  "usage_loading": "正在加载...",
+  "session_annotations_title": "会话注释",
+  "session_annotations_tag": "新标签",
+  "session_annotations_add": "添加标签",
+  "session_annotations_remove": "移除 {tag}",
+  "session_annotations_summary": "会话摘要",
+  "session_annotations_save": "保存摘要",
+  "session_annotations_load_failed": "无法加载摘要。请重新打开会话。",
+  "session_annotations_save_failed": "无法保存更改。草稿仍然保留。",
+  "session_annotations_saved": "摘要已保存。"
 }

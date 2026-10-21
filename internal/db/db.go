@@ -670,6 +670,20 @@ END;
 `
 
 const schemaFTS = `
+CREATE VIRTUAL TABLE IF NOT EXISTS session_summaries_fts USING fts5(
+    content, content='session_summaries', content_rowid='rowid', tokenize='porter unicode61'
+);
+CREATE TRIGGER IF NOT EXISTS session_summaries_ai AFTER INSERT ON session_summaries BEGIN
+    INSERT INTO session_summaries_fts(rowid,content) VALUES(new.rowid,new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS session_summaries_ad AFTER DELETE ON session_summaries BEGIN
+    INSERT INTO session_summaries_fts(session_summaries_fts,rowid,content) VALUES('delete',old.rowid,old.content);
+END;
+CREATE TRIGGER IF NOT EXISTS session_summaries_au AFTER UPDATE ON session_summaries BEGIN
+    INSERT INTO session_summaries_fts(session_summaries_fts,rowid,content) VALUES('delete',old.rowid,old.content);
+    INSERT INTO session_summaries_fts(rowid,content) VALUES(new.rowid,new.content);
+END;
+
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     content,
     content='messages',
@@ -1894,6 +1908,7 @@ var readOnlyRequiredTables = []string{
 	"worktree_project_mappings",
 	"session_project_assignments",
 	"session_labels",
+	"session_summaries",
 	"session_external_parents",
 	"archive_metadata",
 	"background_migrations",
@@ -4823,6 +4838,9 @@ func (db *DB) RebuildFTS(ctx context.Context) error {
 	w := db.getWriter()
 	if _, err := w.Exec(ctx, schemaFTS); err != nil {
 		return fmt.Errorf("recreate fts: %w", err)
+	}
+	if _, err := w.Exec(ctx, "INSERT INTO session_summaries_fts(session_summaries_fts) VALUES('rebuild')"); err != nil {
+		return err
 	}
 	_, err := w.Exec(ctx,
 		"INSERT INTO messages_fts(messages_fts)"+

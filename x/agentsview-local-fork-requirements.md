@@ -61,10 +61,10 @@ exploration.
 - Keep SQLite as the archive and analytics engine. Consider a separate DuckDB
   analysis tool only if measured queries justify it later.
 
-Current implementation already has conversation FTS indexes, session-label
-storage and mutation API, label display, and label filters. Searchable summaries
-and convenient in-UI tag editing still need implementation/verification. This
-section defines the target, not a claim that those workflows are finished.
+Current implementation includes conversation and summary FTS indexes, durable
+session-label storage, label filters, and tag/summary editing in the Analysis
+panel. Summaries can be entered or pasted by the user; automatic generation and
+project/workstream suggestions through the approved harness remain future work.
 
 ## Local server
 

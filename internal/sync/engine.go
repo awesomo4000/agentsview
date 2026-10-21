@@ -5085,6 +5085,11 @@ func (e *Engine) ClearSessionProjectAssignment(
 	return cleared, err
 }
 
+// SetSessionSummary serializes operator annotations with archive rebuilds.
+func (e *Engine) SetSessionSummary(ctx context.Context, id, content string) (db.SessionSummary, error) {
+	return runSessionAnnotationWrite(e, func() (db.SessionSummary, error) { return e.db.SetSessionSummary(ctx, id, content) }, func(db.SessionSummary) bool { return true })
+}
+
 // SetSessionLabels replaces one session's labels, serialized with parser
 // writes, then publishes the session inventory when the labels changed.
 func (e *Engine) SetSessionLabels(

@@ -140,5 +140,6 @@ cleanup also removes Arrow and the DuckDB platform libraries.
 
 Existing archive, mirror, and vector files are not deleted or migrated. Legacy
 configuration fields and semantic response/interfaces remain for compatibility;
-no production embedding searcher is installed. Searchable summaries and an
-in-UI tag editor remain separate unfinished work.
+no production embedding searcher is installed. Manual summary editing, summary FTS search, and tag editing are implemented
+in the Analysis panel. Automatic approved-harness summary generation remains
+separate work.

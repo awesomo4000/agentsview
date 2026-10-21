@@ -22,8 +22,8 @@ baseline. It describes upstream, including features this fork is removing.
 The [removal checklist](REMOVALS.md) tracks completed work and upcoming cuts.
 Targets include telemetry, update services, online pricing, external UI assets,
 S3, PostgreSQL, ClickHouse, web imports, and publishing. DuckDB and embedding engines
-are removed. Search uses SQLite FTS5; searchable approved summaries and easier
-tag editing remain planned. MCP remains for now. SSH/HTTP sync is removed.
+are removed. Search uses SQLite FTS5 across transcripts and saved summaries.
+The session Analysis panel supports manual tags and summary editing. MCP remains for now. SSH/HTTP sync is removed.
 Local log-to-SQLite ingestion stays.
 
 Removed so far: application telemetry, UI tracking, the artifact vault and

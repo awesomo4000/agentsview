@@ -19,6 +19,8 @@ func (s *Server) registerSessionAnnotationRoutes() {
 	group := huma.NewGroup(s.api, "/api/v1")
 	configureRouteGroup(group, "Sessions")
 
+	s.get(group, "/sessions/{id}/summary", "Read session summary", s.humaGetSessionSummary)
+	s.put(group, "/sessions/{id}/summary", "Save session summary", s.humaSetSessionSummary)
 	s.patch(group, "/sessions/{id}/labels", "Change session labels", s.humaUpdateSessionLabels)
 	s.put(group, "/sessions/{id}/parent", "Set or remove session parent link", s.humaSetSessionParent)
 }
@@ -89,4 +91,40 @@ func sessionAnnotationError(op string, err error) error {
 		return handled
 	}
 	return internalError(op, err)
+}
+
+type sessionSummaryInput struct {
+	ID string `path:"id" required:"true"`
+}
+type setSessionSummaryInput struct {
+	ID   string `path:"id" required:"true"`
+	Body struct {
+		Content string `json:"content" maxLength:"16000"`
+	}
+}
+
+func (s *Server) humaGetSessionSummary(ctx context.Context, in *sessionSummaryInput) (*jsonOutput[db.SessionSummary], error) {
+	local, ok := s.db.(*db.DB)
+	if !ok {
+		return nil, apiError(http.StatusNotImplemented, "local archive required")
+	}
+	result, err := local.GetSessionSummary(ctx, in.ID)
+	if err != nil {
+		return nil, internalError("read summary", err)
+	}
+	return &jsonOutput[db.SessionSummary]{Body: result}, nil
+}
+func (s *Server) humaSetSessionSummary(ctx context.Context, in *setSessionSummaryInput) (*jsonOutput[db.SessionSummary], error) {
+	local, _, err := s.localWorktreeMappingHumaDB()
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.syncEngineForLocal(ctx, local).SetSessionSummary(ctx, in.ID, in.Body.Content)
+	if errors.Is(err, db.ErrSessionSummaryInvalid) {
+		return nil, apiError(http.StatusBadRequest, err.Error())
+	}
+	if err != nil {
+		return nil, sessionAnnotationError("save summary", err)
+	}
+	return &jsonOutput[db.SessionSummary]{Body: result}, nil
 }
