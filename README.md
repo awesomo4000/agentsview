@@ -51,6 +51,14 @@ See the [runtime network audit](x/runtime-network-audit.md) for the enforced
 boundaries, retained local operations, and limits. This is application-level
 restriction, not an operating-system network sandbox.
 
+## CLI token reports
+
+Use `./agentsview report sessions` to review IDs and recognition hints,
+`report show SESSION_ID` to inspect one, and `report monthly --month YYYY-MM`
+for Markdown token totals. Keyword/model filters and include/exclude ID files
+let each team member curate a report without changing the archive.
+See [local token reports](docs/local-token-reports.md).
+
 ## Build
 
 The current build uses the inherited toolchain: Go 1.27.2 with CGO, a C compiler,

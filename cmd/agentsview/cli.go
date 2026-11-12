@@ -117,6 +117,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newProjectsCommand())
 	root.AddCommand(newHealthCommand())
 	root.AddCommand(newUsageCommand())
+	root.AddCommand(newReportCommand())
 	root.AddCommand(newActivityCommand())
 	root.AddCommand(newRawSyncCommand())
 	root.AddCommand(newSessionCommand())

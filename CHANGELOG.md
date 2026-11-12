@@ -2,6 +2,11 @@
 
 ## 11/12/2026
 
+- Review and curate sessions from the CLI, then produce monthly Markdown token
+  reports by model, backend, and harness. Filter by keywords or exact session
+  IDs without tagging or deleting data. Reports are read-only and omit monetary
+  estimates; unknown usage and backend identity remain explicit.
+
 - Preserve Pi thinking levels and repair Pi/OMP subagent parent links. Keep
   Codex code-mode wait output and incremental polling, and preserve Claude
   command arguments containing `<`. Reparse affected recordings in place.

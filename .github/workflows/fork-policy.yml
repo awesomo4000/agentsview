@@ -29,3 +29,5 @@ jobs:
         run: |
           go test -p 1 -tags fts5 ./internal/parser ./internal/ingest
           go test -p 1 -tags fts5 ./internal/db -run 'Upgrade.*(Reparse|Preserve)|ValidateDataVersionScopes|SessionSummary'
+      - name: Check local token reports
+        run: go test -p 1 -tags fts5 ./internal/db ./cmd/agentsview -run 'TestTokenReport|TestReportCLI'
