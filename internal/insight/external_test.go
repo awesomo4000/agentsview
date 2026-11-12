@@ -33,3 +33,11 @@ func TestExternalUsesConfiguredIdentityAndPreservesAttempt(t *testing.T) {
 	require.EqualValues(t, 123, *record.InsightID)
 	require.Nil(t, record.Observation.Usage)
 }
+
+// A default installation must refuse generation before invoking any executable.
+func TestUnconfiguredInsightCannotLaunch(t *testing.T) {
+	result, err := GenerateStreamWithOptions(t.Context(), "external", "synthetic private prompt", nil, GenerateOptions{})
+	require.ErrorContains(t, err, "external harness is not configured")
+	require.Empty(t, result.Content)
+	require.Empty(t, result.ExecutionID)
+}

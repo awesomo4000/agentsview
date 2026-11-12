@@ -409,3 +409,15 @@ the full server suite; Go formatting and vet; frontend type checks and 35 unit
 tests passed. All three browser checks passed for annotation persistence, FTS
 navigation, and local privacy restrictions using synthetic archives only. No live
 archive or installed service was changed.
+
+## Selected collector updates, 11/12/2026
+
+Backported six upstream changes for Pi/OMP reasoning and lineage, Codex
+code-mode waits, and Claude command text. Fork-local scoped upgrades preserve
+archive identities and annotations. The existing UI and removed transports
+remain unchanged. No model executable is configured by default.
+
+Added a dependency/runtime policy gate and a CI workflow for the minimization
+branch. See [the upstream update ledger](x/upstream-updates.md) for exact source
+commits, validation, limitations, and pending accounting changes. The original
+full-tree base in `UPSTREAM` remains unchanged.

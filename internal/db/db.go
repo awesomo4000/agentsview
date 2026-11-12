@@ -582,7 +582,10 @@ CREATE INDEX IF NOT EXISTS idx_provider_freshness_updated_at
 // linked to its thread, instead of codex:<rollout>. This changes session ids,
 // so it is a full rebuild; the resync's curation copy moves the old row's
 // state to the new id.)
-const dataVersion = 134
+// Fork versions 135-138 selectively backport Pi/OMP lineage and effort,
+// Codex code-mode wait results, and Claude command argument preservation.
+// These numbers are fork-local; see x/upstream-updates.md.
+const dataVersion = 138
 
 const archiveOnlyVersionBase = 1 << 20
 

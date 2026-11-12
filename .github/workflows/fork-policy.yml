@@ -1,0 +1,31 @@
+name: Fork policy
+
+on:
+  push:
+    branches: [minimization]
+  pull_request:
+    branches: [minimization]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - name: Check fork dependency and runtime policy
+        run: python3 scripts/check-fork-policy.py
+      - name: Check collector and archive upgrades
+        run: |
+          go test -p 1 -tags fts5 ./internal/parser ./internal/ingest
+          go test -p 1 -tags fts5 ./internal/db -run 'Upgrade.*(Reparse|Preserve)|ValidateDataVersionScopes|SessionSummary'

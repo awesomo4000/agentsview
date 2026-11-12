@@ -527,6 +527,11 @@ fixtures retain this field; missing identities remain source-local.
   recognizes the anchored layout and attributes it to `REPO`. Evidence remains
   `no-public-source`.
 
+Fork backport review, 11/12/2026: upstream commit `9a5beba6a` preserves
+literal less-than characters and multiline text inside command-args envelopes.
+The imported parser regression and archive reparse test cover this behavior.
+Fork data version 138 covers every registered consumer of that shared parser.
+
 ## OpenClaude (`openclaude`)
 
 - **Format:** OpenClaude JSONL with Claude-compatible message content and usage
@@ -1129,6 +1134,14 @@ fixtures retain this field; missing identities remain source-local.
   HTTP regression `TestHostedResumeUsesCapturedProviderIdentity` checks
   commands for both base and variant URLs. This is an Agentsview integration
   check; the producer format is unchanged.
+
+Fork backport review, 11/12/2026: upstream commits `a159d61e4` and
+`472db3d97` distinguish code-mode `wait` calls with `cell_id` from subagent
+waits. Completed and running cell outputs become ordinary tool results;
+compatible polls stay incremental. Synthetic full/incremental parsing and
+archive-upgrade fixtures cover the recorded shapes. Fork data version 137
+reparses the Codex family. This is an upstream fixture-based compatibility
+backport, not a new survey of private recordings.
 
 ## TraeX (`traex`)
 
@@ -2569,8 +2582,9 @@ schemas keep their existing ordering behavior.
   `getSubagentSessionRoot` puts a child session under the parent transcript's
   stem (`<project>/<parent>/<runId>/run-N/session.jsonl`), forked children
   land one level over in `<parent>/forks/`, and a delegated child repeats the
-  same shape below its own `session.jsonl`. Fresh children carry no
-  `parentSession` header; forked children record the parent path as usual.
+  same shape below its own `session.jsonl`. In that release fresh children
+  carry no `parentSession` header; newer releases also record it for fresh
+  children, as covered by the fork backport note below.
   Agentsview indexes a transcript at any depth. It links a fresh child at
   `<parent>/<runId>/run-N/session.jsonl` to `<parent>.jsonl` as a subagent
   when that parent is a Pi transcript, and an explicit `sessionDir` with no
@@ -2599,6 +2613,16 @@ schemas keep their existing ordering behavior.
   stored path or fingerprint hint scans discovered session headers after the
   filename and directory lookups miss. Data version 109 reparses stored native
   Pi sessions to repair lineage edges and fork classification.
+
+Fork backport review, 11/12/2026: imported the reasoning-effort mapping from
+upstream commit `e447c92167a4469cbfc8f0bc49621afce2dfb337` and the header-parented
+subagent fix from `2f6b3b45c5fe3f0c01cf1fdb4b10483b1c57e110`. Inline
+`message.thinkingLevel` wins over the latest `thinking_level_change`; absent
+values remain unknown. Run-directory children remain subagents even when their
+headers name a parent. Parent lookup cannot resolve the child to itself.
+These changes use fork data version 135. This review used upstream patches,
+their recorded producer evidence, and synthetic regressions, not private logs.
+
 
 ## Prime Agent (`prime-agent`)
 
@@ -2708,6 +2732,16 @@ schemas keep their existing ordering behavior.
   with a `skill://<name>` path, percent-decodes namespaced skill names, and
   accepts a relative resource path after the name. Agentsview attributes only
   the URI in the Pi-family read path and decodes the name before storing it.
+
+Fork backport review, 11/12/2026: upstream commit `48659d435` records the
+producer change `ababe481f1d3137b681b5c61f89f67541628507b` introducing path-valued
+`parentSession` for task children. The imported parser accepts both raw IDs and
+paths, resolves paths through session headers, and recognizes nested subagents.
+Missing or invalid path targets remain unresolved instead of becoming invented
+filename IDs. Fork data version 136 reparses OMP in place; regression coverage
+includes retained curation and unavailable sources. Producer evidence is inherited
+from that upstream review, not independently reverified against a live harness.
+
 
 ## StepCode (`stepcode`)
 

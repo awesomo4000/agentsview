@@ -1,5 +1,13 @@
 # Changelog
 
+## 11/12/2026
+
+- Preserve Pi thinking levels and repair Pi/OMP subagent parent links. Keep
+  Codex code-mode wait output and incremental polling, and preserve Claude
+  command arguments containing `<`. Reparse affected recordings in place.
+- Add a selective upstream-update ledger and a dependency/runtime policy check
+  for the local-only fork. These checks do not automatically approve new code.
+
 ## 10/21/2026
 
 - Add and remove session tags and edit a local summary in the Analysis panel.

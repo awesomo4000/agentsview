@@ -712,17 +712,23 @@ func (b *codexSessionBuilder) handleFunctionCall(
 		return
 	}
 	callID := payload.Get("call_id").Str
-	if callID != "" {
-		b.callNames[callID] = name
-	}
 
 	content := formatCodexFunctionCall(name, payload)
 	inputJSON := extractCodexInputJSON(payload)
 	skillName := inferCodexSkillNameWithBase(b.projectContext, name, inputJSON, b.cwd)
 	waitAgentIDs := []string(nil)
+	outputName := name
 	if isCodexWaitAgentCall(name) && callID != "" {
 		args, _ := parseCodexFunctionArgs(payload)
 		waitAgentIDs = codexWaitAgentIDs(args)
+		if name == "wait" && strings.TrimSpace(args.Get("cell_id").Str) != "" &&
+			!args.Get("ids").Exists() && !args.Get("targets").Exists() {
+			// Keep the display name, but route code-mode polls as ordinary results.
+			outputName = "code_mode_wait"
+		}
+	}
+	if callID != "" {
+		b.callNames[callID] = outputName
 	}
 
 	call := ParsedToolCall{
@@ -762,7 +768,7 @@ func (b *codexSessionBuilder) handleFunctionCall(
 			MessageOrdinal: messageOrdinal,
 			CallIndex:      0,
 		}
-		if !b.rememberToolCall(callID, name, position) {
+		if !b.rememberToolCall(callID, outputName, position) {
 			b.checkpointUnsafe = true
 		}
 	}
@@ -1472,6 +1478,12 @@ func codexWaitAgentIDs(args gjson.Result) []string {
 
 func isCodexWaitAgentCall(name string) bool {
 	return name == "wait" || name == "wait_agent"
+}
+
+// Code-mode wait resumes an exec cell and binds no agents.
+func isCodexExecCellWait(name string, args gjson.Result) bool {
+	return name == "wait" && args.Get("cell_id").Str != "" &&
+		len(codexWaitAgentIDs(args)) == 0
 }
 
 func parseCodexSubagentNotification(
@@ -2979,7 +2991,12 @@ func (b *codexSessionBuilder) codexIncrementalNeedsFullParse(
 func (b *codexSessionBuilder) codexResponseItemNeedsFullParse(payload gjson.Result) bool {
 	switch payload.Get("type").Str {
 	case "function_call", "custom_tool_call":
-		return isCodexWaitAgentCall(payload.Get("name").Str)
+		name := payload.Get("name").Str
+		if !isCodexWaitAgentCall(name) {
+			return false
+		}
+		args, _ := parseCodexFunctionArgs(payload)
+		return !isCodexExecCellWait(name, args)
 	case "function_call_output", "custom_tool_call_output":
 		output, raw := parseCodexFunctionOutput(payload, b.agent)
 		if isCodexSubagentFunctionOutput(output) {
@@ -2990,7 +3007,7 @@ func (b *codexSessionBuilder) codexResponseItemNeedsFullParse(payload gjson.Resu
 		}
 		name := b.toolCallNameForOutput(payload.Get("call_id").Str)
 		return name == "" || name == "spawn_agent" ||
-			isCodexWaitAgentCall(name)
+			(isCodexWaitAgentCall(name) && output.Get("status").IsObject())
 	default:
 		role := payload.Get("role").Str
 		if role != "user" {

@@ -95,7 +95,8 @@ networking packages or subprocess symbols does not fit the retained UI.
 - [ ] Run dependency cleanup after each cut and record remaining dependency paths.
 - [ ] Record binary size and dependency counts at meaningful checkpoints.
 - [ ] Pin and vendor release dependencies where supported.
-- [ ] Establish a repeatable process for applying upstream parser/ingestion fixes.
+- [x] Establish a selective upstream parser/ingestion update process with a
+      patch ledger and dependency/runtime gates. See [upstream updates](x/upstream-updates.md).
 
 ## Acceptance before calling it minimized
 

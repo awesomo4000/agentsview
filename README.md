@@ -71,6 +71,9 @@ The server and desktop default to `127.0.0.1:47831`. Use `--port 47832` or
 error instead of silently selecting another. Explicit `--port 0` requests a
 temporary port. A high port does not prevent local browser access.
 
+For selected parser backports and the local-only regression gate, see
+[upstream updates](x/upstream-updates.md).
+
 ## Working on this fork
 
 - Commit and push fork work to
