@@ -9,7 +9,7 @@ existing insight selector, or set it as the default:
 default_agent = "external"
 
 [insights.external]
-id = "groundloop-ai"
+id = "external-ai"
 binary = "/absolute/path/to/ai"
 args = ["--pipe", "-m", "codex/gpt-6-luna"]
 format = "text"
@@ -83,7 +83,7 @@ restrictions are documented in the [runtime network audit](runtime-network-audit
 ## Verification
 
 The production adapter returned `SYNTHETIC_OK` from a synthetic prompt through
-the Groundloop client in text mode. The record correctly remained
+the external client in text mode. The record correctly remained
 `unverified_response`, with no invented token counts or reported model. Tests
 cover strict JSON, truncated answers, nonzero exits with usage, missing counters,
 separate backends, cancellation, output limits, and reopening saved records.

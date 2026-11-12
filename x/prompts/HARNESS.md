@@ -108,7 +108,7 @@ Recall extraction and embeddings currently use separate HTTP clients. They do
 not automatically use this harness adapter. The extracted recall prompts can be
 reused, but wiring their structured response contract to a binary is still work.
 
-## Groundloop ai probe
+## External ai probe
 
 On 10/17/2026, the real `ai --pipe -m codex/gpt-6-luna` command successfully
 processed a synthetic three-fact session through the production

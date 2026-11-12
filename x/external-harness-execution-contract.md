@@ -49,7 +49,7 @@ concurrently. Enforce output bounds and a deadline; record exit status and
 cancellation. Do not persist stdout/stderr indiscriminately, because diagnostics
 may contain transcript content or secrets. Stderr is not a usage protocol.
 
-The production adapter identity should be `groundloop-ai` or another configured
+The production adapter identity should be `external-ai` or another configured
 harness ID, independently of model and provider. Keep executable/version identity
 in local provenance; exclude credentials, raw environment, and authenticated URLs.
 The precise credential environment policy remains a separate implementation
@@ -165,8 +165,8 @@ verified complete. A strict mode should require positive completion evidence.
    links to its answer and source-reference set, not to source-session charges.
    Preserve raw observed counters alongside normalized facts and pricing results.
 3. Have the external client expose structured metadata from its provider
-   response, including finish reason. This requires work in Groundloop; plain
-   answer output cannot supply these fields reliably.
+   response, including finish reason. This requires work in the external client;
+   plain answer output cannot supply these fields reliably.
 4. Add backend/deployment dimensions to accounting, export, cache identities,
    and relevant UI groupings. Preserve unknown historical attribution.
 5. Remove embedded insight/recall/embedding HTTP clients after the replacement
